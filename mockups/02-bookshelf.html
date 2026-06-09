@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom · 概念2 书架翻页</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={theme:{extend:{fontFamily:{sans:['Plus Jakarta Sans','sans-serif'],display:['Space Grotesk','sans-serif']}}}}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+ body{font-family:'Plus Jakarta Sans',sans-serif}
+ .display{font-family:'Space Grotesk',sans-serif}
+ .paper{background-color:#fdfcf9;background-image:linear-gradient(#eef0ee 1px,transparent 1px);background-size:100% 30px;}
+ .spine{box-shadow:inset -6px 0 12px -6px rgba(0,0,0,.25)}
+ .book{transition:transform .2s}
+ .book:hover{transform:translateY(-6px)}
+</style>
+</head>
+<body class="bg-[#f3f1ec] text-slate-800 h-screen flex overflow-hidden">
+
+<!-- Bookshelf sidebar -->
+<aside class="w-64 shrink-0 bg-[#2c2a33] text-slate-200 flex flex-col">
+  <div class="px-5 py-4 flex items-center gap-2 border-b border-white/10">
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center text-white display font-bold">B</div>
+    <span class="display font-bold">BrainStrom</span>
+  </div>
+  <div class="px-5 pt-4 pb-2 text-[10px] uppercase tracking-wider text-white/40">我的书架</div>
+  <div class="px-4 space-y-2 overflow-y-auto">
+    <div class="book bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-r-md spine p-3 cursor-pointer ring-2 ring-fuchsia-400">
+      <div class="text-sm font-semibold">AI 旅行规划助手</div>
+      <div class="text-[11px] text-white/60">12 页灵感</div>
+    </div>
+    <div class="book bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-r-md spine p-3 cursor-pointer">
+      <div class="text-sm font-semibold">语音记账 App</div>
+      <div class="text-[11px] text-white/60">7 页灵感</div>
+    </div>
+    <div class="book bg-gradient-to-br from-rose-500 to-rose-700 rounded-r-md spine p-3 cursor-pointer">
+      <div class="text-sm font-semibold">宠物社交平台</div>
+      <div class="text-[11px] text-white/60">4 页灵感</div>
+    </div>
+    <div class="book bg-white/5 border border-dashed border-white/20 rounded-r-md p-3 cursor-pointer text-white/50 text-sm">＋ 新建笔记本</div>
+  </div>
+  <div class="mt-auto p-4 text-[11px] text-white/40">每一本 = 一个系统构想</div>
+</aside>
+
+<!-- Open notebook spread -->
+<main class="flex-1 flex items-stretch p-8 gap-0">
+  <div class="flex-1 bg-white rounded-l-2xl shadow-2xl paper relative overflow-hidden">
+    <!-- left page: cover/index -->
+    <div class="absolute inset-y-0 right-0 w-px bg-slate-200"></div>
+    <div class="p-8">
+      <div class="text-[11px] tracking-widest text-slate-400 display">NOTEBOOK · 01</div>
+      <h1 class="display text-3xl font-bold mt-1">AI 旅行规划助手</h1>
+      <p class="text-sm text-slate-500 mt-2 max-w-xs">一句话生成完整旅行行程，像跟朋友聊天那样规划。</p>
+      <div class="mt-6 text-[10px] uppercase tracking-wider text-slate-400 mb-2">目录 · 按分类</div>
+      <ul class="space-y-2 text-sm">
+        <li class="flex items-center justify-between pr-4"><span class="flex gap-2 items-center"><span class="w-2 h-2 rounded-full bg-amber-400"></span>💡 我想做什么</span><span class="text-slate-300">3</span></li>
+        <li class="flex items-center justify-between pr-4"><span class="flex gap-2 items-center"><span class="w-2 h-2 rounded-full bg-sky-400"></span>🔄 它怎么运作</span><span class="text-slate-300">2</span></li>
+        <li class="flex items-center justify-between pr-4"><span class="flex gap-2 items-center"><span class="w-2 h-2 rounded-full bg-violet-400"></span>🧰 用什么来做</span><span class="text-slate-300">4</span></li>
+        <li class="flex items-center justify-between pr-4"><span class="flex gap-2 items-center"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>📍 先做哪后做哪</span><span class="text-slate-300">1</span></li>
+        <li class="flex items-center justify-between pr-4"><span class="flex gap-2 items-center"><span class="w-2 h-2 rounded-full bg-rose-400"></span>🎨 它长什么样</span><span class="text-slate-300">1</span></li>
+        <li class="flex items-center justify-between pr-4"><span class="flex gap-2 items-center"><span class="w-2 h-2 rounded-full bg-slate-400"></span>🔗 灵感来源</span><span class="text-slate-300">1</span></li>
+      </ul>
+      <div class="mt-8 rounded-xl bg-indigo-50 border border-indigo-100 p-3">
+        <div class="text-[10px] font-semibold text-indigo-500 flex items-center gap-1">✦ AI 帮你看这本</div>
+        <p class="text-xs text-indigo-900/70 mt-1">「工具」类灵感偏多，但「怎么运作」还很模糊，建议补一张主流程图。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- right page: current entry with modules -->
+  <div class="flex-1 bg-white rounded-r-2xl shadow-2xl paper relative overflow-y-auto">
+    <div class="p-8">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-600">🔄 它怎么运作</span>
+        <span class="text-[11px] text-slate-400">第 5 页</span>
+      </div>
+      <h2 class="display text-2xl font-bold">主流程：从一句话到行程卡</h2>
+      <!-- mind map module -->
+      <div class="mt-4 rounded-xl border border-slate-200 p-3 bg-white/60">
+        <div class="text-[10px] text-slate-400 mb-1">模组 · 心智图</div>
+        <svg viewBox="0 0 360 120" class="w-full">
+          <line x1="60" y1="60" x2="150" y2="60" stroke="#bae6fd" stroke-width="2"/>
+          <line x1="210" y1="60" x2="300" y2="30" stroke="#bae6fd" stroke-width="2"/>
+          <line x1="210" y1="60" x2="300" y2="90" stroke="#bae6fd" stroke-width="2"/>
+          <rect x="6" y="46" width="56" height="28" rx="8" fill="#e0f2fe"/><text x="34" y="64" font-size="10" fill="#0369a1" text-anchor="middle">一句话</text>
+          <rect x="150" y="46" width="62" height="28" rx="8" fill="#0ea5e9"/><text x="181" y="64" font-size="10" fill="#fff" text-anchor="middle">AI 拆解</text>
+          <rect x="300" y="16" width="56" height="28" rx="8" fill="#e0f2fe"/><text x="328" y="34" font-size="10" fill="#0369a1" text-anchor="middle">查地图</text>
+          <rect x="300" y="76" width="56" height="28" rx="8" fill="#e0f2fe"/><text x="328" y="94" font-size="10" fill="#0369a1" text-anchor="middle">查天气</text>
+        </svg>
+      </div>
+      <!-- text module -->
+      <div class="mt-3 rounded-xl border border-slate-200 p-4">
+        <div class="text-[10px] text-slate-400 mb-1">模组 · 文字</div>
+        <p class="text-sm leading-relaxed text-slate-700">关键是 AI 要把「我想去海边放松三天」这种模糊的话，拆成<strong>地点 + 天数 + 偏好</strong>三个结构化字段，再去调外部 API。这一步做好，体验就成立了。</p>
+      </div>
+      <!-- github module -->
+      <div class="mt-3 rounded-xl border border-slate-200 p-3 flex items-center gap-3">
+        <div class="text-[10px] text-slate-400 absolute">…</div>
+        <div class="w-9 h-9 rounded-lg bg-slate-900 text-white grid place-items-center">⌥</div>
+        <div class="flex-1">
+          <div class="text-sm font-semibold">vercel/ai</div>
+          <div class="text-xs text-slate-400">做流式对话的现成工具包</div>
+        </div>
+        <span class="text-[11px] text-slate-400">★ 11k</span>
+      </div>
+    </div>
+    <!-- AI ask corner -->
+    <div class="sticky bottom-0 inset-x-0 p-4 bg-gradient-to-t from-white via-white/95 to-transparent">
+      <div class="bg-slate-900 text-white rounded-xl p-2.5 flex items-center gap-2 shadow-lg">
+        <span class="text-fuchsia-300">✦</span>
+        <input class="flex-1 bg-transparent outline-none text-sm" placeholder="问 AI 这本笔记本里的任何事…">
+        <button class="text-xs px-2.5 py-1 rounded-lg bg-white/10">问</button>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

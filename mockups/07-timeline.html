@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom · 概念7 开发日志时间轴</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Plus Jakarta Sans','sans-serif'],display:['Space Grotesk','sans-serif']}}}}</script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Plus Jakarta Sans',sans-serif}.display{font-family:'Space Grotesk',sans-serif}</style>
+</head>
+<body class="bg-[#f6f7f9] text-slate-800 min-h-screen">
+
+<header class="sticky top-0 z-20 bg-white border-b border-slate-200">
+  <div class="max-w-3xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center text-white display font-bold">B</div><div class="text-sm font-bold display">AI 旅行规划助手 · 灵感日志</div></div>
+    <div class="flex gap-1 text-xs"><span class="px-2.5 py-1 rounded-md text-slate-400 hover:bg-slate-100 cursor-pointer">看板</span><span class="px-2.5 py-1 rounded-md bg-slate-900 text-white">时间轴</span></div>
+  </div>
+</header>
+
+<!-- capture -->
+<div class="max-w-3xl mx-auto px-6 pt-5">
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex items-center gap-2">
+    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center text-white shrink-0">✦</div>
+    <input class="flex-1 bg-transparent outline-none text-sm px-1" placeholder="今天想到什么？记一笔，AI 自动归类并排进时间线…">
+    <button class="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm">记一笔</button>
+  </div>
+</div>
+
+<main class="max-w-3xl mx-auto px-6 py-8">
+  <div class="relative pl-8 border-l-2 border-slate-200 space-y-8">
+
+    <!-- entry -->
+    <div class="relative">
+      <span class="absolute -left-[41px] top-1 w-4 h-4 rounded-full bg-amber-400 ring-4 ring-[#f6f7f9]"></span>
+      <div class="text-[11px] text-slate-400 mb-1">今天 · 14:20</div>
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-600">💡 我想做什么</span>
+        <h3 class="display text-lg font-bold mt-2">一句话生成完整旅行行程</h3>
+        <p class="text-sm text-slate-600 mt-1">像跟懂你的朋友聊天那样规划，给「不想做攻略」的懒人用。</p>
+        <div class="mt-3 rounded-xl bg-indigo-50 border border-indigo-100 p-3 text-[11px] text-indigo-900/70"><span class="font-semibold text-indigo-500">✦ AI：</span>这是个清晰的产品定位，已自动归到「我想做什么」。要不要我帮你拆一张主流程图？</div>
+      </div>
+    </div>
+
+    <!-- entry: flow + mind map -->
+    <div class="relative">
+      <span class="absolute -left-[41px] top-1 w-4 h-4 rounded-full bg-sky-400 ring-4 ring-[#f6f7f9]"></span>
+      <div class="text-[11px] text-slate-400 mb-1">今天 · 11:05</div>
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-600">🔄 它怎么运作</span>
+        <h3 class="display text-lg font-bold mt-2">主流程草图</h3>
+        <div class="mt-3 rounded-xl border border-slate-200 p-3">
+          <svg viewBox="0 0 480 110" class="w-full">
+            <line x1="80" y1="55" x2="190" y2="55" stroke="#bae6fd" stroke-width="2"/><line x1="280" y1="55" x2="390" y2="28" stroke="#bae6fd" stroke-width="2"/><line x1="280" y1="55" x2="390" y2="85" stroke="#bae6fd" stroke-width="2"/>
+            <rect x="8" y="40" width="72" height="30" rx="9" fill="#e0f2fe"/><text x="44" y="59" font-size="10" fill="#0369a1" text-anchor="middle">一句话</text>
+            <rect x="190" y="40" width="90" height="30" rx="9" fill="#0ea5e9"/><text x="235" y="59" font-size="10" fill="#fff" text-anchor="middle">AI 拆字段</text>
+            <rect x="390" y="14" width="80" height="28" rx="9" fill="#e0f2fe"/><text x="430" y="32" font-size="9" fill="#0369a1" text-anchor="middle">地图 API</text>
+            <rect x="390" y="71" width="80" height="28" rx="9" fill="#e0f2fe"/><text x="430" y="89" font-size="9" fill="#0369a1" text-anchor="middle">天气 API</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- entry: github -->
+    <div class="relative">
+      <span class="absolute -left-[41px] top-1 w-4 h-4 rounded-full bg-violet-400 ring-4 ring-[#f6f7f9]"></span>
+      <div class="text-[11px] text-slate-400 mb-1">昨天 · 22:30</div>
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-600">🧰 用什么来做</span>
+        <div class="mt-3 rounded-xl bg-slate-900 text-slate-100 p-4">
+          <div class="flex items-center gap-2 text-sm font-semibold">🐙 supabase/supabase</div>
+          <p class="text-xs text-slate-400 mt-1">开源后端，做用户/数据库/登录，省掉自己搭服务器。</p>
+          <div class="text-[11px] text-slate-500 mt-2">★ 72k · TypeScript</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- entry: source video -->
+    <div class="relative">
+      <span class="absolute -left-[41px] top-1 w-4 h-4 rounded-full bg-slate-400 ring-4 ring-[#f6f7f9]"></span>
+      <div class="text-[11px] text-slate-400 mb-1">前天 · 09:10</div>
+      <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div class="h-40 bg-gradient-to-br from-rose-200 via-fuchsia-200 to-indigo-200 grid place-items-center"><div class="w-12 h-12 rounded-full bg-white/90 grid place-items-center shadow">▶</div></div>
+        <div class="p-5"><span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">🔗 灵感来源</span><h3 class="text-base font-semibold mt-2">How I built an AI travel app in a weekend</h3></div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<button class="fixed bottom-6 right-6 px-4 py-3 rounded-full bg-slate-900 text-white shadow-2xl flex items-center gap-2 text-sm"><span class="text-fuchsia-300">✦</span>问 AI / 看市场分析</button>
+</body>
+</html>

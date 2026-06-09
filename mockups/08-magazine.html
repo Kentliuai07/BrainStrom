@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom · 概念8 杂志拼贴</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Plus Jakarta Sans','sans-serif'],display:['Space Grotesk','sans-serif']}}}}</script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Plus Jakarta Sans',sans-serif}.display{font-family:'Space Grotesk',sans-serif}</style>
+</head>
+<body class="bg-[#f0eee9] text-slate-900 min-h-screen">
+
+<header class="border-b-2 border-slate-900">
+  <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg bg-slate-900 text-white grid place-items-center display font-bold">B</div><span class="display font-bold tracking-tight">BRAINSTROM</span></div>
+    <div class="text-xs flex gap-4 text-slate-500"><span>ISSUE 01</span><span>·</span><span>2026 SPRING</span><span class="px-3 py-1 rounded-full bg-slate-900 text-white">✦ 问 AI</span></div>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-6 py-8">
+  <!-- masthead -->
+  <div class="border-b-2 border-slate-900 pb-6 mb-6">
+    <div class="text-xs tracking-[0.3em] text-slate-500 display">一个氛围开发构想 · A VIBE-CODING NOTEBOOK</div>
+    <h1 class="display text-6xl md:text-7xl font-bold leading-[0.95] mt-2">AI 旅行<br>规划助手</h1>
+    <p class="text-lg text-slate-600 mt-4 max-w-2xl">一句话生成完整旅行行程 —— 像跟一个懂你的朋友聊天那样，把「我想去海边放松三天」变成一份可编辑的行程。</p>
+  </div>
+
+  <!-- editorial collage grid -->
+  <div class="grid grid-cols-12 gap-5">
+
+    <!-- lead: how it works -->
+    <article class="col-span-12 md:col-span-7 bg-white rounded-2xl p-6 shadow-sm">
+      <div class="flex items-center gap-2 text-[11px] font-semibold text-sky-600"><span class="w-2 h-2 rounded-full bg-sky-400"></span>🔄 它怎么运作</div>
+      <h2 class="display text-2xl font-bold mt-2">从一句话到行程卡</h2>
+      <p class="text-sm text-slate-600 mt-2">AI 把模糊的话拆成 <strong>地点 + 天数 + 偏好</strong> 三个结构化字段，再去调地图与天气 API。</p>
+      <svg viewBox="0 0 560 130" class="w-full mt-3">
+        <line x1="100" y1="65" x2="220" y2="65" stroke="#bae6fd" stroke-width="2.5"/><line x1="330" y1="65" x2="460" y2="30" stroke="#bae6fd" stroke-width="2.5"/><line x1="330" y1="65" x2="460" y2="100" stroke="#bae6fd" stroke-width="2.5"/>
+        <rect x="10" y="48" width="90" height="34" rx="10" fill="#e0f2fe"/><text x="55" y="69" font-size="12" fill="#0369a1" text-anchor="middle">用户一句话</text>
+        <rect x="220" y="48" width="110" height="34" rx="10" fill="#0ea5e9"/><text x="275" y="69" font-size="12" fill="#fff" text-anchor="middle">AI 拆字段</text>
+        <rect x="460" y="14" width="95" height="30" rx="10" fill="#e0f2fe"/><text x="507" y="33" font-size="11" fill="#0369a1" text-anchor="middle">地图 API</text>
+        <rect x="460" y="86" width="95" height="30" rx="10" fill="#e0f2fe"/><text x="507" y="105" font-size="11" fill="#0369a1" text-anchor="middle">天气 API</text>
+      </svg>
+    </article>
+
+    <!-- market analysis feature -->
+    <aside class="col-span-12 md:col-span-5 bg-gradient-to-br from-indigo-600 to-fuchsia-600 text-white rounded-2xl p-6 shadow-sm">
+      <div class="text-[11px] font-semibold text-indigo-100">✦ AI 市场分析</div>
+      <div class="flex items-end gap-2 mt-2"><span class="text-6xl font-bold display">78</span><span class="text-indigo-200 mb-2">/100 市场潜力</span></div>
+      <div class="h-2 rounded-full bg-white/20 mt-3"><div class="h-full w-[78%] rounded-full bg-white"></div></div>
+      <ul class="text-sm text-indigo-100 mt-4 space-y-2">
+        <li>↗ 旅行 + AI 赛道热度上升</li>
+        <li>⚠ 竞品多，必须做差异化</li>
+        <li>◎ 建议先攻「懒人 / Z 世代」</li>
+      </ul>
+    </aside>
+
+    <!-- idea -->
+    <article class="col-span-6 md:col-span-4 bg-amber-50 rounded-2xl p-6 shadow-sm border border-amber-100">
+      <div class="text-[11px] font-semibold text-amber-600">💡 我想做什么</div>
+      <p class="display text-xl font-bold mt-2 leading-snug">"给不想做攻略的懒人。"</p>
+      <p class="text-sm text-slate-600 mt-2">对话式，不用填表，不用比价。</p>
+    </article>
+
+    <!-- github -->
+    <article class="col-span-6 md:col-span-4 bg-slate-900 text-slate-100 rounded-2xl p-6 shadow-sm">
+      <div class="text-[11px] font-semibold text-violet-300">🧰 用什么来做</div>
+      <div class="flex items-center gap-2 text-base font-semibold mt-2">🐙 supabase</div>
+      <p class="text-xs text-slate-400 mt-1.5">开源后端 · 用户/数据库/登录一把梭</p>
+      <div class="text-[11px] text-slate-500 mt-3">★ 72k · TypeScript</div>
+      <div class="mt-2 text-xs text-slate-400">＋ vercel/ai · Claude API</div>
+    </article>
+
+    <!-- source video -->
+    <article class="col-span-12 md:col-span-4 bg-white rounded-2xl overflow-hidden shadow-sm">
+      <div class="h-32 bg-gradient-to-br from-rose-200 via-fuchsia-200 to-indigo-200 grid place-items-center"><div class="w-11 h-11 rounded-full bg-white/90 grid place-items-center shadow">▶</div></div>
+      <div class="p-5"><div class="text-[11px] font-semibold text-slate-500">🔗 灵感来源 · 影片</div><p class="text-sm font-semibold mt-1">How I built an AI travel app in a weekend</p></div>
+    </article>
+
+    <!-- steps strip -->
+    <article class="col-span-12 bg-white rounded-2xl p-6 shadow-sm">
+      <div class="text-[11px] font-semibold text-emerald-600">📍 先做哪后做哪</div>
+      <div class="flex flex-wrap gap-3 mt-3 text-sm">
+        <span class="px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-700 line-through">①聊天界面</span>
+        <span class="px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-700 line-through">②接 Claude</span>
+        <span class="px-3 py-1.5 rounded-full bg-slate-100 text-slate-500">③生成行程卡</span>
+        <span class="px-3 py-1.5 rounded-full bg-slate-100 text-slate-500">④接地图 API</span>
+      </div>
+    </article>
+  </div>
+</main>
+
+<!-- capture -->
+<div class="sticky bottom-0 inset-x-0 bg-[#f0eee9]/90 backdrop-blur border-t-2 border-slate-900">
+  <div class="max-w-6xl mx-auto px-6 py-3 flex items-center gap-2">
+    <div class="w-9 h-9 rounded-xl bg-slate-900 text-white grid place-items-center shrink-0">✦</div>
+    <input class="flex-1 bg-white rounded-xl border border-slate-300 px-3 py-2 outline-none text-sm" placeholder="丢一条灵感进这期「杂志」，AI 帮你排版归类…">
+    <button class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium">收录</button>
+  </div>
+</div>
+</body>
+</html>

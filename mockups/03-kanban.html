@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom · 概念3 分类看板</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Plus Jakarta Sans','sans-serif'],display:['Space Grotesk','sans-serif']}}}}</script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+ body{font-family:'Plus Jakarta Sans',sans-serif}.display{font-family:'Space Grotesk',sans-serif}
+ .col::-webkit-scrollbar{width:0}
+ .chip{transition:transform .12s,box-shadow .12s}.chip:hover{transform:translateY(-2px);box-shadow:0 10px 24px -10px rgba(0,0,0,.2)}
+</style>
+</head>
+<body class="bg-[#f7f8fa] text-slate-800 h-screen flex flex-col overflow-hidden">
+
+<header class="flex items-center justify-between px-6 h-14 bg-white border-b border-slate-200">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center text-white display font-bold">B</div>
+    <div class="text-sm font-bold display">AI 旅行规划助手</div>
+    <span class="text-[11px] text-slate-400 ml-1">按分类整理 · 12 条灵感</span>
+  </div>
+  <div class="flex items-center gap-2 text-xs">
+    <span class="px-2.5 py-1 rounded-md bg-slate-900 text-white">看板</span>
+    <span class="px-2.5 py-1 rounded-md text-slate-400 hover:bg-slate-100 cursor-pointer">图谱</span>
+    <span class="px-2.5 py-1 rounded-md text-slate-400 hover:bg-slate-100 cursor-pointer">时间轴</span>
+  </div>
+</header>
+
+<!-- AI capture bar -->
+<div class="px-6 py-3 bg-white border-b border-slate-100">
+  <div class="max-w-3xl mx-auto bg-slate-50 rounded-xl border border-slate-200 p-1.5 flex items-center gap-2">
+    <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center text-white text-sm shrink-0">✦</div>
+    <input class="flex-1 bg-transparent outline-none text-sm px-1" placeholder="随手记一条灵感，AI 自动放进对应的分类列…">
+    <button class="text-xs px-3 py-1.5 rounded-lg bg-slate-900 text-white font-medium">归类</button>
+  </div>
+</div>
+
+<!-- Kanban columns -->
+<main class="flex-1 overflow-x-auto">
+  <div class="flex gap-4 p-6 h-full min-w-max">
+
+    <!-- col 1 -->
+    <section class="w-72 shrink-0 flex flex-col">
+      <div class="flex items-center gap-2 mb-3"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span><span class="font-semibold text-sm">💡 我想做什么</span><span class="text-[11px] text-slate-400 ml-auto">3</span></div>
+      <div class="col space-y-2 overflow-y-auto pr-1">
+        <div class="chip bg-white rounded-xl p-3 shadow-sm border-l-4 border-amber-400"><p class="text-sm font-medium">一句话生成完整旅行行程的 AI 助手</p></div>
+        <div class="chip bg-white rounded-xl p-3 shadow-sm border-l-4 border-amber-400"><p class="text-sm">对话式，像跟懂你的朋友聊天</p></div>
+        <div class="chip bg-white rounded-xl p-3 shadow-sm border-l-4 border-amber-400"><p class="text-sm">给「不想做攻略」的懒人用</p></div>
+      </div>
+    </section>
+
+    <!-- col 2 with mind map -->
+    <section class="w-72 shrink-0 flex flex-col">
+      <div class="flex items-center gap-2 mb-3"><span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span><span class="font-semibold text-sm">🔄 它怎么运作</span><span class="text-[11px] text-slate-400 ml-auto">2</span></div>
+      <div class="col space-y-2 overflow-y-auto pr-1">
+        <div class="chip bg-white rounded-xl p-3 shadow-sm border-l-4 border-sky-400">
+          <div class="text-[10px] text-slate-400 mb-1">心智图</div>
+          <svg viewBox="0 0 230 90" class="w-full">
+            <line x1="40" y1="45" x2="110" y2="45" stroke="#bae6fd" stroke-width="2"/><line x1="160" y1="45" x2="210" y2="22" stroke="#bae6fd" stroke-width="2"/><line x1="160" y1="45" x2="210" y2="68" stroke="#bae6fd" stroke-width="2"/>
+            <rect x="2" y="32" width="40" height="26" rx="7" fill="#e0f2fe"/><text x="22" y="49" font-size="9" fill="#0369a1" text-anchor="middle">输入</text>
+            <rect x="110" y="32" width="50" height="26" rx="7" fill="#0ea5e9"/><text x="135" y="49" font-size="9" fill="#fff" text-anchor="middle">AI拆解</text>
+            <rect x="178" y="9" width="48" height="24" rx="7" fill="#e0f2fe"/><text x="202" y="25" font-size="8" fill="#0369a1" text-anchor="middle">地图</text>
+            <rect x="178" y="56" width="48" height="24" rx="7" fill="#e0f2fe"/><text x="202" y="72" font-size="8" fill="#0369a1" text-anchor="middle">天气</text>
+          </svg>
+        </div>
+        <div class="chip bg-white rounded-xl p-3 shadow-sm border-l-4 border-sky-400"><p class="text-sm">先拆成 地点+天数+偏好 三字段</p></div>
+      </div>
+    </section>
+
+    <!-- col 3 github -->
+    <section class="w-72 shrink-0 flex flex-col">
+      <div class="flex items-center gap-2 mb-3"><span class="w-2.5 h-2.5 rounded-full bg-violet-400"></span><span class="font-semibold text-sm">🧰 用什么来做</span><span class="text-[11px] text-slate-400 ml-auto">4</span></div>
+      <div class="col space-y-2 overflow-y-auto pr-1">
+        <div class="chip bg-white rounded-xl p-3 shadow-sm border-l-4 border-violet-400">
+          <div class="flex items-center gap-1.5 text-sm font-semibold"><span>🐙</span>supabase/supabase</div>
+          <p class="text-xs text-slate-400 mt-1">后端/数据库/登录，开源</p>
+          <div class="text-[11px] text-slate-400 mt-1">★ 72k · TypeScript</div>
+        </div>
+        <div class="chip bg-white rounded-xl p-3 shadow-sm border-l-4 border-violet-400">
+          <div class="flex items-center gap-1.5 text-sm font-semibold"><span>🐙</span>vercel/ai</div>
+          <p class="text-xs text-slate-400 mt-1">流式对话工具包</p>
+        </div>
+        <div class="chip bg-white rounded-xl p-3 shadow-sm border-l-4 border-violet-400"><p class="text-sm">用 Claude API 做对话理解</p></div>
+      </div>
+    </section>
+
+    <!-- col 4 steps -->
+    <section class="w-72 shrink-0 flex flex-col">
+      <div class="flex items-center gap-2 mb-3"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span><span class="font-semibold text-sm">📍 先做哪后做哪</span><span class="text-[11px] text-slate-400 ml-auto">1</span></div>
+      <div class="col space-y-2 overflow-y-auto pr-1">
+        <div class="chip bg-white rounded-xl p-3 shadow-sm border-l-4 border-emerald-400">
+          <ul class="text-sm space-y-1">
+            <li class="line-through text-slate-400">✓ 聊天界面</li>
+            <li class="line-through text-slate-400">✓ 接 Claude</li>
+            <li>☐ 生成行程卡</li>
+            <li>☐ 接地图 API</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- col 5 look -->
+    <section class="w-72 shrink-0 flex flex-col">
+      <div class="flex items-center gap-2 mb-3"><span class="w-2.5 h-2.5 rounded-full bg-rose-400"></span><span class="font-semibold text-sm">🎨 它长什么样</span><span class="text-[11px] text-slate-400 ml-auto">1</span></div>
+      <div class="col space-y-2 overflow-y-auto pr-1">
+        <div class="chip bg-white rounded-xl overflow-hidden shadow-sm border-l-4 border-rose-400">
+          <div class="h-24 bg-gradient-to-br from-rose-200 to-fuchsia-200"></div>
+          <p class="text-sm p-3">像聊天 + 卡片式行程，暖色调</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- col 6 sources -->
+    <section class="w-72 shrink-0 flex flex-col">
+      <div class="flex items-center gap-2 mb-3"><span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span><span class="font-semibold text-sm">🔗 灵感来源</span><span class="text-[11px] text-slate-400 ml-auto">1</span></div>
+      <div class="col space-y-2 overflow-y-auto pr-1">
+        <div class="chip bg-white rounded-xl overflow-hidden shadow-sm border-l-4 border-slate-400">
+          <div class="h-20 bg-gradient-to-br from-indigo-200 to-sky-200 grid place-items-center">▶</div>
+          <p class="text-sm p-3">影片：How I built an AI travel app</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- floating AI copilot -->
+<button class="fixed bottom-6 right-6 px-4 py-3 rounded-full bg-slate-900 text-white shadow-2xl flex items-center gap-2 text-sm"><span class="text-fuchsia-300">✦</span>问 AI</button>
+</body>
+</html>

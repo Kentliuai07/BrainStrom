@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom · 概念6 节点图谱</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Plus Jakarta Sans','sans-serif'],display:['Space Grotesk','sans-serif']}}}}</script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Plus Jakarta Sans',sans-serif}.display{font-family:'Space Grotesk',sans-serif}
+ .graph-bg{background:#0f1117;background-image:radial-gradient(rgba(255,255,255,.06) 1px,transparent 1px);background-size:26px 26px}
+ .node{transition:transform .15s}.node:hover{transform:scale(1.06)}</style>
+</head>
+<body class="graph-bg text-slate-100 h-screen overflow-hidden relative">
+
+<header class="absolute top-0 inset-x-0 z-20 h-14 px-5 flex items-center justify-between bg-[#0f1117]/80 backdrop-blur border-b border-white/10">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center text-white display font-bold">B</div>
+    <div class="text-sm font-bold display">AI 旅行规划助手 · 灵感图谱</div>
+  </div>
+  <div class="flex gap-2 text-xs text-slate-400">
+    <span class="px-2.5 py-1 rounded-md hover:bg-white/10 cursor-pointer">看板</span>
+    <span class="px-2.5 py-1 rounded-md bg-white/10 text-white">图谱</span>
+  </div>
+</header>
+
+<!-- legend -->
+<div class="absolute left-5 bottom-5 z-20 text-[11px] space-y-1.5 bg-white/5 rounded-xl p-3 backdrop-blur">
+  <div class="text-slate-400 mb-1">分类</div>
+  <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>💡 我想做什么</div>
+  <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>🔄 它怎么运作</div>
+  <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-violet-400"></span>🧰 用什么来做</div>
+  <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>📍 步骤</div>
+  <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>🔗 来源</div>
+</div>
+
+<!-- graph -->
+<svg class="absolute inset-0 w-full h-full" style="z-index:1">
+  <g stroke="rgba(255,255,255,.18)" stroke-width="1.5">
+    <line x1="50%" y1="50%" x2="30%" y2="28%"/><line x1="50%" y1="50%" x2="72%" y2="30%"/>
+    <line x1="50%" y1="50%" x2="26%" y2="68%"/><line x1="50%" y1="50%" x2="70%" y2="70%"/>
+    <line x1="72%" y1="30%" x2="86%" y2="52%"/><line x1="30%" y1="28%" x2="16%" y2="46%"/>
+  </g>
+</svg>
+
+<!-- center node -->
+<div class="node absolute z-10" style="left:50%;top:50%;transform:translate(-50%,-50%)">
+  <div class="w-28 h-28 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center text-center shadow-2xl shadow-fuchsia-500/30 cursor-pointer">
+    <div><div class="display font-bold leading-tight">AI 旅行<br>助手</div><div class="text-[10px] text-indigo-100 mt-1">核心构想</div></div>
+  </div>
+</div>
+
+<!-- satellite nodes -->
+<div class="node absolute z-10 cursor-pointer" style="left:30%;top:28%;transform:translate(-50%,-50%)">
+  <div class="px-4 py-3 rounded-2xl bg-[#1a1d27] border-l-4 border-amber-400 shadow-xl w-40">
+    <div class="text-[10px] text-amber-400">💡 我想做什么</div><p class="text-xs mt-1">一句话生成行程</p>
+  </div>
+</div>
+<div class="node absolute z-10 cursor-pointer" style="left:72%;top:30%;transform:translate(-50%,-50%)">
+  <div class="px-4 py-3 rounded-2xl bg-[#1a1d27] border-l-4 border-sky-400 shadow-xl w-44">
+    <div class="text-[10px] text-sky-400">🔄 它怎么运作</div>
+    <svg viewBox="0 0 150 50" class="w-full mt-1"><line x1="28" y1="25" x2="70" y2="25" stroke="#0ea5e9" stroke-width="1.5"/><line x1="100" y1="25" x2="135" y2="25" stroke="#0ea5e9" stroke-width="1.5"/><circle cx="18" cy="25" r="9" fill="#0369a1"/><rect x="70" y="15" width="32" height="20" rx="5" fill="#0ea5e9"/><circle cx="140" cy="25" r="8" fill="#0369a1"/></svg>
+  </div>
+</div>
+<div class="node absolute z-10 cursor-pointer" style="left:86%;top:52%;transform:translate(-50%,-50%)">
+  <div class="px-4 py-3 rounded-2xl bg-[#1a1d27] border-l-4 border-violet-400 shadow-xl w-40">
+    <div class="text-[10px] text-violet-400">🧰 用什么来做</div><p class="text-xs mt-1">🐙 supabase ★72k</p>
+  </div>
+</div>
+<div class="node absolute z-10 cursor-pointer" style="left:26%;top:68%;transform:translate(-50%,-50%)">
+  <div class="px-4 py-3 rounded-2xl bg-[#1a1d27] border-l-4 border-emerald-400 shadow-xl w-40">
+    <div class="text-[10px] text-emerald-400">📍 步骤</div><p class="text-xs mt-1">4 步 · 完成 2</p>
+  </div>
+</div>
+<div class="node absolute z-10 cursor-pointer" style="left:70%;top:70%;transform:translate(-50%,-50%)">
+  <div class="rounded-2xl overflow-hidden bg-[#1a1d27] border-l-4 border-slate-400 shadow-xl w-40">
+    <div class="h-16 bg-gradient-to-br from-indigo-400/40 to-fuchsia-400/40 grid place-items-center">▶</div>
+    <div class="px-3 py-2"><div class="text-[10px] text-slate-400">🔗 来源 · 影片</div><p class="text-xs">AI travel app</p></div>
+  </div>
+</div>
+<div class="node absolute z-10 cursor-pointer" style="left:16%;top:46%;transform:translate(-50%,-50%)">
+  <div class="px-3 py-2 rounded-2xl bg-[#1a1d27] border-l-4 border-violet-400 shadow-xl w-32">
+    <div class="text-[10px] text-violet-400">🧰</div><p class="text-xs">vercel/ai</p>
+  </div>
+</div>
+
+<!-- AI capture + analysis floating -->
+<div class="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 w-[520px] max-w-[90vw]">
+  <div class="bg-[#1a1d27] border border-white/10 rounded-2xl shadow-2xl p-2 flex items-center gap-2">
+    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center shrink-0">✦</div>
+    <input class="flex-1 bg-transparent outline-none text-sm px-1 placeholder:text-slate-500" placeholder="丢一条灵感，AI 自动连到相关节点…">
+    <button class="px-3 py-2 rounded-xl bg-white text-slate-900 text-sm font-medium">连接 →</button>
+  </div>
+</div>
+
+<!-- AI analysis chip top-right -->
+<div class="absolute top-20 right-5 z-20 w-52 bg-gradient-to-br from-indigo-600 to-fuchsia-600 rounded-2xl p-4 shadow-2xl">
+  <div class="text-[10px] text-indigo-100">✦ AI 市场分析</div>
+  <div class="flex items-end gap-2"><span class="text-3xl font-bold display">78</span><span class="text-indigo-200 text-xs mb-1">/100</span></div>
+  <p class="text-[11px] text-indigo-100 mt-1">节点已成网，但「步骤」偏少，落地路径还不清晰。</p>
+</div>
+</body>
+</html>

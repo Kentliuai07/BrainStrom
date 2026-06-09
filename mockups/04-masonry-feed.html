@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom · 概念4 瀑布流灵感卡</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Plus Jakarta Sans','sans-serif'],display:['Space Grotesk','sans-serif']}}}}</script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+ body{font-family:'Plus Jakarta Sans',sans-serif}.display{font-family:'Space Grotesk',sans-serif}
+ .masonry{column-count:4;column-gap:1rem}@media(max-width:1100px){.masonry{column-count:3}}@media(max-width:760px){.masonry{column-count:2}}
+ .masonry>div{break-inside:avoid;margin-bottom:1rem}
+ .chip{transition:transform .14s}.chip:hover{transform:translateY(-3px)}
+</style>
+</head>
+<body class="bg-[#fafaf8] text-slate-800 min-h-screen">
+
+<header class="sticky top-0 z-20 bg-[#fafaf8]/90 backdrop-blur border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center text-white display font-bold">B</div>
+      <div class="text-sm font-bold display">AI 旅行规划助手</div>
+    </div>
+    <div class="flex gap-1 text-xs">
+      <button class="px-3 py-1.5 rounded-full bg-slate-900 text-white">全部</button>
+      <button class="px-3 py-1.5 rounded-full hover:bg-slate-100">💡</button>
+      <button class="px-3 py-1.5 rounded-full hover:bg-slate-100">🔄</button>
+      <button class="px-3 py-1.5 rounded-full hover:bg-slate-100">🧰</button>
+      <button class="px-3 py-1.5 rounded-full hover:bg-slate-100">🎨</button>
+    </div>
+  </div>
+  <!-- capture -->
+  <div class="max-w-6xl mx-auto px-6 pb-3">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex items-center gap-2">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center text-white shrink-0">✦</div>
+      <input class="flex-1 bg-transparent outline-none text-sm px-1" placeholder="此刻想到什么？丢进来，AI 帮你贴标签、配图、归档…">
+      <button class="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm">＋ 收集</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-6 py-6">
+  <div class="masonry">
+    <div class="chip bg-white rounded-2xl p-4 shadow-sm">
+      <span class="text-[10px] font-semibold text-amber-500">💡 我想做什么</span>
+      <p class="text-base font-semibold mt-1 leading-snug">一句话生成完整旅行行程，像跟朋友聊天那样。</p>
+    </div>
+    <div class="chip bg-white rounded-2xl overflow-hidden shadow-sm">
+      <div class="h-40 bg-gradient-to-br from-rose-200 via-fuchsia-200 to-indigo-200 grid place-items-center"><div class="w-12 h-12 rounded-full bg-white/90 grid place-items-center shadow">▶</div></div>
+      <div class="p-4"><span class="text-[10px] font-semibold text-slate-400">🔗 灵感来源 · 影片</span><p class="text-sm font-medium mt-1">How I built an AI travel app in a weekend</p></div>
+    </div>
+    <div class="chip bg-slate-900 text-slate-100 rounded-2xl p-4 shadow-sm">
+      <span class="text-[10px] font-semibold text-violet-300">🧰 用什么来做</span>
+      <div class="flex items-center gap-1.5 text-sm font-semibold mt-1">🐙 supabase/supabase</div>
+      <p class="text-xs text-slate-400 mt-1.5">开源后端，省掉自己搭服务器</p>
+      <div class="text-[11px] text-slate-500 mt-2">★ 72k · TypeScript</div>
+    </div>
+    <div class="chip bg-white rounded-2xl p-4 shadow-sm">
+      <span class="text-[10px] font-semibold text-sky-500">🔄 它怎么运作 · 心智图</span>
+      <svg viewBox="0 0 230 110" class="w-full mt-1">
+        <line x1="115" y1="55" x2="45" y2="25" stroke="#bae6fd" stroke-width="2"/><line x1="115" y1="55" x2="45" y2="85" stroke="#bae6fd" stroke-width="2"/><line x1="115" y1="55" x2="195" y2="55" stroke="#bae6fd" stroke-width="2"/>
+        <rect x="80" y="41" width="70" height="28" rx="8" fill="#0ea5e9"/><text x="115" y="59" font-size="10" fill="#fff" text-anchor="middle">AI 拆解</text>
+        <rect x="6" y="12" width="76" height="26" rx="8" fill="#e0f2fe"/><text x="44" y="29" font-size="9" fill="#0369a1" text-anchor="middle">用户一句话</text>
+        <rect x="10" y="72" width="68" height="26" rx="8" fill="#e0f2fe"/><text x="44" y="89" font-size="9" fill="#0369a1" text-anchor="middle">查 API</text>
+        <rect x="165" y="42" width="62" height="26" rx="8" fill="#e0f2fe"/><text x="196" y="59" font-size="9" fill="#0369a1" text-anchor="middle">行程卡</text>
+      </svg>
+    </div>
+    <div class="chip bg-gradient-to-br from-indigo-600 to-fuchsia-600 text-white rounded-2xl p-4 shadow-sm">
+      <span class="text-[10px] font-semibold text-indigo-100">✦ AI 市场分析</span>
+      <div class="flex items-end gap-2 mt-1"><span class="text-4xl font-bold display">78</span><span class="text-indigo-200 text-xs mb-1.5">/100</span></div>
+      <p class="text-[11px] text-indigo-100 mt-1">赛道热但竞品多，建议主打「对话式 + 懒人向」差异化。</p>
+    </div>
+    <div class="chip bg-white rounded-2xl p-4 shadow-sm border-l-4 border-emerald-400">
+      <span class="text-[10px] font-semibold text-emerald-500">📍 先做哪后做哪</span>
+      <ul class="text-sm mt-1.5 space-y-1">
+        <li class="line-through text-slate-400">✓ 聊天界面</li><li class="line-through text-slate-400">✓ 接 Claude</li><li>☐ 生成行程卡</li><li>☐ 接地图 API</li>
+      </ul>
+    </div>
+    <div class="chip bg-white rounded-2xl overflow-hidden shadow-sm">
+      <div class="h-28 bg-gradient-to-br from-rose-200 to-orange-200"></div>
+      <div class="p-4"><span class="text-[10px] font-semibold text-rose-500">🎨 它长什么样</span><p class="text-sm mt-1">暖色、卡片式行程、聊天气泡</p></div>
+    </div>
+    <div class="chip bg-white rounded-2xl p-4 shadow-sm">
+      <span class="text-[10px] font-semibold text-sky-500">🔄 它怎么运作</span>
+      <p class="text-sm mt-1">关键：把模糊的话拆成 <strong>地点+天数+偏好</strong> 三字段再调 API。</p>
+    </div>
+    <div class="chip bg-white rounded-2xl p-4 shadow-sm border-l-4 border-violet-400">
+      <div class="flex items-center gap-1.5 text-sm font-semibold">🐙 vercel/ai</div>
+      <p class="text-xs text-slate-400 mt-1">做流式对话的现成工具包 · ★ 11k</p>
+    </div>
+  </div>
+</main>
+
+<button class="fixed bottom-6 right-6 px-4 py-3 rounded-full bg-slate-900 text-white shadow-2xl flex items-center gap-2 text-sm"><span class="text-fuchsia-300">✦</span>问这本灵感本</button>
+</body>
+</html>
