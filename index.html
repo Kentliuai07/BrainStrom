@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom · 氛围开发笔记 · 原型预览</title>
+<style>
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;font-family:-apple-system,'Segoe UI',system-ui,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:linear-gradient(160deg,#1b1b21,#0c0c10);color:#EDEDF0;min-height:100vh;}
+  .wrap{max-width:980px;margin:0 auto;padding:56px 24px 80px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .logo{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-weight:800;color:#fff;
+    background:linear-gradient(135deg,#6366F1,#D946EF);}
+  h1{font-size:40px;letter-spacing:-.03em;margin:26px 0 8px;}
+  .sub{color:#9a9aa6;font-size:16px;max-width:560px;line-height:1.6;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:40px;}
+  @media(max-width:720px){.grid{grid-template-columns:1fr;}h1{font-size:32px;}}
+  .card{background:#17171c;border:1px solid rgba(255,255,255,.07);border-radius:22px;overflow:hidden;
+    text-decoration:none;color:inherit;transition:transform .15s,border-color .15s;}
+  .card:hover{transform:translateY(-4px);border-color:rgba(217,70,239,.5);}
+  .thumb{aspect-ratio:1/1;background:#0e0e12;display:grid;place-items:center;overflow:hidden;}
+  .thumb img{width:78%;border-radius:26px;box-shadow:0 30px 60px -20px rgba(0,0,0,.7);}
+  .meta{padding:18px 20px 22px;}
+  .meta h3{margin:0 0 6px;font-size:19px;}
+  .meta p{margin:0;color:#9a9aa6;font-size:13.5px;line-height:1.5;}
+  .tag{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;
+    background:rgba(99,102,241,.18);color:#c4b5fd;margin-bottom:10px;}
+  .more{margin-top:36px;}
+  .more a{color:#c4b5fd;text-decoration:none;font-size:14px;border:1px solid rgba(255,255,255,.12);
+    padding:9px 16px;border-radius:12px;display:inline-block;}
+  .foot{margin-top:50px;color:#6b6b76;font-size:12.5px;line-height:1.7;}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><div class="logo">B</div><strong style="font-size:18px;">BrainStrom</strong></div>
+    <h1>氛围开发笔记</h1>
+    <p class="sub">给氛围开发者的灵感工作台。每一个专案 = 一个系统主题：开发逻辑 · 平台工具 · 参考影片 · GitHub 开源 · 提示词库。下面是 iOS 原型，点开即看。</p>
+
+    <div class="grid">
+      <a class="card" href="mockups/ios/note-free.html">
+        <div class="thumb"><img src="mockups/ios/shots/note-free.png" alt="自由记录模式"></div>
+        <div class="meta"><span class="tag">模式一</span><h3>自由记录</h3><p>像 Apple Notes 随手写，左下角工具按钮加模组。</p></div>
+      </a>
+      <a class="card" href="mockups/ios/note-ai.html">
+        <div class="thumb"><img src="mockups/ios/shots/note-ai.png" alt="AI 整理模式"></div>
+        <div class="meta"><span class="tag">模式二</span><h3>AI 整理</h3><p>按一下，AI 把内容整理成 5 块系统结构的格式化呈现。</p></div>
+      </a>
+    </div>
+
+    <div class="more"><a href="mockups/index.html">↗ 早期 8 种结构概念探索</a></div>
+
+    <div class="foot">
+      原型为自包含 HTML（字体内嵌），用 Safari / Chrome 打开即正常渲染。<br>
+      这是设计原型，非最终产品；记忆架构与产品决策见仓库 docs/。
+    </div>
+  </div>
+</body>
+</html>
