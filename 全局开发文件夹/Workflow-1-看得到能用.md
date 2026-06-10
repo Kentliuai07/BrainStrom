@@ -327,3 +327,31 @@ blocks(id, system_id→systems, type, position int, payload jsonb,
 - **离线**：横幅「目前离线，已存本地」；重连用指数退避重试**最多 3 次**。
 
 **第 3 轮缺陷数：安全 6 + 完整性 7 + 韧性 6 = 19，已修补。**
+
+### 第 4 轮 · 上架法务 / 无障碍·多语 / 营运·测试（→ v1.4）
+
+**上架法务**（详见 `法务-隐私与条款.md`）
+- **删帐号确切流程**：弹窗1「确定删除？资料将立即永久删除、无法复原」→ 弹窗2 **重新 Apple 验证** → `POST /api/account/delete` → 成功页。
+- **隐藏我的邮件**：接受 Apple 私密转发地址当 email，无须特殊处理。
+- 隐私政策 / 使用条款（含 AI 免责，阶段二起）/ 年龄分级 **4+** / 审核员用自己 Apple ID（不需 demo 帐号）/ GDPR 资料存取来信处理。
+
+**无障碍 / 多语**
+- **旋钮无障碍**：加 `role=listbox`、每项 `aria-label`，并永远提供**列表式后备**；SwiftUI 用 `accessibilityElement` + `.accessibilityValue`。
+- **动态字级**：字体改用 token / `clamp()`，对应 iOS Dynamic Type；最小点击区 **44pt**。
+- **对比度**：两套主题文字对背景一律 **≥4.5:1**（金/暗、蓝/浅都要过 WCAG）；CI 加对比检查。
+- **减少动态**：`prefers-reduced-motion` 时旋钮改瞬切（无旋转动画）。
+- **语言**：所有文案抽到字串表（key→value），**繁简一致 + 英文后备**，不写死。
+
+**设计 tokens 补全**
+- 间距 `[4,8,12,16,24,32]`、圆角 `[s,m,l]`、阴影 `[subtle,medium,prominent]`、动效 `[quick,standard,gentle]`、**disabled / focus** 状态色，全部入 token。
+
+**营运 / 测试（「100%」该含的）**
+- **`/api/status` 真探测**：实跑迷你交易（建测试块→验 RLS 限读→删），不是只回旗标；公开版只回布尔、不泄内容。
+- **限流**：删帐号 5 次/小时/人、status 10 次/分/IP。
+- **免费层预算**：记 Auth/Postgres(500MB)/Edge 调用上限，到 80% 告警。
+- **备份**：开 Supabase 每日备份 + PITR；RPO≤24h、RTO≤2h。
+- **可观测**：Web+后端接 **Sentry**；记 POST/DELETE 与 JWT 刷新；5xx >5% 告警。
+- **测试计画（对应 §9 每盏灯）**：RLS 跨用户隔离测、Apple 登入→JWT→登出测、删帐号级联测、blocks reorder 原子测、touchpoints lint 测。
+- **环境/密钥**：`.env.example`、husky pre-commit 挡明文金钥、Apple 凭证 6 月轮替排程。
+
+**第 4 轮缺陷数：法务 7 + 无障碍 6 + 营运测试 7 = 20，已修补。**
