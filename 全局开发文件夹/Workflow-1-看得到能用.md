@@ -10,6 +10,9 @@
 - 做完你会有：能登入、能写笔记、存得住、长得 100% 像成品的 App 骨架。
 - **不含 AI**（结构化/对话/全局都在阶段二）。
 - **离线同步延后阶段二**（侦察结论）：阶段一**先纯线上**，用伺服器 `updated_at` 做最后写入为准、`deleted_at` 软删除。
+- **明确不在本阶段**（与蓝图对齐）：AI 记忆/向量（Step5–6）、语音（Step8）、市集（Step10）全部延后。
+- **名词定义**：阶段一的 `blocks` 只有 text/todo/heading 三种基础块，**不等于** Step3「AI 结构化的 20 卡」；后者是阶段二的事。
+- **Fly.io 不在本阶段**：阶段一无 AI，故只有 Supabase 资料层；Fly.io AI 算力层阶段二才上。
 
 ## 2. 系统架构（三层，前端可替换）
 ```
@@ -88,6 +91,11 @@ blocks(id, system_id→systems, type, position int, payload jsonb,
 | `status.get()` | 验收页 | GET /api/status | （验收页是 Web，不搬） |
 | `auth.signOut()` | 设定页登出 | 清本地 token | `AuthService.signOut()` |
 | `auth.refresh()` | 401 时自动 | SDK 换新 token | SDK 自动（URLSession 拦截器重试） |
+| `profile.me()` | 首次载入 | SDK 取 user / profiles | `AuthService.me()` |
+| `systems.setVisibility(id)` | 私密/公开切换 | PATCH systems/:id{visibility} | `SystemsService.update` |
+| `systems.setMode(id)` | 双模式切换 | PATCH systems/:id{mode} | `SystemsService.update` |
+| `blocks.delete(id)` | 删区块 | DELETE blocks/:id（软删） | `BlocksService.delete` |
+| `blocks.toggleDone(id)` | 待办勾选 | PATCH blocks/:id{payload.done} | `BlocksService.update` |
 
 ## 6. 前端（过渡 Web）
 
@@ -259,3 +267,34 @@ blocks(id, system_id→systems, type, position int, payload jsonb,
 - `tags`：阶段一为**使用者手动**在笔记标头加/删；自动打标签属阶段二（AI）。
 
 **第 1 轮缺陷数：后端 7 + 前端 8 + 一致性 5 = 20，已全部修补。**
+
+### 第 2 轮 · 搬迁保真 + 触点完整 + 跨文档明示（→ v1.2）
+
+**DTO 定义（前端 models/，对应 SwiftUI Codable）**
+- `Profile { id, email, createdAt }`
+- `System { id, ownerId, title, visibility, mode, version, tags[], createdAt, updatedAt }`
+- `Block { id, systemId, type, position, payload, createdAt, updatedAt }`
+- `payload` 用辨识联合：`text{content} | todo{text,done} | heading{text,level}`（Swift 用 enum + associated value）。
+- 每个 DTO 与资料表 1:1；mapper 放 `/models`，HTTP JSON ↔ 领域模型。
+
+**搬迁保真补强（§7 扩充）**
+- **反应式映射**：`Service extends EventTarget` 的 `dispatchEvent(name,data)` ↔ SwiftUI `@Observable` 属性变更；事件名预先对应 ViewModel 栏位名（写成对照表，避免不可移植写法）。
+- **GestureService 介面**（明确签名，Swift 照接）：`onDrag(dx,dy) -> { selectedIndex, angleDeg, willInsert }`；不碰 DOM。SwiftUI 用 `DragGesture`＋同公式。
+- **导航**：用 route enum（`login|home|note(id)|settings`）→ SwiftUI `NavigationStack` + 同 enum。
+- **错误处理**：401→刷新重试、403→回退提示、逾时→重试横幅；统一在 Service 层（URLSession 拦截器）。
+- **主题**：`data-theme` ↔ SwiftUI `@Environment` 注入；元件全用 token。
+- **生命周期**：旋钮开关、Toast 显隐等状态用 `@State`，不靠 DOM mount/unmount。
+- **幂等**：`Endpoint` 带 `idempotencyKey`，ApiClient/URLSession 注入 header。
+
+**DI（组合根）**
+- 一个 `composition root`：建立 ApiClient → 注入 Auth/Systems/BlocksService → 注入各画面建构子。无全域单例。
+
+**流程补**
+- 新增系统后：`systems.create` 成功 → 本地清单 push + 重新渲染（不整页刷新）。
+- 首次登入：Auth 触发器建 profiles；前端 `profile.me()` 取回。
+
+**触点表补**：已加 `profile.me / setVisibility / setMode / blocks.delete / blocks.toggleDone`（见 §5）。
+
+**跨文档**：与 01/02/03 无硬矛盾；已在 §1 把「AI/语音/市集/Fly.io 不在本阶段」「blocks≠20卡」写成明示。
+
+**第 2 轮缺陷数：搬迁 6 + 触点 9 + 跨文档 5(皆为「补明示」) = 20，已修补。**
