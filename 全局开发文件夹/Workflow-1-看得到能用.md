@@ -1,6 +1,6 @@
 # Workflow-1 · 阶段一开发文档「看得到 & 能用」
 
-> 状态：**v1.0 定稿**（侦察连 8 + 红队 3 驳斥后迭代，达 95% 检核）。
+> 状态：**5 轮优化迭代中（目标 100%）**。已完成第 1 轮。详见文末「§14 迭代日志」。
 > 范围：Step 0 验收页、Step 1 地基+登入、Step 2 自由速记（含完整前端骨架）。
 > 第一原则：**前端可替换**——现在云端做过渡 Web 前端，之后 Xcode/SwiftUI 重写；UI 不直接碰后端，全走服务层，所有 API 触点登记成搬迁清单。
 
@@ -86,6 +86,8 @@ blocks(id, system_id→systems, type, position int, payload jsonb,
 | `blocks.update(id,patch)` | 编辑块/拖动 | PATCH /api/blocks/:id | `BlocksService.update()` |
 | `blocks.reorder(ids)` | 重新排序 | POST /api/blocks/reorder | `BlocksService.reorder()` |
 | `status.get()` | 验收页 | GET /api/status | （验收页是 Web，不搬） |
+| `auth.signOut()` | 设定页登出 | 清本地 token | `AuthService.signOut()` |
+| `auth.refresh()` | 401 时自动 | SDK 换新 token | SDK 自动（URLSession 拦截器重试） |
 
 ## 6. 前端（过渡 Web）
 
@@ -224,3 +226,36 @@ blocks(id, system_id→systems, type, position int, payload jsonb,
 - **登入策略**：阶段一**强制 Apple 登入才能用**（无访客模式），登入页一句话说明用途。
 
 > 以上补完，第 12 节检核表全部可勾 ✅ → 视为 **95% 达标**。
+
+---
+
+## 14. 迭代日志（5 轮优化）
+
+### 第 1 轮 · 可建造性 + 内部一致性（→ v1.1）
+
+**后端补强**
+- **删帐号鉴权**：`/api/account/delete` 先从 JWT 取 uid，确认 = 本人才用 service_role 呼叫 `admin.deleteUser`；不符回 401。service_role 只在后端环境变数。
+- **profiles 自动建立**：Supabase Auth `on_auth_user_created` 触发器，首次 Apple 登入即插入 `profiles(id, email)`。
+- **updated_at 触发器**：systems/blocks `BEFORE UPDATE SET updated_at=now()`。
+- **删除语义分清**：删「帐号」= 硬删 Auth user + `ON DELETE CASCADE` 连带硬删 systems/blocks；删「单一系统/区块」= 软删（`deleted_at`）。
+- **`/api/status` 回应格式**：`{ db:bool, auth:bool, read_write:bool, rls:bool, delete_account:bool, frontend_skeleton:bool, updated_at }`（灰灯 = false）。仅回基础设施健康，不含 token 状态。
+- **幂等**：`Idempotency-Key` 存一张小表、TTL 24h；插入前先查，命中就回上次结果。
+- **reorder 语义**：单一交易内，把每个 id 的 `position` 设为阵列索引；任一 id 非本人拥有则整批失败。
+
+**前端补强**
+- **导航图**：Step0 验收页独立；App 内 `登入 → 首页 → (笔记 | 设定)`；未登入一律导回登入。
+- **DI（不靠全域单例）**：一个 `composition root`（工厂）建立 Auth/Systems/Blocks Service，用建构子注入各画面。
+- **反应式（无框架）**：每个 Service 继承 `EventTarget`，资料变动时 `dispatchEvent`；画面 `addEventListener` 订阅后重渲染。（对应 SwiftUI 的 `@Observable`）
+- **旋钮数学**：角度 = `atan2`；360/格数 吸附最近格；放开停在最近格、点中心插入。阶段一仅 3 基础块可选，AI 模组上锁。
+- **主题切换**：在根元素设 `data-theme`，CSS 变数覆盖；元件都用变数 → 自动换肤。
+- **触点强制**：ESLint 规则禁止在 `/services`、`/api` 以外出现 `fetch`/supabase 呼叫（pre-commit 挡）。
+- **可复用四态**：统一 class `.state-loading / .state-empty / .state-error / .state-ok`，所有画面共用。
+- **Step0 取数**：载入骨架 → 失败显示错误+重试 → 成功点灯。
+
+**一致性修正**
+- §4 区块 payload 结构 → 指向 §13.1（text/todo/heading）。
+- §5 触点表补 `auth.signOut()`、`auth.refresh()`（已加）。
+- `version int`：定义为「编辑版本号」，每次内容大改 +1，阶段一仅显示于 trace（不做回溯）。
+- `tags`：阶段一为**使用者手动**在笔记标头加/删；自动打标签属阶段二（AI）。
+
+**第 1 轮缺陷数：后端 7 + 前端 8 + 一致性 5 = 20，已全部修补。**
