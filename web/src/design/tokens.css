@@ -8,6 +8,13 @@
   --motion-quick:.12s; --motion-standard:.25s; --motion-gentle:.45s;
   --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
   --tap:44px;
+  /* 颜色预设（深色）—— 任何页面忘了设 data-theme 也不会变全黑 */
+  --bg:#0a0a0e; --surface:#16151d; --surface-2:#201e2a;
+  --text:#ece8f0; --text-muted:#9b93a6; --text-faint:#665f72;
+  --hair:rgba(255,255,255,.10); --chrome:rgba(10,10,14,.72);
+  --primary:#d3ad57; --primary-2:#b58e3c; --primary-soft:rgba(211,173,87,.14); --on-primary:#16130a;
+  --secondary:#6fb3bf; --secondary-soft:rgba(111,179,191,.14);
+  --danger:#e0604f;
 }
 /* 黑曜石（深色金） */
 [data-theme="obsidian"]{

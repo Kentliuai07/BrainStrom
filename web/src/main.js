@@ -130,18 +130,38 @@ class App {
   }
   setMode(m){ this.mode=m; $('#m-free').classList.toggle('on',m==='free'); $('#m-struct').classList.toggle('on',m==='structured');
     services.systems.setMode(this.cur.id,m); this.renderContent(); $('#fab').classList.toggle('hidden',m!=='free'); }
+  // 正文区块（Apple Notes 式）＝ 标记 role:'body' 的文字块，永远排在最前
+  bodyBlock(){ return (this.cur.blocks||[]).find(b=>b.type==='text' && b.payload?.role==='body'); }
   renderContent(){
     const c=$('#content');
     if(this.mode==='structured'){ c.innerHTML=`<div class="structured-empty">还没整理<br>—— 阶段二接 AI 后，这里会变成结构化的卡片</div>`; return; }
-    c.innerHTML=`<input class="note-title" id="title" value="${esc(this.cur.title)}" />
+    const body=this.bodyBlock();
+    c.innerHTML=`<textarea class="note-title" id="title" rows="1" placeholder="标题">${esc(this.cur.title)}</textarea>
+      <textarea class="note-body" id="body" rows="1" placeholder="开始写…">${esc(body?.payload.content||'')}</textarea>
       <div class="blocks" id="blocks"></div>`;
-    $('#title').onblur=async e=>{ const v=e.target.value.trim()||'未命名系统'; const u=await services.systems.update(this.cur.id,{title:v}); this.cur.title=u.title; this.cur.version=u.version; this.saved(); };
+    const title=$('#title');
+    title.oninput=()=>autoraf(title);
+    title.onblur=async e=>{ const v=e.target.value.trim()||'未命名系统'; const u=await services.systems.update(this.cur.id,{title:v}); this.cur.title=u.title; this.cur.version=u.version; this.saved(); };
+    autoraf(title);
+    const bodyTa=$('#body');
+    bodyTa.oninput=()=>autoraf(bodyTa);
+    bodyTa.onblur=()=>this.saveBody(bodyTa.value);
+    autoraf(bodyTa);
     this.renderBlocks();
   }
+  async saveBody(text){
+    const blk=this.bodyBlock();
+    if(blk){ blk.payload={...blk.payload, content:text, text:text, role:'body'};
+      await services.blocks.update(blk.id,{payload:blk.payload}); this.saved(); }
+    else if(text.trim()){ // 第一次输入正文才建立区块，并置于最前（position:-1）让首页摘要显示正文
+      const block=await services.blocks.add(this.cur.id,{type:'text',position:-1,payload:{content:text,text:text,role:'body'}});
+      this.cur.blocks=[block,...(this.cur.blocks||[])]; this.saved(); }
+  }
   renderBlocks(){
-    const wrap=$('#blocks'); const bs=this.cur.blocks||[];
+    const wrap=$('#blocks');
+    const bs=(this.cur.blocks||[]).filter(b=>!(b.type==='text' && b.payload?.role==='body'));
     wrap.innerHTML='';
-    if(!bs.length){ wrap.innerHTML=`<div class="faint" id="bhint" style="padding:6px 8px">开始写…（左下角 ＋ 加模组）</div>`; return; }
+    if(!bs.length){ wrap.innerHTML=`<div class="faint" id="bhint" style="padding:6px 8px">＋ 加模组（可选）：待办、标题…</div>`; return; }
     bs.forEach(b=>this.appendBlock(b));
   }
   appendBlock(b){
@@ -162,8 +182,11 @@ class App {
       this.cur.blocks=this.cur.blocks.filter(x=>x.id!==b.id); node.remove();
       if(!this.cur.blocks.length) this.renderBlocks(); this.toast('已删除区块'); };
     node.querySelectorAll('.bmv').forEach(btn=>btn.onclick=async()=>{
-      const arr=this.cur.blocks, idx=arr.findIndex(x=>x.id===b.id);
-      const ni=btn.dataset.d==='up'?idx-1:idx+1; if(ni<0||ni>=arr.length) return;
+      const arr=this.cur.blocks, idx=arr.findIndex(x=>x.id===b.id), step=btn.dataset.d==='up'?-1:1;
+      let ni=idx+step;
+      // 跳过正文块，模组不与正文交换位置
+      while(arr[ni] && arr[ni].type==='text' && arr[ni].payload?.role==='body') ni+=step;
+      if(ni<0||ni>=arr.length) return;
       [arr[idx],arr[ni]]=[arr[ni],arr[idx]];
       await services.blocks.reorder(this.cur.id, arr.map(x=>x.id)); this.renderBlocks(); this.saved(); });
   }
