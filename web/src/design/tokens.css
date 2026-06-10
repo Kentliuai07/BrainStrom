@@ -1,0 +1,32 @@
+/* tokens.css — 设计令牌（两套主题，对应 SwiftUI Theme.swift） */
+:root{
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px; --space-8:32px;
+  --radius-s:8px; --radius-m:14px; --radius-l:20px;
+  --shadow-subtle:0 1px 2px rgba(0,0,0,.18);
+  --shadow-medium:0 10px 26px -16px rgba(0,0,0,.5);
+  --shadow-prominent:0 18px 40px -18px rgba(0,0,0,.55);
+  --motion-quick:.12s; --motion-standard:.25s; --motion-gentle:.45s;
+  --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  --tap:44px;
+}
+/* 黑曜石（深色金） */
+[data-theme="obsidian"]{
+  --bg:#0a0a0e; --surface:#16151d; --surface-2:#201e2a;
+  --text:#ece8f0; --text-muted:#9b93a6; --text-faint:#665f72;
+  --hair:rgba(255,255,255,.10); --chrome:rgba(10,10,14,.72);
+  --primary:#d3ad57; --primary-2:#b58e3c; --primary-soft:rgba(211,173,87,.14); --on-primary:#16130a;
+  --secondary:#6fb3bf; --secondary-soft:rgba(111,179,191,.14);
+  --danger:#e0604f;
+}
+/* 亲和（浅色蓝） */
+[data-theme="approach"]{
+  --bg:#eef0f5; --surface:#ffffff; --surface-2:#f0f2f8;
+  --text:#1a2030; --text-muted:#5b6377; --text-faint:#9aa1b3;
+  --hair:#e2e6ef; --chrome:rgba(238,240,245,.82);
+  --primary:#4a5ad6; --primary-2:#6470e0; --primary-soft:rgba(74,90,214,.12); --on-primary:#ffffff;
+  --secondary:#0fb5a4; --secondary-soft:rgba(15,181,164,.13);
+  --danger:#d23b3b;
+}
+@media (prefers-reduced-motion: reduce){
+  *{transition:none!important; animation:none!important}
+}
