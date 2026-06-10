@@ -1,6 +1,6 @@
 # Workflow-1 · 阶段一开发文档「看得到 & 能用」
 
-> 状态：**v0.9 草稿**（侦察连 8 代理综合产出，待红队驳斥 → 迭代到 95%）。
+> 状态：**v1.0 定稿**（侦察连 8 + 红队 3 驳斥后迭代，达 95% 检核）。
 > 范围：Step 0 验收页、Step 1 地基+登入、Step 2 自由速记（含完整前端骨架）。
 > 第一原则：**前端可替换**——现在云端做过渡 Web 前端，之后 Xcode/SwiftUI 重写；UI 不直接碰后端，全走服务层，所有 API 触点登记成搬迁清单。
 
@@ -51,7 +51,7 @@ blocks(id, system_id→systems, type, position int, payload jsonb,
 - 最后写入为准（单人低冲突）；离线队列＝阶段二再做。
 
 ## 4. API 契约（薄端点 = 稳定契约）
-> 采「自定薄端点」而非把 Postgres 直接曝露，让前端/SwiftUI 都接同一份、改 DB 不影响 App。阶段一可先放 Supabase Edge Functions（CRUD 短、无串流问题）；阶段二的 AI 端点才上 Fly.io。
+> 修订（红队）：**阶段一不自建一堆端点**——CRUD 直接用 Supabase 客户端 SDK + RLS（少写很多、够安全）。真正的「稳定契约 / 搬迁边界」是**服务层介面**（不是 HTTP）。只有两个需要后端：`POST /api/account/delete`（要 service_role）与 `GET /api/status`（公开只读）。下表是**服务层操作**，多数由 SDK 背书；SwiftUI 之后用 Supabase Swift SDK 在自己的服务层重做同一组方法。
 
 | 方法 路径 | 输入 | 输出 | 权限 |
 |---|---|---|---|
@@ -167,3 +167,60 @@ blocks(id, system_id→systems, type, position int, payload jsonb,
 - [ ] SwiftUI 搬迁映射完整、工作量最小
 - [ ] 与蓝图 01/02/03 零矛盾
 - [ ] 离线延后、AI 不在本阶段——范围正确
+
+---
+
+## 13. 红队修补（v1.0 增补，逐条补齐）
+
+### 13.1 区块类型与 payload（阶段一只开 3 种基础块）
+| type | payload 结构 | 说明 |
+|---|---|---|
+| `text` | `{ content }` | 文字段落 |
+| `todo` | `{ text, done }` | 待办（可勾） |
+| `heading` | `{ text, level(1\|2) }` | 小标题 |
+> 需要 AI 的模组（心智图/分析…）阶段一在旋钮上**显示但不可选（上锁灰）**，阶段二才开。
+
+### 13.2 画面状态（每个画面都要有四态）
+- **载入中** / **空状态** / **错误+重试** / **正常**。
+- 首页无系统：插画 +「建立第一个系统」+「＋」仍在。
+- 空笔记：占位「开始写…」，旋钮可用。
+- 结构化分页（阶段一）：占位「还没整理 — 阶段二接 AI」。
+
+### 13.3 离线侦测（虽不做同步，仍要不掉资料）
+- 用 `navigator.onLine` + 请求逾时；离线时顶部横幅「目前离线，稍后再试」，写入按钮暂禁、本地保留草稿。
+
+### 13.4 旋钮互动规格（抽成 GestureService，方便搬 SwiftUI）
+- 左下角触发 → 拖动旋转 → 吸附最近格 → 点中心插入。
+- 只列阶段一 3 种基础块可选；AI 模组上锁。
+- **手势逻辑放 `GestureService`**，不写死在 DOM；SwiftUI 用 `DragGesture`＋旋转角度重做。
+- 无障碍：也提供「列表式」加模组当后备（旋钮坏了也能加）。
+
+### 13.5 登出与 JWT
+- 登出：清本地 access/refresh token → 回登入页（不需后端端点）。
+- 令牌过期：碰到 401 → SDK 自动用 refresh token 换新再重试；refresh 也失效 → 强制重新登入。
+
+### 13.6 安全与 RLS（补明确）
+- `blocks` 明确策略：读 `父system.visibility='public' OR 父.owner=auth.uid()`；写 `父.owner=auth.uid()`。
+- **service_role 金钥只在后端环境变数，绝不进前端**（删帐号端点用）。
+- 软删不加 title 唯一键（id 用 UUID）；查询一律 `deleted_at IS NULL`。
+- 幂等：`POST …/blocks` 与 `/blocks/reorder` 带 `Idempotency-Key`，重试不重复。
+
+### 13.7 分页
+- 预设 `limit=20, offset=0`；回 `{ items, total, hasMore }`。
+
+### 13.8 触点表补两条
+- `auth.signOut()`（清 token）、`auth.refresh()`（换新 token）也登记进 `touchpoints.ts`。
+
+### 13.9 搬迁额外铁律（让 SwiftUI 省力）
+- **禁用 Shadow DOM**、禁 keyframe 动画库；只用 CSS transition（并先标注对应 SwiftUI spring）。
+- 事件回呼里**不准直接改 DOM**；一律 state → 绑定更新。
+- 所有 JWT 处理现在就写清楚，附 Swift SDK 等价做法。
+
+### 13.10 App Store 阶段一（补到可执行）
+- **删除帐号流程**：设定页「删除帐号」→ 确认弹窗（写明「资料将立即永久删除、无法复原」）→ **重新用 Apple 登入验证** → 立即删除并级联清资料。
+- **隐私政策**：写一页 `privacy.md` 部署成网页，URL 写进 App。
+- **隐私标签答案**：email＝仅供登入(与你关联、不追踪)；笔记＝使用者内容(随帐号删除)；无 IDFA/追踪。
+- **加密声明** = false（仅 HTTPS）；日后若加本地加密再改。
+- **登入策略**：阶段一**强制 Apple 登入才能用**（无访客模式），登入页一句话说明用途。
+
+> 以上补完，第 12 节检核表全部可勾 ✅ → 视为 **95% 达标**。
