@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>BrainStrom · 阶段一 App（单档版）</title><link rel="icon" href="data:,">
+<style>/* tokens.css — 设计令牌（两套主题，对应 SwiftUI Theme.swift） */
+:root{
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px; --space-8:32px;
+  --radius-s:8px; --radius-m:14px; --radius-l:20px;
+  --shadow-subtle:0 1px 2px rgba(0,0,0,.18);
+  --shadow-medium:0 10px 26px -16px rgba(0,0,0,.5);
+  --shadow-prominent:0 18px 40px -18px rgba(0,0,0,.55);
+  --motion-quick:.12s; --motion-standard:.25s; --motion-gentle:.45s;
+  --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  --tap:44px;
+}
+/* 黑曜石（深色金） */
+[data-theme="obsidian"]{
+  --bg:#0a0a0e; --surface:#16151d; --surface-2:#201e2a;
+  --text:#ece8f0; --text-muted:#9b93a6; --text-faint:#665f72;
+  --hair:rgba(255,255,255,.10); --chrome:rgba(10,10,14,.72);
+  --primary:#d3ad57; --primary-2:#b58e3c; --primary-soft:rgba(211,173,87,.14); --on-primary:#16130a;
+  --secondary:#6fb3bf; --secondary-soft:rgba(111,179,191,.14);
+  --danger:#e0604f;
+}
+/* 亲和（浅色蓝） */
+[data-theme="approach"]{
+  --bg:#eef0f5; --surface:#ffffff; --surface-2:#f0f2f8;
+  --text:#1a2030; --text-muted:#5b6377; --text-faint:#9aa1b3;
+  --hair:#e2e6ef; --chrome:rgba(238,240,245,.82);
+  --primary:#4a5ad6; --primary-2:#6470e0; --primary-soft:rgba(74,90,214,.12); --on-primary:#ffffff;
+  --secondary:#0fb5a4; --secondary-soft:rgba(15,181,164,.13);
+  --danger:#d23b3b;
+}
+@media (prefers-reduced-motion: reduce){
+  *{transition:none!important; animation:none!important}
+}
+
+/* app.css — 元件与版面（含 iPhone 外框） */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:var(--font-body);background:radial-gradient(900px 640px at 50% -10%,#1b1b22,#0a0a0e 65%);
+  color:var(--text);display:grid;place-items:center;overflow:hidden}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea{font:inherit;color:inherit}
+
+/* iPhone 外框 */
+.phone{width:390px;height:844px;border-radius:54px;background:#000;padding:11px;position:relative;
+  box-shadow:0 50px 120px -30px rgba(0,0,0,.85),0 0 0 11px #1c1c1e,0 0 0 12px #2c2c2e}
+.screen{position:relative;width:100%;height:100%;border-radius:44px;overflow:hidden;background:var(--bg);
+  color:var(--text);display:flex;flex-direction:column;transition:background var(--motion-gentle),color var(--motion-standard)}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:122px;height:34px;background:#000;border-radius:20px;z-index:60}
+.homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:138px;height:5px;border-radius:3px;background:var(--text);opacity:.35;z-index:55}
+.statusbar{height:54px;flex:0 0 auto;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 8px;font-size:15px;font-weight:600}
+.statusbar .dots{display:flex;gap:6px;align-items:center;opacity:.9}
+
+.scroll{flex:1;overflow-y:auto;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
+.view{flex:1;min-height:0;display:flex;flex-direction:column}
+.hidden{display:none!important}
+
+/* 通用 */
+.h1{font-size:28px;font-weight:800;letter-spacing:-.02em}
+.muted{color:var(--text-muted)} .faint{color:var(--text-faint)}
+.row{display:flex;align-items:center;gap:var(--space-3)}
+.spacer{flex:1}
+.btn{padding:11px 16px;border-radius:var(--radius-m);background:var(--primary);color:var(--on-primary);font-weight:700;
+  box-shadow:var(--shadow-subtle);transition:filter var(--motion-quick),transform var(--motion-quick)}
+.btn:active{transform:scale(.96)} .btn:hover{filter:brightness(1.06)}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.btn-ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--hair)}
+.btn-danger{background:var(--danger);color:#fff}
+.iconbtn{width:var(--tap);height:var(--tap);min-width:var(--tap);border-radius:50%;display:grid;place-items:center;
+  background:var(--surface);border:1px solid var(--hair);color:var(--text-muted);box-shadow:var(--shadow-subtle)}
+.iconbtn.accent{color:var(--primary);border-color:color-mix(in srgb,var(--primary) 40%,var(--hair))}
+.iconbtn:active{transform:scale(.9)}
+.card{background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius-l);padding:var(--space-4);box-shadow:var(--shadow-medium)}
+
+/* 状态条 */
+.banner{display:flex;align-items:center;gap:8px;padding:9px 13px;font-size:12px;border-radius:var(--radius-m);
+  background:var(--secondary-soft);border:1px solid color-mix(in srgb,var(--secondary) 26%,transparent);color:var(--text);margin:0 0 12px}
+.banner.warn{background:color-mix(in srgb,var(--danger) 12%,transparent);border-color:color-mix(in srgb,var(--danger) 30%,transparent)}
+
+/* 顶栏 */
+.nav{flex:0 0 auto;height:48px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--hair);background:var(--chrome);backdrop-filter:blur(18px)}
+.nav .link{color:var(--primary);font-weight:600;display:flex;align-items:center;gap:3px}
+.nav .title{font-weight:700}
+
+/* 登入 */
+.login{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px;text-align:center}
+.logo{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;color:var(--on-primary);font-weight:800;font-size:28px;
+  background:linear-gradient(135deg,var(--primary),var(--primary-2));box-shadow:var(--shadow-prominent)}
+.apple{display:flex;align-items:center;justify-content:center;gap:8px;width:240px;padding:13px;border-radius:14px;background:var(--text);color:var(--bg);font-weight:600}
+
+/* 首页 */
+.pad{padding:var(--space-4) var(--space-4) 28px}
+.syscard{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius-l);
+  padding:var(--space-4);margin-bottom:11px;box-shadow:var(--shadow-medium);transition:transform var(--motion-quick)}
+.syscard:active{transform:scale(.985)}
+.pill{font-size:10px;font-weight:800;padding:3px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:4px}
+.pill.priv{color:var(--primary);background:var(--primary-soft)} .pill.pub{color:var(--secondary);background:var(--secondary-soft)}
+.sys-title{font-size:16px;font-weight:700;margin:6px 0 4px} .sys-snip{font-size:12.5px;color:var(--text-muted);line-height:1.4}
+.tags{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap} .tag{font-size:9.5px;color:var(--text-faint);border:1px solid var(--hair);padding:3px 8px;border-radius:6px}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text-muted);text-align:center;padding:32px}
+.empty .big{font-size:42px}
+
+/* 笔记 */
+.seg{display:flex;background:var(--surface-2);border:1px solid var(--hair);border-radius:10px;padding:2px;max-width:210px;margin:0 auto;position:relative}
+.seg button{flex:1;padding:6px 8px;font-size:12px;font-weight:700;color:var(--text-muted);border-radius:8px;white-space:nowrap}
+.seg button.on{background:var(--primary);color:var(--on-primary);box-shadow:var(--shadow-subtle)}
+.note-title{font-size:24px;font-weight:800;letter-spacing:-.02em;background:transparent;border:none;outline:none;width:100%}
+.blocks{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.block{position:relative;border:1px solid transparent;border-radius:10px;padding:6px 32px 6px 8px}
+.block:focus-within{border-color:var(--hair);background:var(--surface)}
+.btools{position:absolute;right:3px;top:3px;display:flex;flex-direction:column;align-items:center;gap:0;opacity:.3;transition:opacity var(--motion-quick)}
+.block:hover .btools,.block:focus-within .btools{opacity:1}
+.bmv{width:22px;height:15px;display:grid;place-items:center;color:var(--text-faint);font-size:9px}
+.bmv:active{color:var(--primary)}
+.bdel{width:22px;height:20px;display:grid;place-items:center;color:var(--text-faint)}
+.bdel:active{transform:scale(.9);color:var(--danger)}
+.offline{position:absolute;top:54px;left:0;right:0;z-index:70;background:color-mix(in srgb,var(--danger) 18%,var(--bg));
+  color:var(--text);border-bottom:1px solid color-mix(in srgb,var(--danger) 40%,transparent);
+  font-size:12px;font-weight:600;text-align:center;padding:7px;transform:translateY(-110%);transition:transform var(--motion-standard)}
+.offline.show{transform:none}
+.block textarea{width:100%;background:transparent;border:none;outline:none;resize:none;font-size:15px;line-height:1.6;color:var(--text)}
+.block.heading textarea{font-size:18px;font-weight:800}
+.todo{display:flex;align-items:flex-start;gap:9px}
+.tick{width:22px;height:22px;border-radius:50%;border:2px solid var(--text-faint);flex:0 0 auto;margin-top:3px;display:grid;place-items:center}
+.tick.on{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.structured-empty{flex:1;display:grid;place-items:center;color:var(--text-faint);text-align:center;padding:40px;font-size:14px}
+
+/* 底部工具列 + 旋钮 */
+.dock{flex:0 0 auto;height:74px;display:flex;align-items:center;gap:10px;padding:0 20px 14px;border-top:1px solid var(--hair);background:var(--chrome);backdrop-filter:blur(18px)}
+.fab{position:absolute;left:18px;bottom:20px;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;color:var(--on-primary);font-size:24px;font-weight:300;
+  background:linear-gradient(135deg,var(--primary),var(--primary-2));box-shadow:0 10px 24px -6px var(--primary-soft);z-index:40}
+.dial-scrim{position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:45;opacity:0;pointer-events:none;transition:opacity var(--motion-standard)}
+.dial-scrim.open{opacity:1;pointer-events:auto}
+.dial{position:absolute;left:16px;bottom:84px;z-index:46;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.dialmenu-head{font-size:11px;font-weight:800;color:var(--text-faint);padding-left:4px}
+.dialmenu-item{display:flex;align-items:center;gap:10px;padding:9px 14px 9px 10px;border-radius:14px;min-width:150px;
+  background:var(--surface);border:1px solid color-mix(in srgb,var(--primary) 32%,var(--hair));color:var(--text);box-shadow:var(--shadow-prominent);
+  transition:transform var(--motion-quick)}
+.dialmenu-item:active{transform:scale(.96)}
+.dialmenu-item .ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary);flex:0 0 auto}
+.dialmenu-item .nm{font-size:14px;font-weight:600}
+.dialmenu-item .lk{margin-left:auto;font-size:9px;color:var(--text-faint);font-weight:800}
+.dialmenu-item.locked{opacity:.55}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:96px;transform:translate(-50%,12px);z-index:90;background:var(--primary);color:var(--on-primary);
+  font-size:12px;font-weight:800;padding:9px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:opacity var(--motion-standard),transform var(--motion-standard)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* 设定 */
+.list{margin-top:10px}
+.li{display:flex;align-items:center;gap:12px;padding:14px;border-bottom:1px solid var(--hair)}
+.li .lbl{flex:1} .li .val{color:var(--text-muted);font-size:14px}
+.savechip{font-size:11px;color:var(--text-faint);font-weight:700}
+</style></head>
+<body><div class="phone"><div class="screen" id="screen"></div></div>
+<script>
+// mockClient.js — 模拟后端（localStorage）。模拟文档 §4 的 API 契约。
+// 之后换成真 Supabase 时，只要替换这个档案与服务层内部，UI 不动。
+const KEY = 'brainstrom.mock.v1';
+const sleep = (ms=180)=>new Promise(r=>setTimeout(r,ms));
+const uid = ()=>'id_'+Math.random().toString(36).slice(2,10);
+const now = ()=>new Date().toISOString();
+
+function load(){ try{return JSON.parse(localStorage.getItem(KEY))||{}}catch{ return {} } }
+function save(db){ localStorage.setItem(KEY, JSON.stringify(db)); }
+function init(){
+  const db = load();
+  db.users ||= {}; db.systems ||= {}; db.blocks ||= {}; db.session ||= null;
+  save(db); return db;
+}
+
+const RawMock = {
+  // ---- auth ----
+  async signInWithApple(){
+    await sleep(); const db=init();
+    let userId = Object.keys(db.users)[0];
+    if(!userId){ userId=uid(); db.users[userId]={ id:userId, email:'you@privaterelay.appleid.com', createdAt:now() }; }
+    db.session=userId; save(db);
+    return { ...db.users[userId] };
+  },
+  async me(){ const db=init(); return db.session? {...db.users[db.session]} : null; },
+  async signOut(){ const db=init(); db.session=null; save(db); },
+  async deleteAccount(){
+    await sleep(); const db=init(); const u=db.session; if(!u) throw err(401);
+    for(const s of Object.values(db.systems)) if(s.ownerId===u){ delete db.systems[s.id];
+      for(const b of Object.values(db.blocks)) if(b.systemId===s.id) delete db.blocks[b.id]; }
+    delete db.users[u]; db.session=null; save(db);
+  },
+  // ---- systems ----
+  async listSystems(){
+    await sleep(); const db=init(); const u=requireUser(db);
+    const items=Object.values(db.systems)
+      .filter(s=>!s.deletedAt && (s.ownerId===u || s.visibility==='public'))
+      .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))
+      .map(s=>{ const fb=Object.values(db.blocks).filter(b=>b.systemId===s.id&&!b.deletedAt)
+          .sort((a,b)=>a.position-b.position)[0];
+        const snip=fb?(fb.payload.content||fb.payload.text||''):''; return {...s, snippet:snip.slice(0,60)}; });
+    return { items, nextCursor:null, hasMore:false };
+  },
+  async createSystem(title){
+    await sleep(); const db=init(); const u=requireUser(db);
+    const t=(title||'未命名系统').slice(0,256);
+    const s={ id:uid(), ownerId:u, title:t, visibility:'private', mode:'free', version:1, tags:[],
+      createdAt:now(), updatedAt:now(), deletedAt:null };
+    db.systems[s.id]=s; save(db); return {...s};
+  },
+  async getSystem(id){
+    await sleep(120); const db=init(); const u=requireUser(db); const s=db.systems[id];
+    if(!s||s.deletedAt|| (s.ownerId!==u && s.visibility!=='public')) throw err(404);
+    const blocks=Object.values(db.blocks).filter(b=>b.systemId===id && !b.deletedAt).sort((a,b)=>a.position-b.position);
+    return { ...s, blocks };
+  },
+  async updateSystem(id, patch){
+    await sleep(120); const db=init(); const u=requireUser(db); const s=db.systems[id];
+    if(!s||s.deletedAt||s.ownerId!==u) throw err(404);
+    if(patch.title!==undefined) s.title=patch.title.slice(0,256);
+    if(patch.visibility!==undefined) s.visibility=patch.visibility;
+    if(patch.mode!==undefined) s.mode=patch.mode;
+    s.version++; s.updatedAt=now(); save(db); return {...s};
+  },
+  async deleteSystem(id){
+    await sleep(); const db=init(); const u=requireUser(db); const s=db.systems[id];
+    if(!s||s.ownerId!==u) throw err(404); s.deletedAt=now(); save(db);
+  },
+  // ---- blocks ----
+  async addBlock(systemId, block){
+    await sleep(100); const db=init(); const u=requireUser(db); const s=db.systems[systemId];
+    if(!s||s.ownerId!==u) throw err(404);
+    const positions=Object.values(db.blocks).filter(b=>b.systemId===systemId&&!b.deletedAt).map(b=>b.position);
+    const pos=block.position ?? (positions.length?Math.max(...positions)+1:0);
+    const b={ id:uid(), systemId, type:block.type, position:pos, payload:block.payload||{},
+      createdAt:now(), updatedAt:now(), deletedAt:null };
+    db.blocks[b.id]=b; s.updatedAt=now(); save(db); return {...b};
+  },
+  async updateBlock(id, patch){
+    await sleep(60); const db=init(); const u=requireUser(db); const b=db.blocks[id];
+    if(!b||b.deletedAt) throw err(404); const s=db.systems[b.systemId]; if(!s||s.ownerId!==u) throw err(404);
+    if(patch.payload!==undefined) b.payload=patch.payload;
+    if(patch.position!==undefined) b.position=patch.position;
+    b.updatedAt=now(); s.updatedAt=now(); save(db); return {...b};
+  },
+  async deleteBlock(id){
+    await sleep(80); const db=init(); const u=requireUser(db); const b=db.blocks[id];
+    if(!b) throw err(404); const s=db.systems[b.systemId]; if(!s||s.ownerId!==u) throw err(404);
+    b.deletedAt=now(); save(db);
+  },
+  async reorderBlocks(systemId, ids){
+    await sleep(80); const db=init(); const u=requireUser(db); const s=db.systems[systemId];
+    if(!s||s.ownerId!==u) throw err(404);
+    const current=Object.values(db.blocks).filter(b=>b.systemId===systemId&&!b.deletedAt).map(b=>b.id);
+    if(ids.length!==current.length || !ids.every(id=>current.includes(id))) throw err(409); // 原子：集合不符则失败
+    ids.forEach((id,i)=>{ db.blocks[id].position=i; }); s.updatedAt=now(); save(db);
+  },
+  // ---- status (验收页) ----
+  async status(){
+    const db=init();
+    return { db:true, auth:!!db.session, read_write:true, rls:true, delete_account:true,
+      frontend_skeleton:true, systems:Object.values(db.systems).filter(s=>!s.deletedAt).length, updatedAt:now() };
+  }
+};
+function requireUser(db){ if(!db.session) throw err(401); return db.session; }
+function err(code){ const e=new Error('http '+code); e.status=code; return e; }
+
+// 序列化所有呼叫，避免「读整包→改→写回」的并发竞态（真 DB 不需要这层）
+function serialize(obj){
+  let chain=Promise.resolve(); const out={};
+  for(const k of Object.keys(obj)){ const fn=obj[k];
+    out[k]=(...a)=>{ const r=chain.then(()=>fn.apply(obj,a)); chain=r.catch(()=>{}); return r; }; }
+  return out;
+}
+const Mock = serialize(RawMock);
+
+// services/index.js — 服务层（唯一能碰后端）。UI 一律走这里。
+// 每个 Service 继承 EventTarget；资料变动时 dispatch → UI 订阅后重渲染。
+// 对应 SwiftUI 的 @Observable ViewModel / Service。
+
+
+class Base extends EventTarget {
+  changed(detail){ this.dispatchEvent(new CustomEvent('change',{detail})); }
+}
+
+class AuthService extends Base {
+  user=null;
+  async init(){ this.user=await Mock.me(); this.changed(); return this.user; }
+  async signInWithApple(){ this.user=await Mock.signInWithApple(); this.changed(); return this.user; }
+  async signOut(){ await Mock.signOut(); this.user=null; this.changed(); }
+  async deleteAccount(){ await Mock.deleteAccount(); this.user=null; this.changed(); }
+  async me(){ return this.user; }
+}
+
+class SystemsService extends Base {
+  async list(){ return Mock.listSystems(); }
+  async create(title){ const s=await Mock.createSystem(title); this.changed({type:'create',s}); return s; }
+  async get(id){ return Mock.getSystem(id); }
+  async update(id,patch){ const s=await Mock.updateSystem(id,patch); this.changed({type:'update',s}); return s; }
+  async setVisibility(id,v){ return this.update(id,{visibility:v}); }
+  async setMode(id,m){ return this.update(id,{mode:m}); }
+  async delete(id){ await Mock.deleteSystem(id); this.changed({type:'delete',id}); }
+}
+
+class BlocksService extends Base {
+  async add(systemId,block){ return Mock.addBlock(systemId,block); }
+  async update(id,patch){ return Mock.updateBlock(id,patch); }
+  async toggleDone(id,payload){ return Mock.updateBlock(id,{payload}); }
+  async delete(id){ return Mock.deleteBlock(id); }
+  async reorder(systemId,ids){ return Mock.reorderBlocks(systemId,ids); }
+}
+
+class StatusService extends Base { async get(){ return Mock.status(); } }
+
+// touchpoints.js — ★API 触点登记表（搬迁清单）★ 对应开发文档 §5。
+// 之后搬 SwiftUI：照这张表，用 Supabase Swift SDK 在自己的服务层重做同一组方法。
+const TOUCHPOINTS = [
+  { method:'auth.signInWithApple()', ui:'登入页', api:'signInWithIdToken', swift:'AuthService (ASAuthorization + Supabase Swift)' },
+  { method:'auth.me()',              ui:'启动载入', api:'SDK getUser', swift:'AuthService.me()' },
+  { method:'auth.signOut()',         ui:'设定页登出', api:'清本地 token', swift:'AuthService.signOut()' },
+  { method:'auth.deleteAccount()',   ui:'设定页删帐号', api:'POST /api/account/delete', swift:'AuthService.deleteAccount()' },
+  { method:'systems.list()',         ui:'首页清单', api:'GET /api/systems?cursor', swift:'SystemsService.list()' },
+  { method:'systems.create(title)',  ui:'首页＋', api:'POST /api/systems', swift:'SystemsService.create()' },
+  { method:'systems.get(id)',        ui:'打开笔记', api:'GET /api/systems/:id', swift:'SystemsService.get()' },
+  { method:'systems.update(id,p)',   ui:'改标题', api:'PATCH /api/systems/:id', swift:'SystemsService.update()' },
+  { method:'systems.setVisibility',  ui:'私密/公开', api:'PATCH …{visibility}', swift:'SystemsService.update()' },
+  { method:'systems.setMode',        ui:'双模式切换', api:'PATCH …{mode}', swift:'SystemsService.update()' },
+  { method:'systems.delete(id)',     ui:'删系统', api:'DELETE /api/systems/:id', swift:'SystemsService.delete()' },
+  { method:'blocks.add(sid,b)',      ui:'旋钮插块', api:'POST …/blocks', swift:'BlocksService.add()' },
+  { method:'blocks.update(id,p)',    ui:'编辑块', api:'PATCH /api/blocks/:id', swift:'BlocksService.update()' },
+  { method:'blocks.toggleDone(id)',  ui:'待办勾选', api:'PATCH …{payload.done}', swift:'BlocksService.update()' },
+  { method:'blocks.delete(id)',      ui:'删块', api:'DELETE /api/blocks/:id', swift:'BlocksService.delete()' },
+  { method:'status.get()',           ui:'验收页', api:'GET /api/status', swift:'(验收页是 Web,不搬)' },
+];
+
+// main.js — 组合根 + 路由 + 画面。UI 只透过 services 碰后端。
+
+
+// ---- 组合根（建立并注入服务，无全域单例滥用）----
+const services = {
+  auth: new AuthService(),
+  systems: new SystemsService(),
+  blocks: new BlocksService(),
+  status: new StatusService(),
+};
+
+// ---- 图标 ----
+const I = {
+  plus:'<path d="M12 5v14M5 12h14"/>', back:'<path d="M15 5l-7 7 7 7"/>',
+  lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 00-1.7-1L16.5 2h-4l-.3 2.4a7 7 0 00-1.7 1l-2.4-1-2 3.4L5.1 11a7 7 0 000 2l-2 1.6 2 3.4 2.4-1a7 7 0 001.7 1l.3 2.4h4l.3-2.4a7 7 0 001.7-1l2.4 1 2-3.4-2-1.6a7 7 0 00.1-1z"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/>', chat:'<path d="M21 15a2 2 0 01-2 2H8l-4 4V5a2 2 0 012-2h13a2 2 0 012 2z"/>',
+  type:'<path d="M4 7V5h16v2M9 19h6M12 5v14"/>', check:'<path d="M5 12l4 4L19 7"/>',
+  list:'<path d="M9 6h11M9 12h11M9 18h11M5 6h.01M5 12h.01M5 18h.01"/>', sparkles:'<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/>',
+  brain:'<path d="M9 4a3 3 0 013 3 3 3 0 013-3 3 3 0 013 3v9a3 3 0 01-6 0 3 3 0 01-6 0V7a3 3 0 013-3z"/>',
+  trash:'<path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"/>',
+};
+const svg = (k,sz=20,sw=1.8)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${I[k]}</svg>`;
+
+// 旋钮模组（阶段一：3 基础块可选；AI 类上锁）
+const MODULES = [
+  { id:'text', name:'文字', icon:'type', locked:false },
+  { id:'todo', name:'待办', icon:'check', locked:false },
+  { id:'heading', name:'标题', icon:'list', locked:false },
+  { id:'mindmap', name:'心智图', icon:'brain', locked:true },
+  { id:'ai', name:'AI 分析', icon:'sparkles', locked:true },
+];
+
+const $ = (s,r=document)=>r.querySelector(s);
+const setTheme = t => { document.documentElement.setAttribute('data-theme',t); localStorage.setItem('brainstrom.theme',t); };
+
+class App {
+  constructor(){ this.root = $('#screen'); }
+  async start(){
+    setTheme(localStorage.getItem('brainstrom.theme')||'obsidian');
+    window.addEventListener('online',()=>this.offline(false));
+    window.addEventListener('offline',()=>this.offline(true));
+    await services.auth.init();
+    services.auth.user ? this.home() : this.login();
+  }
+  frame(inner){ this.root.innerHTML =
+    `<div class="island"></div>
+     <div class="statusbar"><span>9:41</span><span class="dots">${svg('list',16,2)} 100%</span></div>
+     <div class="offline" id="offbar">⚠ 目前离线，变更暂存本地</div>
+     ${inner}<div class="homebar"></div><div class="toast" id="toast"></div>`;
+    const ob=$('#offbar'); if(ob) ob.classList.toggle('show', !navigator.onLine); }
+  offline(b){ const el=$('#offbar'); if(el) el.classList.toggle('show',b); }
+  toast(t){ const el=$('#toast'); if(!el) return; el.textContent=t; el.classList.add('on'); clearTimeout(this._tt); this._tt=setTimeout(()=>el.classList.remove('on'),1300); }
+
+  // ---------- 登入 ----------
+  login(){
+    this.frame(`<div class="login">
+      <div class="logo">B</div>
+      <div class="h1">BrainStrom</div>
+      <div class="muted" style="max-width:240px">氛围开发笔记 · 自然语言，就是程式</div>
+      <button class="apple" id="apple"> ${svg('plus',16,2)} 使用 Apple 登入</button>
+      <div class="faint" style="font-size:11px;max-width:230px">收集 email 供登入、储存你的笔记（示范用 dev 登入）</div>
+    </div>`);
+    $('#apple').onclick = async ()=>{ $('#apple').disabled=true; $('#apple').textContent='登入中…';
+      await services.auth.signInWithApple(); this.home(); };
+  }
+
+  // ---------- 首页 ----------
+  async home(){
+    this.frame(`<div class="view">
+      <div class="scroll"><div class="pad">
+        <div class="row"><div><div class="faint" style="font-size:12px">我的系统</div><div class="h1">BrainStrom</div></div>
+          <div class="spacer"></div>
+          <button class="iconbtn" id="settings">${svg('gear')}</button>
+          <button class="iconbtn accent" id="add">${svg('plus')}</button></div>
+        <div class="banner">${svg('sparkles',15,2)} 阶段一骨架：登入/清单/速记/旋钮可用；AI 为占位</div>
+        <div id="syslist"><div class="muted" style="padding:20px 0">载入中…</div></div>
+      </div></div></div>`);
+    $('#settings').onclick=()=>this.settings();
+    $('#add').onclick=async ()=>{ const s=await services.systems.create('未命名系统'); this.note(s.id); };
+    try{
+      const { items } = await services.systems.list();
+      const box=$('#syslist');
+      if(!items.length){ box.innerHTML=`<div class="empty"><div class="big">📓</div><div>还没有系统</div>
+        <button class="btn" id="first">建立第一个系统</button></div>`;
+        $('#first').onclick=async()=>{ const s=await services.systems.create('未命名系统'); this.note(s.id); }; return; }
+      box.innerHTML = items.map(s=>`<button class="syscard" data-id="${s.id}">
+        <div class="row"><span class="pill ${s.visibility==='private'?'priv':'pub'}">${svg(s.visibility==='private'?'lock':'globe',9,2)} ${s.visibility==='private'?'私密':'公开'}</span>
+        <span class="spacer"></span><span class="faint" style="font-size:10px">${fmt(s.updatedAt)}</span></div>
+        <div class="sys-title">${esc(s.title)}</div>
+        <div class="sys-snip">${esc(s.snippet||'（空白系统，点开开始写）')}</div>
+        ${s.tags?.length?`<div class="tags">${s.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`:''}
+      </button>`).join('');
+      box.querySelectorAll('.syscard').forEach(b=>b.onclick=()=>this.note(b.dataset.id));
+    }catch(e){ $('#syslist').innerHTML=`<div class="empty"><div>载入失败</div><button class="btn" id="retry">重试</button></div>`;
+      $('#retry').onclick=()=>this.home(); }
+  }
+
+  // ---------- 笔记 ----------
+  async note(id){
+    this.frame(`<div class="view">
+      <div class="nav"><button class="link" id="back">${svg('back',20,2)} 系统</button>
+        <span class="spacer"></span>
+        <div class="seg"><button id="m-free" class="on">自由速记</button><button id="m-struct">AI 结构化</button></div>
+        <span class="spacer"></span>
+        <button class="pill priv" id="vis" style="border:none">${svg('lock',9,2)} 私密</button></div>
+      <div class="scroll"><div class="pad" id="content"><div class="muted">载入中…</div></div></div>
+      <div class="dock"><button class="iconbtn accent" id="chat">${svg('chat')}</button>
+        <button class="iconbtn" id="dsys">${svg('trash')}</button>
+        <span class="spacer"></span><span class="savechip" id="save"></span></div>
+      <button class="fab" id="fab">+</button>
+      <div class="dial-scrim" id="scrim"></div><div class="dial hidden" id="dial"></div>
+    </div>`);
+    $('#back').onclick=()=>this.home();
+    $('#chat').onclick=()=>this.toast('AI 对话：阶段二');
+    $('#dsys').onclick=async()=>{ if(!confirm('删除这个系统？此动作无法复原。')) return;
+      await services.systems.delete(this.cur.id); this.toast('已删除系统'); setTimeout(()=>this.home(),300); };
+    let sys; try{ sys=await services.systems.get(id); }catch{ this.toast('打不开'); return this.home(); }
+    this.cur=sys; this.mode='free';
+    const renderVis=()=>{ const v=$('#vis'); v.className='pill '+(sys.visibility==='private'?'priv':'pub');
+      v.innerHTML=`${svg(sys.visibility==='private'?'lock':'globe',9,2)} ${sys.visibility==='private'?'私密':'公开'}`; };
+    renderVis();
+    $('#vis').onclick=async()=>{ const u=await services.systems.setVisibility(id, sys.visibility==='private'?'public':'private'); sys.visibility=u.visibility; this.cur=sys; renderVis(); };
+    $('#m-free').onclick=()=>this.setMode('free');
+    $('#m-struct').onclick=()=>this.setMode('structured');
+    this.fab=$('#fab'); this.fab.onclick=()=>this.openDial();
+    $('#scrim').onclick=()=>this.closeDial();
+    this.renderContent();
+  }
+  setMode(m){ this.mode=m; $('#m-free').classList.toggle('on',m==='free'); $('#m-struct').classList.toggle('on',m==='structured');
+    services.systems.setMode(this.cur.id,m); this.renderContent(); $('#fab').classList.toggle('hidden',m!=='free'); }
+  renderContent(){
+    const c=$('#content');
+    if(this.mode==='structured'){ c.innerHTML=`<div class="structured-empty">还没整理<br>—— 阶段二接 AI 后，这里会变成结构化的卡片</div>`; return; }
+    c.innerHTML=`<input class="note-title" id="title" value="${esc(this.cur.title)}" />
+      <div class="blocks" id="blocks"></div>`;
+    $('#title').onblur=async e=>{ const v=e.target.value.trim()||'未命名系统'; const u=await services.systems.update(this.cur.id,{title:v}); this.cur.title=u.title; this.cur.version=u.version; this.saved(); };
+    this.renderBlocks();
+  }
+  renderBlocks(){
+    const wrap=$('#blocks'); const bs=this.cur.blocks||[];
+    wrap.innerHTML='';
+    if(!bs.length){ wrap.innerHTML=`<div class="faint" id="bhint" style="padding:6px 8px">开始写…（左下角 ＋ 加模组）</div>`; return; }
+    bs.forEach(b=>this.appendBlock(b));
+  }
+  appendBlock(b){
+    const wrap=$('#blocks'); const hint=$('#bhint'); if(hint) hint.remove();
+    const tmp=document.createElement('div'); tmp.innerHTML=this.blockHTML(b);
+    const node=tmp.firstElementChild; wrap.appendChild(node); this.wireBlock(node,b);
+  }
+  wireBlock(node,b){
+    if(b.type==='todo'){ node.querySelector('.tick').onclick=async()=>{ const done=!b.payload.done;
+      b.payload={...b.payload,done}; node.querySelector('.tick').classList.toggle('on',done);
+      await services.blocks.toggleDone(b.id,b.payload); this.saved(); }; }
+    const ta=node.querySelector('textarea');
+    if(ta){ ta.oninput=()=>autoraf(ta); ta.onblur=async()=>{
+      if(b.type==='todo') b.payload.text=ta.value; else { b.payload.content=ta.value; b.payload.text=ta.value; }
+      await services.blocks.update(b.id,{payload:b.payload}); this.saved(); }; autoraf(ta); }
+    const del=node.querySelector('.bdel');
+    if(del) del.onclick=async()=>{ await services.blocks.delete(b.id);
+      this.cur.blocks=this.cur.blocks.filter(x=>x.id!==b.id); node.remove();
+      if(!this.cur.blocks.length) this.renderBlocks(); this.toast('已删除区块'); };
+    node.querySelectorAll('.bmv').forEach(btn=>btn.onclick=async()=>{
+      const arr=this.cur.blocks, idx=arr.findIndex(x=>x.id===b.id);
+      const ni=btn.dataset.d==='up'?idx-1:idx+1; if(ni<0||ni>=arr.length) return;
+      [arr[idx],arr[ni]]=[arr[ni],arr[idx]];
+      await services.blocks.reorder(this.cur.id, arr.map(x=>x.id)); this.renderBlocks(); this.saved(); });
+  }
+  blockHTML(b){
+    const del=`<div class="btools"><button class="bmv" data-d="up" aria-label="上移">▲</button><button class="bmv" data-d="dn" aria-label="下移">▼</button><button class="bdel" aria-label="删除区块">${svg('trash',12,1.8)}</button></div>`;
+    if(b.type==='todo') return `<div class="block todo" data-b="${b.id}"><span class="tick ${b.payload.done?'on':''}">${b.payload.done?svg('check',13,2.4):''}</span><textarea rows="1" placeholder="待办…">${esc(b.payload.text||'')}</textarea>${del}</div>`;
+    if(b.type==='heading') return `<div class="block heading" data-b="${b.id}"><textarea rows="1" placeholder="标题">${esc(b.payload.content||b.payload.text||'')}</textarea>${del}</div>`;
+    return `<div class="block" data-b="${b.id}"><textarea rows="1" placeholder="写点什么…">${esc(b.payload.content||b.payload.text||'')}</textarea>${del}</div>`;
+  }
+  saved(){ const s=$('#save'); if(s){ s.textContent='已储存'; setTimeout(()=>{ if(s) s.textContent=''; },1200);} }
+
+  // 加模组选单（垂直、全在屏幕内、列表式无障碍；旋钮手势之后接 GestureService）
+  openDial(){
+    const d=$('#dial'); $('#scrim').classList.add('open'); d.classList.remove('hidden');
+    d.innerHTML=`<div class="dialmenu-head">加模组 · 氛围开发</div>`+MODULES.map((m,i)=>
+      `<button class="dialmenu-item ${m.locked?'locked':''}" data-i="${i}"><span class="ic">${svg(m.icon,17,1.8)}</span><span class="nm">${m.name}</span>${m.locked?'<span class="lk">阶段二</span>':''}</button>`).join('');
+    d.querySelectorAll('.dialmenu-item').forEach(b=>b.onclick=()=>{ const i=+b.dataset.i;
+      if(MODULES[i].locked){ this.toast('AI 模组：阶段二'); return; } this.insertModule(i); });
+  }
+  closeDial(){ $('#scrim').classList.remove('open'); $('#dial').classList.add('hidden'); }
+  async insertModule(i){
+    const m=MODULES[i]; const payload = m.id==='todo'?{text:'',done:false}:{content:''};
+    const block=await services.blocks.add(this.cur.id,{type:m.id,payload});
+    this.cur.blocks=[...(this.cur.blocks||[]),block]; this.closeDial(); this.appendBlock(block); this.toast('已插入「'+m.name+'」');
+  }
+
+  // ---------- 设定 ----------
+  settings(){
+    const cur=document.documentElement.getAttribute('data-theme');
+    this.frame(`<div class="view">
+      <div class="nav"><button class="link" id="back">${svg('back',20,2)} 返回</button><span class="spacer"></span><span class="title">设定</span><span class="spacer"></span></div>
+      <div class="scroll"><div class="pad">
+        <div class="card list" style="padding:0">
+          <div class="li"><span class="lbl">主题</span><div class="seg" style="margin:0;max-width:170px">
+            <button id="t-ob" class="${cur==='obsidian'?'on':''}">黑曜石</button><button id="t-ap" class="${cur==='approach'?'on':''}">亲和</button></div></div>
+          <div class="li"><span class="lbl">帐号</span><span class="val">${esc(services.auth.user?.email||'')}</span></div>
+          <div class="li" id="logout"><span class="lbl" style="color:var(--primary)">登出</span></div>
+        </div>
+        <button class="btn btn-danger" id="del" style="width:100%;margin-top:18px">删除帐号</button>
+        <div class="faint" style="font-size:11px;margin-top:8px">删除将立即永久移除你的资料、无法复原（正式版会再要求 Apple 验证）。</div>
+      </div></div></div>`);
+    $('#back').onclick=()=>this.home();
+    $('#t-ob').onclick=()=>{ setTheme('obsidian'); this.settings(); };
+    $('#t-ap').onclick=()=>{ setTheme('approach'); this.settings(); };
+    $('#logout').onclick=async()=>{ await services.auth.signOut(); this.login(); };
+    $('#del').onclick=async()=>{ if(!confirm('确定删除帐号？资料将立即永久删除、无法复原。')) return;
+      await services.auth.deleteAccount(); this.toast('帐号已删除'); setTimeout(()=>this.login(),600); };
+  }
+}
+
+// helpers
+function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmt(iso){ try{ return new Date(iso).toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'}); }catch{ return ''; } }
+function autoraf(ta){ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; }
+
+window.__app = new App();
+window.__app.start();
+
+</script></body></html>
