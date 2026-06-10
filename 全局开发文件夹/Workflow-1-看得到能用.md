@@ -59,7 +59,7 @@ blocks(id, system_id→systems, type, position int, payload jsonb,
 | 方法 路径 | 输入 | 输出 | 权限 |
 |---|---|---|---|
 | POST `/api/account/delete` | — | 204 | 本人 |
-| GET `/api/systems?limit&offset` | 分页 | system[] | 本人+公开 |
+| GET `/api/systems?limit&cursor` | 游标分页 | {items,nextCursor,hasMore} | 本人+公开 |
 | POST `/api/systems` | title | system | 本人 |
 | GET `/api/systems/:id` | — | system+blocks | 拥有/公开 |
 | PATCH `/api/systems/:id` | title/visibility/mode | system | 本人 |
@@ -70,7 +70,7 @@ blocks(id, system_id→systems, type, position int, payload jsonb,
 | POST `/api/blocks/reorder` | id[]顺序 | 204 | 本人 |
 | GET `/api/status` | — | 各功能灯号 | 公开(只读状态) |
 
-- 统一错误格式：`{ error, code, status_code }`；401 未登入 / 403 无权 / 400 验证。
+- 统一错误格式：`{ error, code, status_code }`；401 未登入 / 400 验证 / 409 冲突；**「找不到」与「无权」一律回 404**（防 id 列举）。
 - 统一 Header：`Authorization: Bearer <jwt>`。
 
 ## 5. ★ API 触点登记表（搬迁清单）★
@@ -298,3 +298,32 @@ blocks(id, system_id→systems, type, position int, payload jsonb,
 **跨文档**：与 01/02/03 无硬矛盾；已在 §1 把「AI/语音/市集/Fly.io 不在本阶段」「blocks≠20卡」写成明示。
 
 **第 2 轮缺陷数：搬迁 6 + 触点 9 + 跨文档 5(皆为「补明示」) = 20，已修补。**
+
+### 第 3 轮 · 安全 / 资料完整性 / 错误路径（→ v1.3）
+
+**安全**
+- **防列举**：找不到与无权一律回 **404**（不要 403 vs 404 露馅）。
+- **公开系统**：公开＝连同其 blocks 可被任何人读（这是刻意设计，写明）；blocks RLS 同父系统可见性。
+- **删帐号要重新验证**：执行前要求**重新 Apple 登入挑战**；幂等键改**一次性、TTL 5 分钟**，防重放/CSRF。
+- **service_role**：日志/APM 做遮罩，绝不进前端、绝不写进错误堆叠。
+- **JWT 储存**：过渡 Web 用 Supabase 预设(localStorage)→ 必加 **CSP + 脚本 SRI** 降 XSS 风险；SwiftUI 正式版改存 **Keychain**。
+- **payload 严格校验**：插入前按 type 验结构（text/todo/heading），拒绝多余栏位（资料库 CHECK 或 API 层）。
+
+**资料完整性**
+- **position 指派**：在交易内取 `max(position)+1`，加锁防并发撞号。
+- **reorder 原子**：先验「送来的 id 集合 == 该系统当前未删 blocks 集合」，不符回 **409**；查询带 `deleted_at IS NULL`。
+- **级联**：删帐号＝硬删 + CASCADE；删单一系统＝软删，其 blocks 随父隐藏（不必逐一软删）。
+- **游标分页**：用 `id > cursor`（非 offset），避免新增/删除造成翻页错位；回 `{items,nextCursor,hasMore}`。
+- **输入上限**：title ≤256、payload.content ≤64KB、tags ≤50、单系统 blocks ≤2000。
+- **version 规则**：内容相关变更（标题/模式/可见性/区块增改删）才 +1；纯 metadata 不动。
+
+**错误路径与韧性（统一 UX）**
+- **写入＝悲观**（POST/PATCH/DELETE 等 2xx 才算成功）；**读取＝乐观**。
+- **编辑储存状态**：永远显示「储存中／已储存／失败-重试」，绝不静默掉资料。
+- **401**：自动刷新**最多 2 次**，再不行强制回登入（防无限回圈）。
+- **防连点**：送出即禁用按钮到回应；后端幂等兜底。
+- **删帐号竞态**：设 `isDeleting`，收到 204 立即清本地+导走，不等其他。
+- **旋钮插入原子**：插入＋reorder 合成一次；reorder 失败就回滚刚插入的块。
+- **离线**：横幅「目前离线，已存本地」；重连用指数退避重试**最多 3 次**。
+
+**第 3 轮缺陷数：安全 6 + 完整性 7 + 韧性 6 = 19，已修补。**
