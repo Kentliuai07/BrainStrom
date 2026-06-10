@@ -71,11 +71,13 @@ input,textarea{font:inherit;color:inherit}
 .seg button.on{background:var(--primary);color:var(--on-primary);box-shadow:var(--shadow-subtle)}
 .note-title{font-size:24px;font-weight:800;letter-spacing:-.02em;background:transparent;border:none;outline:none;width:100%}
 .blocks{display:flex;flex-direction:column;gap:8px;margin-top:14px}
-.block{position:relative;border:1px solid transparent;border-radius:10px;padding:6px 30px 6px 8px}
+.block{position:relative;border:1px solid transparent;border-radius:10px;padding:6px 32px 6px 8px}
 .block:focus-within{border-color:var(--hair);background:var(--surface)}
-.bdel{position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;
-  color:var(--text-faint);opacity:.35;font-size:13px;transition:opacity var(--motion-quick)}
-.block:hover .bdel,.block:focus-within .bdel{opacity:1}
+.btools{position:absolute;right:3px;top:3px;display:flex;flex-direction:column;align-items:center;gap:0;opacity:.3;transition:opacity var(--motion-quick)}
+.block:hover .btools,.block:focus-within .btools{opacity:1}
+.bmv{width:22px;height:15px;display:grid;place-items:center;color:var(--text-faint);font-size:9px}
+.bmv:active{color:var(--primary)}
+.bdel{width:22px;height:20px;display:grid;place-items:center;color:var(--text-faint)}
 .bdel:active{transform:scale(.9);color:var(--danger)}
 .offline{position:absolute;top:54px;left:0;right:0;z-index:70;background:color-mix(in srgb,var(--danger) 18%,var(--bg));
   color:var(--text);border-bottom:1px solid color-mix(in srgb,var(--danger) 40%,transparent);

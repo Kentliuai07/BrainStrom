@@ -31,6 +31,7 @@ export class BlocksService extends Base {
   async update(id,patch){ return Mock.updateBlock(id,patch); }
   async toggleDone(id,payload){ return Mock.updateBlock(id,{payload}); }
   async delete(id){ return Mock.deleteBlock(id); }
+  async reorder(systemId,ids){ return Mock.reorderBlocks(systemId,ids); }
 }
 
 export class StatusService extends Base { async get(){ return Mock.status(); } }

@@ -121,7 +121,7 @@ class App {
     const renderVis=()=>{ const v=$('#vis'); v.className='pill '+(sys.visibility==='private'?'priv':'pub');
       v.innerHTML=`${svg(sys.visibility==='private'?'lock':'globe',9,2)} ${sys.visibility==='private'?'私密':'公开'}`; };
     renderVis();
-    $('#vis').onclick=async()=>{ sys=await services.systems.setVisibility(id, sys.visibility==='private'?'public':'private'); this.cur=sys; renderVis(); };
+    $('#vis').onclick=async()=>{ const u=await services.systems.setVisibility(id, sys.visibility==='private'?'public':'private'); sys.visibility=u.visibility; this.cur=sys; renderVis(); };
     $('#m-free').onclick=()=>this.setMode('free');
     $('#m-struct').onclick=()=>this.setMode('structured');
     this.fab=$('#fab'); this.fab.onclick=()=>this.openDial();
@@ -135,7 +135,7 @@ class App {
     if(this.mode==='structured'){ c.innerHTML=`<div class="structured-empty">还没整理<br>—— 阶段二接 AI 后，这里会变成结构化的卡片</div>`; return; }
     c.innerHTML=`<input class="note-title" id="title" value="${esc(this.cur.title)}" />
       <div class="blocks" id="blocks"></div>`;
-    $('#title').onblur=async e=>{ const v=e.target.value.trim()||'未命名系统'; this.cur=await services.systems.update(this.cur.id,{title:v}); this.saved(); };
+    $('#title').onblur=async e=>{ const v=e.target.value.trim()||'未命名系统'; const u=await services.systems.update(this.cur.id,{title:v}); this.cur.title=u.title; this.cur.version=u.version; this.saved(); };
     this.renderBlocks();
   }
   renderBlocks(){
@@ -161,9 +161,14 @@ class App {
     if(del) del.onclick=async()=>{ await services.blocks.delete(b.id);
       this.cur.blocks=this.cur.blocks.filter(x=>x.id!==b.id); node.remove();
       if(!this.cur.blocks.length) this.renderBlocks(); this.toast('已删除区块'); };
+    node.querySelectorAll('.bmv').forEach(btn=>btn.onclick=async()=>{
+      const arr=this.cur.blocks, idx=arr.findIndex(x=>x.id===b.id);
+      const ni=btn.dataset.d==='up'?idx-1:idx+1; if(ni<0||ni>=arr.length) return;
+      [arr[idx],arr[ni]]=[arr[ni],arr[idx]];
+      await services.blocks.reorder(this.cur.id, arr.map(x=>x.id)); this.renderBlocks(); this.saved(); });
   }
   blockHTML(b){
-    const del=`<button class="bdel" aria-label="删除区块">${svg('trash',13,1.8)}</button>`;
+    const del=`<div class="btools"><button class="bmv" data-d="up" aria-label="上移">▲</button><button class="bmv" data-d="dn" aria-label="下移">▼</button><button class="bdel" aria-label="删除区块">${svg('trash',12,1.8)}</button></div>`;
     if(b.type==='todo') return `<div class="block todo" data-b="${b.id}"><span class="tick ${b.payload.done?'on':''}">${b.payload.done?svg('check',13,2.4):''}</span><textarea rows="1" placeholder="待办…">${esc(b.payload.text||'')}</textarea>${del}</div>`;
     if(b.type==='heading') return `<div class="block heading" data-b="${b.id}"><textarea rows="1" placeholder="标题">${esc(b.payload.content||b.payload.text||'')}</textarea>${del}</div>`;
     return `<div class="block" data-b="${b.id}"><textarea rows="1" placeholder="写点什么…">${esc(b.payload.content||b.payload.text||'')}</textarea>${del}</div>`;
