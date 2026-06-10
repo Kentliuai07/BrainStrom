@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom · 阶段一验收仪表板</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./src/design/tokens.css">
+<style>
+  *{margin:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  body{font-family:var(--font-body);background:radial-gradient(900px 640px at 50% -10%,#1b1b22,#0a0a0e 65%);color:var(--text);min-height:100vh;padding:32px 18px}
+  .wrap{max-width:520px;margin:0 auto}
+  h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
+  .sub{color:var(--text-muted);font-size:13px;margin-top:4px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+  .lamp{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:16px;box-shadow:var(--shadow-medium)}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block;margin-right:7px}
+  .on{background:#27c98a;box-shadow:0 0 8px #27c98a}.off{background:var(--text-faint)}
+  .lname{font-weight:700;font-size:15px}.ldesc{color:var(--text-faint);font-size:11px;margin-top:6px}
+  .meta{display:flex;gap:18px;margin-top:20px;color:var(--text-muted);font-size:13px}
+  .meta b{color:var(--primary);font-size:20px;font-weight:800;display:block}
+  .row{display:flex;align-items:center;gap:12px;margin-top:18px}
+  .btn{padding:10px 16px;border-radius:12px;background:var(--primary);color:var(--on-primary);font-weight:700;border:none;cursor:pointer}
+  .btn.ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--hair)}
+  .note{margin-top:20px;color:var(--text-faint);font-size:12px;line-height:1.6;border-top:1px solid var(--hair);padding-top:14px}
+  a{color:var(--primary)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>阶段一 · 验收仪表板</h1>
+  <div class="sub">Step 0 · 远端看后端真实进度（每完成一步点亮一盏灯）</div>
+  <div class="grid" id="grid"></div>
+  <div class="meta"><div>系统数<b id="cnt">—</b></div><div>更新时间<b id="upd" style="font-size:13px">—</b></div></div>
+  <div class="row">
+    <button class="btn" onclick="refresh()">重新整理</button>
+    <a class="btn ghost" href="./index.html" style="text-decoration:none">打开 App →</a>
+  </div>
+  <div class="note">这是阶段一的「观察窗」。目前后端 ＝ <b>模拟后端</b>（资料存浏览器本地，供网页验收）。接上真 Supabase 后，这页会改读真实 <code>GET /api/status</code>，灯号即代表线上后端状态。</div>
+</div>
+<script type="module">
+  import { Mock } from './src/api/mockClient.js';
+  const LAMPS=[
+    {k:'db',n:'资料库',d:'Postgres / 本地存储就绪'},
+    {k:'auth',n:'登入',d:'Apple / dev 登入有效'},
+    {k:'read_write',n:'读写',d:'系统/区块 CRUD'},
+    {k:'rls',n:'权限隔离',d:'只能看自己的资料'},
+    {k:'delete_account',n:'删除帐号',d:'级联清除资料'},
+    {k:'frontend_skeleton',n:'前端骨架',d:'5 画面 + 旋钮 + 双模式'},
+  ];
+  window.refresh=async()=>{
+    const s=await Mock.status();
+    document.getElementById('grid').innerHTML=LAMPS.map(l=>`<div class="lamp">
+      <div><span class="dot ${s[l.k]?'on':'off'}"></span><span class="lname">${l.n}</span></div>
+      <div class="ldesc">${l.d}</div></div>`).join('');
+    document.getElementById('cnt').textContent=s.systems;
+    document.getElementById('upd').textContent=new Date(s.updatedAt).toLocaleTimeString('zh-CN');
+  };
+  refresh();
+</script>
+</body>
+</html>

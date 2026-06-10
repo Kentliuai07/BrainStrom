@@ -71,8 +71,16 @@ input,textarea{font:inherit;color:inherit}
 .seg button.on{background:var(--primary);color:var(--on-primary);box-shadow:var(--shadow-subtle)}
 .note-title{font-size:24px;font-weight:800;letter-spacing:-.02em;background:transparent;border:none;outline:none;width:100%}
 .blocks{display:flex;flex-direction:column;gap:8px;margin-top:14px}
-.block{border:1px solid transparent;border-radius:10px;padding:6px 8px}
+.block{position:relative;border:1px solid transparent;border-radius:10px;padding:6px 30px 6px 8px}
 .block:focus-within{border-color:var(--hair);background:var(--surface)}
+.bdel{position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;
+  color:var(--text-faint);opacity:.35;font-size:13px;transition:opacity var(--motion-quick)}
+.block:hover .bdel,.block:focus-within .bdel{opacity:1}
+.bdel:active{transform:scale(.9);color:var(--danger)}
+.offline{position:absolute;top:54px;left:0;right:0;z-index:70;background:color-mix(in srgb,var(--danger) 18%,var(--bg));
+  color:var(--text);border-bottom:1px solid color-mix(in srgb,var(--danger) 40%,transparent);
+  font-size:12px;font-weight:600;text-align:center;padding:7px;transform:translateY(-110%);transition:transform var(--motion-standard)}
+.offline.show{transform:none}
 .block textarea{width:100%;background:transparent;border:none;outline:none;resize:none;font-size:15px;line-height:1.6;color:var(--text)}
 .block.heading textarea{font-size:18px;font-weight:800}
 .todo{display:flex;align-items:flex-start;gap:9px}

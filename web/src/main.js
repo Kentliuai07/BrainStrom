@@ -19,6 +19,7 @@ const I = {
   type:'<path d="M4 7V5h16v2M9 19h6M12 5v14"/>', check:'<path d="M5 12l4 4L19 7"/>',
   list:'<path d="M9 6h11M9 12h11M9 18h11M5 6h.01M5 12h.01M5 18h.01"/>', sparkles:'<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/>',
   brain:'<path d="M9 4a3 3 0 013 3 3 3 0 013-3 3 3 0 013 3v9a3 3 0 01-6 0 3 3 0 01-6 0V7a3 3 0 013-3z"/>',
+  trash:'<path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"/>',
 };
 const svg = (k,sz=20,sw=1.8)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${I[k]}</svg>`;
 
@@ -38,13 +39,18 @@ class App {
   constructor(){ this.root = $('#screen'); }
   async start(){
     setTheme(localStorage.getItem('brainstrom.theme')||'obsidian');
+    window.addEventListener('online',()=>this.offline(false));
+    window.addEventListener('offline',()=>this.offline(true));
     await services.auth.init();
     services.auth.user ? this.home() : this.login();
   }
   frame(inner){ this.root.innerHTML =
     `<div class="island"></div>
      <div class="statusbar"><span>9:41</span><span class="dots">${svg('list',16,2)} 100%</span></div>
-     ${inner}<div class="homebar"></div><div class="toast" id="toast"></div>`; }
+     <div class="offline" id="offbar">⚠ 目前离线，变更暂存本地</div>
+     ${inner}<div class="homebar"></div><div class="toast" id="toast"></div>`;
+    const ob=$('#offbar'); if(ob) ob.classList.toggle('show', !navigator.onLine); }
+  offline(b){ const el=$('#offbar'); if(el) el.classList.toggle('show',b); }
   toast(t){ const el=$('#toast'); if(!el) return; el.textContent=t; el.classList.add('on'); clearTimeout(this._tt); this._tt=setTimeout(()=>el.classList.remove('on'),1300); }
 
   // ---------- 登入 ----------
@@ -101,12 +107,15 @@ class App {
         <button class="pill priv" id="vis" style="border:none">${svg('lock',9,2)} 私密</button></div>
       <div class="scroll"><div class="pad" id="content"><div class="muted">载入中…</div></div></div>
       <div class="dock"><button class="iconbtn accent" id="chat">${svg('chat')}</button>
+        <button class="iconbtn" id="dsys">${svg('trash')}</button>
         <span class="spacer"></span><span class="savechip" id="save"></span></div>
       <button class="fab" id="fab">+</button>
       <div class="dial-scrim" id="scrim"></div><div class="dial hidden" id="dial"></div>
     </div>`);
     $('#back').onclick=()=>this.home();
     $('#chat').onclick=()=>this.toast('AI 对话：阶段二');
+    $('#dsys').onclick=async()=>{ if(!confirm('删除这个系统？此动作无法复原。')) return;
+      await services.systems.delete(this.cur.id); this.toast('已删除系统'); setTimeout(()=>this.home(),300); };
     let sys; try{ sys=await services.systems.get(id); }catch{ this.toast('打不开'); return this.home(); }
     this.cur=sys; this.mode='free';
     const renderVis=()=>{ const v=$('#vis'); v.className='pill '+(sys.visibility==='private'?'priv':'pub');
@@ -148,11 +157,16 @@ class App {
     if(ta){ ta.oninput=()=>autoraf(ta); ta.onblur=async()=>{
       if(b.type==='todo') b.payload.text=ta.value; else { b.payload.content=ta.value; b.payload.text=ta.value; }
       await services.blocks.update(b.id,{payload:b.payload}); this.saved(); }; autoraf(ta); }
+    const del=node.querySelector('.bdel');
+    if(del) del.onclick=async()=>{ await services.blocks.delete(b.id);
+      this.cur.blocks=this.cur.blocks.filter(x=>x.id!==b.id); node.remove();
+      if(!this.cur.blocks.length) this.renderBlocks(); this.toast('已删除区块'); };
   }
   blockHTML(b){
-    if(b.type==='todo') return `<div class="block todo" data-b="${b.id}"><span class="tick ${b.payload.done?'on':''}">${b.payload.done?svg('check',13,2.4):''}</span><textarea rows="1" placeholder="待办…">${esc(b.payload.text||'')}</textarea></div>`;
-    if(b.type==='heading') return `<div class="block heading" data-b="${b.id}"><textarea rows="1" placeholder="标题">${esc(b.payload.content||b.payload.text||'')}</textarea></div>`;
-    return `<div class="block" data-b="${b.id}"><textarea rows="1" placeholder="写点什么…">${esc(b.payload.content||b.payload.text||'')}</textarea></div>`;
+    const del=`<button class="bdel" aria-label="删除区块">${svg('trash',13,1.8)}</button>`;
+    if(b.type==='todo') return `<div class="block todo" data-b="${b.id}"><span class="tick ${b.payload.done?'on':''}">${b.payload.done?svg('check',13,2.4):''}</span><textarea rows="1" placeholder="待办…">${esc(b.payload.text||'')}</textarea>${del}</div>`;
+    if(b.type==='heading') return `<div class="block heading" data-b="${b.id}"><textarea rows="1" placeholder="标题">${esc(b.payload.content||b.payload.text||'')}</textarea>${del}</div>`;
+    return `<div class="block" data-b="${b.id}"><textarea rows="1" placeholder="写点什么…">${esc(b.payload.content||b.payload.text||'')}</textarea>${del}</div>`;
   }
   saved(){ const s=$('#save'); if(s){ s.textContent='已储存'; setTimeout(()=>{ if(s) s.textContent=''; },1200);} }
 
