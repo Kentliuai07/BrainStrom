@@ -1,5 +1,7 @@
 # BrainStrom · 後端設計文檔
 
+> ⚠️ 最新決策以 `../全局开发文件夹/` 為準：**AI 算力改放 Fly.io**（非 Supabase Edge Functions）、**語音/Whisper 延後到 v2 之後**、**加密貨幣付款取消（只用 Apple IAP）**、**市集延後 v2**。本文其餘設計仍有效。
+
 > 來源：8 個探勘代理掃描 `mvp/brainstorm-mvp.html` 後推導。配合 `ios-structure.md`（前端）與 `memory-architecture.md`（AI 記憶）一起看。
 
 ## 0. 一句話架構

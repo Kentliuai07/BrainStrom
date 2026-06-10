@@ -1,5 +1,7 @@
 # BrainStrom · 開發路線圖（驗證版・白話）
 
+> ⚠️ v1 範圍以 `../全局开发文件夹/03-开发步骤与策略.md` 為準：**v1 做到「市集之前」**；**語音延後 v2 之後**；**Step 10 市集延後 v2**。
+
 > 經 8 個探勘代理掃描 `mvp/brainstorm-mvp.html` 驗證。配合 `ios-structure.md`、`backend-design.md`、`memory-architecture.md`。
 > 針對「雲端開發」調整：**第 0 步先做一個 iOS 樣式的「驗收頁」HTML，讓你在外地用瀏覽器就能看到後端真實進度。**
 
