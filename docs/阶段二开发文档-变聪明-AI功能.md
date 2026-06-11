@@ -129,6 +129,8 @@
 | systems | `docState: 'raw'\|'optimized'\|'carded'`（取代 `mode` 旧语意） | 文件生命周期状态 | Step 3 |
 | systems | `ai_restructure_count: int` | AI 操作次数（已规划） | Step 3/5 |
 | systems | `structuredAt: string` | 上次 AI 操作时间 | Step 3 |
+| systems | `nudge: {state,hash,opening,at}` | 点子助攻状态机（pending/dismissed/opened＋指纹＋开场重播快照），详见 F9 | Step 3.6 |
+| users | `prefs: {ideaNudge:bool}` | 「点子助攻」总开关（用户级、跨装置） | Step 3.6 |
 
 新表（沿用 `backend-design.md`，真后端阶段建 migration）：
 
@@ -313,6 +315,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 | `systems.undo(id)` / `systems.redo(id)` | 笔记页·上一步/下一步钮 | `POST /api/systems/:id/undo`·`/redo` | SystemsService.undo()/redo() |
 | `systems.versions(id)` / `systems.restore(id,v)` | 笔记页·版本列表 | `GET …/versions`·`POST …/restore` | SystemsService.versions()/restore() |
 | `blocks.pin(id,bool)` | 卡片·钉选开关 | `PATCH /api/blocks/:id{pinned}` | BlocksService.update() |
+| `auth.updatePrefs(patch)` | 设定页·点子助攻开关 | `PATCH /api/me/prefs` | AuthService.updatePrefs() |
 
 > **触点改版注记**：阶段一的 `systems.setMode` 触点在 v3 **废弃**——`mode('free'|'structured')` 语意由 `docState` 取代（后端在 AI 操作时更新，前端不直接设）；顶部「文章/卡片」视图切换是**纯前端 UI 状态**，不打后端。
 
@@ -372,8 +375,8 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 ① 目标：在一则笔记里跟 AI 聊，AI 知道**这则的全部内容（含手动加的卡）**。
 ② 资料流：服务层取 `getSystem(id)` **当前活文件的全部 blocks**（段落块＋模组块，不管优化过没有；聊天永远基于「现在这一版」，要聊旧版先还原再聊）→ 组三层 system block（抄 SBIR `prompt-builder`）：㈠ 静态人设+规则（挂 `cache_control:ephemeral` 省 token）㈡ 该专案全文（每张卡序列化成文字）㈢ 任务指令 → 走 `/ai/chat/note` 串流。
 ③ 模拟层：`aiStream('/ai/chat/note')` 回一段「我读到你这则有 N 张卡，包含 X、Y…」的**假但反映真实卡片数**的回答（证明上下文真被读到）。
-④ Fly.io 层：`POST /ai/chat/note`，三层 block + 快取，`streamAsync`。
-⑤ 服务层：`AIService.chatNote(systemId, messages, handlers)`；触点 `ai.chatNote`。
+④ Fly.io 层：`POST /ai/chat/note`，三层 block + 快取，`streamAsync`。（Step 3.5/3.6 起加 `PROPOSE_TOOL`（tool_choice auto）与 `kickoff:bool` 参数——kickoff 时 messages 允许空、第三层任务指令换教练人设，见第 6.6 章与 F9。）
+⑤ 服务层：`AIService.chatNote(systemId, messages, handlers, signal, {kickoff=false})`；触点 `ai.chatNote`（UI 触发点：聊天浮层＋助攻钮 kickoff）。
 ⑥ 验收点（对应你要的 (a)(b)）：
    - **(a) 流式状态**：输入一句送出 → 回答逐字蹦出、右下显示 `usage` token、断线显示 `error`。`ai_engine`+`chat_note` 灯亮。
    - **(b) 单篇识别**：先手动加一张含特定关键字的卡（如「发票辨识」），问「这则在讲什么、提到哪些工具」→ AI 复述出那张卡内容 → 验收页显示「单专案问答→引用到 N 张卡」。
@@ -415,6 +418,24 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 ⑥ 前端：聊天气泡下方渲染「提议按钮列」；点击进入「确认 → 套用 → 显示更新 + 可还原」流程；未接通的能力（GitHub/YouTube/资讯）按钮显示锁/「即将推出」。
 ⑦ 验收点（新增 `dialog_edit` 灯）：问 AI「帮我补一段风险分析」→ AI 提议〔帮你补上风险分析〕按钮 → 点击 → 笔记多出该段、聊天提示「已补上，可还原」→ 按 ↶ 该段消失。GitHub/YouTube 提议在对应 Step 接通前显示「即将推出」。
 > 能力点亮时程：`edit_text`/`structure` 在本章（Step 3.5）即可用；`find_github` 随 Step 7、`find_youtube`/`find_info` 随 Step 8 接通。
+
+### 第 6.6 章 · Step 3.6：点子助攻＋名称先行（Step 3.5 的入口体验）★使用者 2026-06-11 拍板★
+
+> 来源：使用者点子——「使用者输入完名称后浮出一颗小按钮，按下 AI 就跟他讨论这个点子（评价、建议、问要不要帮忙完善、聊技术选型）」。经 Plan 代理因果链推演后定案。**不需要新端点**，全部复用 Step 2 聊天＋Step 3.5 提议管线。细则（状态机表/字段/安全阀变体/防抖）见**附录 F9**。
+
+① 目标：点子一取名，AI 教练就能被一键召唤来讨论；讨论里的提议点了就落地（走 Step 3.5）。
+② **名称先行机制**（使用者拍板：必须先命名才能写正文）：
+   - 新建笔记 → 直接进笔记页「**命名态**」：游标停名称栏（placeholder「先给这个点子取个名字」），正文区置灰提示、所有写作/AI 按钮禁用。
+   - 名称非空提交 → 解锁正文 → 浮现助攻胶囊。
+   - **快速倒垃圾通道**：名称栏旁「先随便取」小钮，一键填占位名（如「6/11 随手记」）秒解锁——不挡半夜灵感型使用者。
+   - 空名称＋零内容就离开 → 该笔记静默丢弃（软删＋toast），清单不留空壳。旧资料不迁移（旧「未命名系统」空壳打开时同样进命名态）。
+③ **助攻按钮**（出现零成本，按下才花钱）：
+   - 形态：标题正下方的行内小胶囊「⚡ 让 AI 教练看看这个点子」＋尾部 ✕；不进 dock/浮钮层（不抢位）。
+   - 生命周期：`pending`（名称一填好即显示）→ 按下转 `opened`（胶囊收起，聊天面板头部留 ⚡ 常驻小入口）／✕ 划掉转 `dismissed`（该笔记永不再自动出现）。设定页总开关「点子助攻」。
+   - **防重复烧钱**：面板 ⚡ 重按时比对 `nudge.hash`（名称＋文字块指纹，模组卡增删不算变）——没变 → 重播上次开场（`nudge.opening` 快照，零成本、标注「内容没变，未消耗 AI」）；变了才重新呼叫。
+④ **教练开场**（资料流）：按钮 → `ai.chatNote(id, [], handlers, signal, {kickoff:true})` → `/ai/chat/note` 以教练人设开场——**诚实教练，不是彩虹屁**：肯定一句＋直指 2-3 个缺口；笔记还是空的（只有名称）则改聊定位反问/起手式（需求验证、最小范围、技术选型）；名称信息量不足就直接反问，不准硬掰。结尾必须经 `PROPOSE_TOOL` 抛 2-4 颗提议按钮（帮你起草/补 XX 段落=edit_text、整理成卡片=structure、找竞品 GitHub=find_github🔒…）。开场白进同一份聊天历史（与手动 💬 同一面板同一份）。
+⑤ 点提议 → 全走 Step 3.5 既有落点：`edit_text` → `ai.applyEdit(id,{instruction})`（=/ai/optimize 带 instruction，**instruction 模式安全阀**见 F9：钉选/模组照样硬挡，但字数阀放宽、touch 范围放宽到全部未钉选文字块）→ 套用前快照可 Undo；`structure` → 既有结构化；GitHub/YouTube/资讯 → 接通前「即将推出」。
+⑥ 验收点（新增 d1-d3，见第 11 章）；灯号**不开新灯**：开场共用 `chat_note`、提议落地点 `dialog_edit`。
 
 ### 第 7 章 · Step 4：加模组（横排按钮，手动加卡 + 钉选开关）
 
@@ -496,6 +517,9 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 | **(c6) 两视图同步** | 文章视图点一段改一字 | 切到卡片视图，同张卡同步变（反向也成立） | `structure`（附两视图同步） |
 | **(c7) 版本还原·无限退** | 连按「上一步」一路退到底 | 每步整批撤销（文章与卡片一起回去），最底能看到第 1 版原始乱稿 | `structure_incremental`（附可还原版本数） |
 | **(c8) 撤销/重做** | 按「上一步」再按「下一步」 | 一次 AI 操作整批撤销、整批重做 | `structure_incremental` |
+| **(d1) 名称先行** | 新建→不取名想直接写→返回首页 | 正文区置灰「先给这个点子取个名字」；返回后清单**没有**空壳笔记 | 无灯（行为验收） |
+| **(d2) 教练开场** | 只填名称→按 ⚡→看开场→不改内容重按面板 ⚡ | 肯定一句＋2-3 缺口/反问＋2-4 颗提议钮（🔒项标即将推出）；重按显示「内容没变，未消耗 AI」且零 token | `chat_note` |
+| **(d3) 提议落地＋防烦** | 点〔帮你补「XX」段落〕→按 ↶；另一笔 ✕ 划掉后反复进出 | 笔记多出该段、提示「已补上，可还原」、↶ 整批消失；被划掉的笔记胶囊永不再自动出现 | `dialog_edit` |
 
 ---
 
@@ -554,6 +578,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 4. 【Step 2】单专案聊天 `chatNote`。→ 点 `chat_note`，验收 (a)(b)。
 5. 【Step 3】优化文字 `/ai/optimize`（hash gate＋块级 diff＋分主题询问＋安全阀）＋ 卡片结构化 full。→ 点 `optimize`+`structure`，验收 (c0)(c1)(c6)(c7)(c8)。
 5.5. 【Step 3.5】对话式编辑：聊天 `proposal` 提议按钮 + `ai.applyEdit`（点选后走 optimize 套用、可 Undo）；GitHub/YouTube/资讯提议先显示「即将推出」。→ 点 `dialog_edit`。
+5.6. 【Step 3.6】名称先行＋点子助攻（依赖 5.5 的 proposal 管线，建议并单实作）：mock 资料层（createSystem 空 title、nudge/prefs 栏位）→ 命名态 gating＋离开清理＋助攻胶囊＋设定开关 → chatNote kickoff＋教练 prompt。→ 验收 (d1)(d2)(d3)。
 6. 【Step 4】加模组（横排按钮）+ 来源标记 + 钉选开关。→ 验收手动卡数/钉选卡数。
 7. 【Step 5】增量结构化（基准 aiHash）+ 钉选三层保护 + 删除规则 + 安全阀 + 快照/Undo。→ 点 `structure_incremental`，验收 (c2)(c3)。
 8. 【Step 6】全局找回 + 写/查向量（触发扩为「任何 AI 操作完成后」＋纯手写笔记兜底向量化）。→ 点 `global_recall`，验收 (c4)。
@@ -591,6 +616,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 - **段落=块**：文章每一段底层就是一个块，「改卡=改文章」天生成立——已向使用者说明并采用（编辑器多花几天工的代价已告知）。
 - **文章视图编辑方式 = 点哪段改哪段**＋文末续写区；合并/拆分用专门按钮。
 - **对话式编辑（Step 3.5，使用者 2026-06-11 新增）**：AI 在聊天里给建议并提议「要帮你改吗」，经使用者点选确认后才直接套用到笔记（走 optimize 管线、有快照可 Undo）；并可提议「找 GitHub/YouTube/相关资讯」生成模组卡（GitHub 随 Step 7、YouTube/资讯随 Step 8 接通，之前显示「即将推出」）。骨架落在 Step 3.5（见第 6.5 章），新增 `dialog_edit` 灯。
+- **名称先行＋点子助攻（Step 3.6，使用者 2026-06-11 拍板）**：必须先输入系统名称才能写正文（附「先随便取」1 秒逃生口）；名称一填好浮现「⚡ 点子助攻」胶囊（无字数门槛、出现零成本）；按下走 chatNote kickoff 诚实教练开场＋Step 3.5 提议按钮；✕ 划掉该笔记永不再自动出现；设定页总开关；同内容重按零成本重播。见第 6.6 章与 F9。
 
 ### 仍待拍板（沿用上面推荐默认即可开工）
 
@@ -717,3 +743,41 @@ cur  = 当前未软删 blocks
 - AbortSignal：`AIService._stream(endpoint, payload, handlers, signal)` 第四参数，透传给 fetch；组件卸载或「取消」按钮触发 abort。
 - Step 3 full 模式**不走 patch**（整批替换未钉选文字/标题块，钉选/模组块原位保留）；只有 incremental 走 F2/F3/F4 那套 patch。
 - 视图切换不打后端（纯前端状态）；`docState` 由后端在 AI 操作完成时更新。
+
+### F9 名称先行与点子助攻细则（Step 3.6，2026-06-11）
+
+**名称先行 gate 的精确边界**：
+- gate 条件 = `!title.trim() && 零块`。**已有内容的笔记永不锁正文**（旧笔记清空标题不触发 gate；title blur 时有块则回填「未命名系统」，零块则保持空、维持命名态）。
+- 离开清理：返回首页时 `空名 && 零块` → 软删＋toast「空笔记已丢弃」；防御分支（空名但有块，理论不可达）→ 回填「未命名系统」保留。
+- 旧资料不迁移：`title==='未命名系统' && 零块` 的旧空壳打开时进命名态；其余旧笔记视为已命名。
+- 命名态禁用清单：正文区、续写区、fab/模组、✦/▦/💬 全部 disabled。
+
+**nudge 状态机与字段**：
+
+```js
+// systems 新增（mock=localStorage 键；真后端 jsonb）
+nudge: { state:'pending'|'dismissed'|'opened',  // createSystem 默认 'pending'，migrateV2 补旧系统
+         hash: string|null,    // 上次 kickoff 时 fnvHash(title+'\n\n'+文字块全文指纹)——
+                               // 只取文字/标题块（DIFF_TYPES 口径），模组卡增删不算「点子变了」；与 lastAiHash 无关
+         opening: {text, proposals:[{action,label,args}]}|null,  // 开场重播快照（同内容重按零成本）
+         at: string|null }
+// users 新增
+prefs: { ideaNudge: true }     // 总开关；AuthService.updatePrefs(patch)；触点 auth.updatePrefs
+```
+
+- 规则表：title 空或总开关关 → 都不渲染；`pending`＋title 非空 → 行内胶囊＋面板 ⚡ 都显示；按下 → `opened`（胶囊收起、面板 ⚡ 常驻）；✕ → `dismissed`（胶囊永不再自动出现，但面板 ⚡ 手动入口保留）。
+- 防连点四层闸：按下即转 `opened` 收胶囊、chatBusy 防抖、面板 ⚡ 受 `nudge.hash` gate、server 60/分限流——缺一不可。
+- 重播：指纹相同 → 把 `nudge.opening` 注入聊天历史后开面板，零网络，前缀小字「上次的教练点评（内容没变，未消耗 AI）」。
+
+**kickoff 与 PROPOSE_TOOL**：
+- `/ai/chat/note` body 加 `kickoff?:bool`；kickoff 时 `messages` 允许空阵列（校验放宽为 `!kickoff && 空 → 400`）。
+- 加 `PROPOSE_TOOL`（tool_choice auto；kickoff 时 prompt 强制结尾必呼叫）：`{items:[{action:enum[edit_text,structure,find_github,find_youtube,find_info], label(≤12字), args:{instruction?}}], 1-4 项}`。text delta 照旧 → finalMessage 取 tool_use → emit `{type:'proposal',items}` → usage → done。`services._stream` 补 `case 'proposal'` 分发 onProposal。
+- 教练 prompt 两分支：零块（只有名称）→ 肯定一句＋（名称信息量不足则反问 2-3 个定位问题，不准硬掰缺口；足够则给起手式：需求验证/最小范围/技术选型）＋≤200 字；有内容 → 肯定最扎实的一点（点名第几块）＋直指 2-3 个缺口（每个一句「不补会出事」）＋≤250 字。两分支都：繁体白话、绝不直接改笔记、结尾必 propose。
+- 空笔记「帮你起草」不加新 action：= `edit_text` ＋ instruction「按名称《X》起草目标用户/核心功能/技术选型三段草稿，每段 2-3 句、[待補] 占位」。
+
+**applyEdit 的 instruction 模式安全阀（F2 变体，不动 F2 本体）**：
+- `checkOptimizePatch(blocks, patch, changedIdSet, mode='optimize')` 加显式 mode 参数，放宽只在 `mode='instruction'`（applyEdit 呼叫点）生效，防止日常优化误用弱化「影印机防线」。
+- instruction 模式：hash gate 跳过（使用者明示要改）；touch 范围放宽为全部未钉选文字/标题块（否则「帮我改写第二段」会被 touch_forbidden 误杀）；CHANGE_RATIO 放宽至 ±200%（「帮我扩写」必超 ±30%）。
+- **绝不放宽**：钉选块/模组块整批拒绝、adds 空内容拒绝、套用前快照（trigger='optimize'）、可 Undo。
+
+**灯号与聊天历史**：不开新灯（开场共用 chat_note、提议落地点 dialog_edit）；助攻开的对话与手动 💬 是**同一份**聊天历史（开场白以 role:'ai' push 进 chatMsgs）；nudge.opening 是 nudge 自己的持久化快照，不违反 D7「聊天历史 MVP 仅内存」决策。
