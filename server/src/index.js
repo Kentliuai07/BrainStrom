@@ -240,7 +240,7 @@ async function handleStructure(req, res, payload) {
       emit({ type: 'error', code: 'ai_format', error: 'AI 未回传 emit_cards 工具结果' });
     } else {
       cards.forEach((c, i) => {
-        emit({ type: 'card_start', index: i, type: c.type, title: c.title });
+        emit({ type: 'card_start', index: i, cardType: c.type, title: c.title }); // 卡片型别用 cardType（与事件 type 撞名，iOS 线发现的 bug）
         emit({ type: 'card_done', index: i, card: { type: c.type, title: c.title, content: c.content, absorbed: Array.isArray(c.absorbed) ? c.absorbed : [] } });
       });
       emit(usagePayload(msg));

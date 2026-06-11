@@ -48,7 +48,7 @@
 | delta | `{text}` | chat |
 | usage | `{input_tokens,output_tokens,cache_read_input_tokens,model}`（扁平） | 全部 |
 | progress | `{current,total,message}` | chat(mock)/前端自产 |
-| card_start | `{index,title,type}` | structure |
+| card_start | `{index,title,cardType}`（卡片型别键名为 cardType，避免与事件 type 撞名） | structure |
 | card_done | `{index,card}` | optimize/structure（card 形状见下） |
 | card_removed | `{cardId}` | optimize |
 | proposal | `{items:[{action,label,args:{instruction?}}]}`，action∈edit_text/structure/find_github/find_youtube/find_info，label≤12 字 | chat |

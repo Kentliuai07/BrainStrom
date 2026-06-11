@@ -305,7 +305,7 @@ export class AIService extends Base {
         case 'delta':        h.onDelta?.(ev.text); break;
         case 'usage':        h.onUsage?.(ev); break;
         case 'progress':     h.onProgress?.(ev.current, ev.total, ev.message); break;
-        case 'card_start':   h.onCardStart?.(ev.index, ev.title, ev.type); break;
+        case 'card_start':   h.onCardStart?.(ev.index, ev.title, ev.cardType); break;
         case 'card_done':    h.onCard?.(ev.index, ev.card); break;
         case 'card_removed': h.onCardRemoved?.(ev.cardId); break;
         case 'proposal':     h.onProposal?.(ev.items); break; // Step 3.5：对话式编辑提议按钮
@@ -475,7 +475,7 @@ export class AIService extends Base {
       const cards = []; let errEv = null;
       await realStream('/ai/structure', { note, mode: 'full' }, ev => {
         switch(ev.type){
-          case 'card_start': h.onCardStart?.(ev.index, ev.title, ev.type); break;
+          case 'card_start': h.onCardStart?.(ev.index, ev.title, ev.cardType); break;
           case 'card_done':  cards.push(ev.card); h.onCard?.(ev.index, ev.card); break;
           case 'usage':      h.onUsage?.(ev); break;
           case 'progress':   h.onProgress?.(ev.current, ev.total, ev.message); break;
