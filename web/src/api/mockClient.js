@@ -262,6 +262,11 @@ const RawMock = {
     if(patch.title!==undefined) s.title=patch.title.slice(0,256);
     if(patch.visibility!==undefined) s.visibility=patch.visibility;
     if(patch.mode!==undefined) s.mode=patch.mode;
+    // 阶段二 Step 3：AI 操作完成后由前端服务层写回的系统栏位（纯透传，无逻辑）
+    if(patch.lastAiHash!==undefined) s.lastAiHash=patch.lastAiHash;
+    if(patch.docState!==undefined) s.docState=patch.docState;
+    if(patch.ai_restructure_count!==undefined) s.ai_restructure_count=patch.ai_restructure_count;
+    if(patch.structuredAt!==undefined) s.structuredAt=patch.structuredAt;
     s.version++; s.updatedAt=now(); save(db); return {...s};
   },
   async deleteSystem(id){
@@ -289,6 +294,8 @@ const RawMock = {
     if(patch.payload!==undefined) b.payload=patch.payload;
     if(patch.position!==undefined) b.position=patch.position;
     if(patch.pinned!==undefined) b.pinned = isModuleType(b.type) ? true : !!patch.pinned; // 模组卡恒钉选
+    if(patch.aiHash!==undefined) b.aiHash=patch.aiHash;            // Step 3：AI 套用后写回块指纹（纯透传）
+    if(patch.structureGen!==undefined) b.structureGen=patch.structureGen;
     b.updatedAt=now(); s.updatedAt=now(); save(db); return {...b};
   },
   async deleteBlock(id){
@@ -361,14 +368,19 @@ const RawMock = {
     pushVersion(db, systemId, 'restore');
     const blocks=applySnapshot(db, systemId, snap); save(db); return blocks;
   },
+  // ---- 验收灯（db.meta.lamps）：各 AI 操作第一次成功完成后由服务层点亮 ----
+  async setLamp(key){
+    const db=init(); (db.meta.lamps ||= {})[key]=true; save(db);
+  },
   // ---- status (验收页) ----
   async status(){
     const db=init();
     return { db:true, auth:!!db.session, read_write:true, rls:true, delete_account:true,
       frontend_skeleton:true,
       // 阶段二 7 盏灯：ai_engine = 模拟引擎内建即在线（Step 1）；
-      // chat_note = 第一次聊天串流成功完成后点亮（db.meta.lamps，Step 2）；其余各 Step 完成后逐一点亮
-      ai_engine:true, chat_note:!!db.meta.lamps?.chat_note, optimize:false, structure:false,
+      // chat_note / optimize / structure = 各操作第一次成功完成后点亮（db.meta.lamps）；其余各 Step 完成后逐一点亮
+      ai_engine:true, chat_note:!!db.meta.lamps?.chat_note,
+      optimize:!!db.meta.lamps?.optimize, structure:!!db.meta.lamps?.structure,
       structure_incremental:false, global_recall:false, git_progress:false,
       systems:Object.values(db.systems).filter(s=>!s.deletedAt).length, updatedAt:now() };
   }

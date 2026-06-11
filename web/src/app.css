@@ -158,3 +158,42 @@ input,textarea{font:inherit;color:inherit}
   font-size:14px;line-height:1.5;color:var(--text);font-family:inherit;resize:none;outline:none;overflow:hidden;max-height:96px}
 .chatfoot textarea[disabled]{opacity:.55}
 .chatfoot .btn{padding:9px 13px;font-size:13px}
+
+/* ---- 阶段二 Step 3 · 两颗 AI 钮 / 锁定遮罩 / 分主题确认框 / 卡片视图 ---- */
+.view{position:relative}
+.aibtn{font-size:17px;font-weight:700}
+.aibtn[disabled],.iconbtn[disabled]{opacity:.45;pointer-events:none}
+/* 锁定编辑区：半透明遮罩 + 顶部细进度条 + 文字（AI 操作进行中防竞态） */
+.ailock{position:absolute;left:0;right:0;top:48px;bottom:0;z-index:58;
+  background:color-mix(in srgb,var(--bg) 58%,transparent);backdrop-filter:blur(2px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.ailock .aibar{position:absolute;top:0;left:0;right:0;height:3px;overflow:hidden;background:var(--primary-soft)}
+.ailock .aibar i{position:absolute;top:0;bottom:0;width:40%;background:var(--primary);border-radius:3px;animation:aibar 1.1s ease-in-out infinite}
+@keyframes aibar{0%{left:-40%}100%{left:100%}}
+.ailock-msg{font-size:13px;font-weight:800;color:var(--text);background:var(--surface);border:1px solid var(--hair);
+  padding:8px 16px;border-radius:999px;box-shadow:var(--shadow-medium)}
+/* 自制置中确认框（非 window.confirm） */
+.confirm-scrim{position:absolute;inset:0;z-index:85;background:rgba(0,0,0,.5);display:grid;place-items:center;padding:28px}
+.confirm{background:var(--surface);border:1px solid var(--hair);border-radius:18px;padding:18px;width:100%;max-width:280px;
+  box-shadow:var(--shadow-prominent);text-align:center}
+.confirm-title{font-size:14px;font-weight:800;line-height:1.5;margin-bottom:14px}
+.confirm-btns{display:flex;flex-direction:column;gap:8px}
+.confirm-btns .btn{width:100%}
+/* 卡片视图：AI 文字卡（卡标 + 内容 + 右上 📌/删除） */
+.aicard{position:relative;padding:13px 14px}
+.aicard.pinned{border-color:color-mix(in srgb,var(--primary) 36%,var(--hair))}
+.cardtitle{font-size:14px;font-weight:800;margin-bottom:5px;padding-right:52px;line-height:1.4}
+.cardbody{font-size:13.5px;line-height:1.65;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;cursor:text;min-height:1.4em}
+.cardbody textarea{width:100%;background:transparent;border:none;outline:none;resize:none;font:inherit;color:inherit;line-height:1.65;overflow:hidden}
+.cardtools{position:absolute;top:8px;right:8px;display:flex;gap:2px;opacity:.35;transition:opacity var(--motion-quick)}
+.aicard:hover .cardtools,.aicard:focus-within .cardtools,.block.module:hover .cardtools{opacity:1}
+.cpin{width:24px;height:22px;display:grid;place-items:center;font-size:11px;opacity:.5;filter:grayscale(1)}
+.cpin.on{opacity:1;filter:none}
+.cdel{width:24px;height:22px;display:grid;place-items:center;color:var(--text-faint)}
+.cdel:active{transform:scale(.9);color:var(--danger)}
+/* 串流骨架卡：先浮现占位再填内容 */
+.aicard.skel{border-style:dashed}
+.cardbody.shimmer{position:relative;min-height:2.4em;border-radius:8px;overflow:hidden;
+  background:linear-gradient(90deg,var(--surface-2) 25%,var(--hair) 50%,var(--surface-2) 75%);background-size:200% 100%;
+  animation:shimmer 1.2s linear infinite}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}

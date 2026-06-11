@@ -1,6 +1,6 @@
 // main.js — 组合根 + 路由 + 画面。UI 只透过 services 碰后端。
 // v3 活文件模型：一份笔记 = 一串有顺序的块；「文章 / 卡片」是同一份资料的两种画法（纯前端切换）。
-import { AuthService, SystemsService, BlocksService, StatusService, AIService, splitIntoBlocks } from './services/index.js';
+import { AuthService, SystemsService, BlocksService, StatusService, AIService, splitIntoBlocks, AI_BACKEND } from './services/index.js';
 
 // ---- 组合根（建立并注入服务，无全域单例滥用）----
 const services = {
@@ -73,13 +73,14 @@ class App {
   // ---------- 首页 ----------
   async home(){
     this.chatAbort?.abort(); // 离开笔记页：中断进行中的 AI 串流（省钱铁律，F8）
+    this.aiAbort?.abort(); this.aiAbort=null; this.aiBusy=false;
     this.frame(`<div class="view">
       <div class="scroll"><div class="pad">
         <div class="row"><div><div class="faint" style="font-size:12px">我的系统</div><div class="h1">BrainStrom</div></div>
           <div class="spacer"></div>
           <button class="iconbtn" id="settings">${svg('gear')}</button>
           <button class="iconbtn accent" id="add">${svg('plus')}</button></div>
-        <div class="banner">${svg('sparkles',15,2)} 阶段二 Step 2：打开笔记按底部 💬 可问 AI（其余 AI 功能陆续点亮）</div>
+        <div class="banner">${svg('sparkles',15,2)} 阶段二 Step 3：笔记底部 💬 问 AI、✦ 优化文字、▦ 卡片结构化都能用了</div>
         <div id="syslist"><div class="muted" style="padding:20px 0">载入中…</div></div>
       </div></div></div>`);
     $('#settings').onclick=()=>this.settings();
@@ -107,6 +108,7 @@ class App {
     // 聊天历史只存前端内存，切换笔记即清空（附录 D7）；先中断上一篇残留的串流
     this.chatAbort?.abort(); this.chatAbort=null;
     this.chatMsgs=[]; this.chatBusy=false;
+    this.aiAbort?.abort(); this.aiAbort=null; this.aiBusy=false;
     this.frame(`<div class="view">
       <div class="nav"><button class="link" id="back">${svg('back',20,2)} 系统</button>
         <span class="spacer"></span>
@@ -116,7 +118,10 @@ class App {
         <button class="histbtn" id="redo" aria-label="下一步" title="下一步">↷</button>
         <button class="pill priv" id="vis" style="border:none">${svg('lock',9,2)} 私密</button></div>
       <div class="scroll"><div class="pad" id="content"><div class="muted">载入中…</div></div></div>
+      <div class="ailock hidden" id="ailock"><div class="aibar"><i></i></div><div class="ailock-msg" id="ailockmsg">AI 整理中…</div></div>
       <div class="dock"><button class="iconbtn accent" id="chat" title="问 AI" aria-label="问 AI">${svg('chat')}</button>
+        <button class="iconbtn accent aibtn" id="ai-opt" title="优化文字" aria-label="优化文字">✦</button>
+        <button class="iconbtn accent aibtn" id="ai-card" title="卡片结构化" aria-label="卡片结构化">▦</button>
         <button class="iconbtn" id="dsys">${svg('trash')}</button>
         <span class="spacer"></span><span class="savechip" id="save"></span></div>
       <button class="fab" id="fab">+</button>
@@ -135,6 +140,9 @@ class App {
     $('#back').onclick=()=>this.home();
     // 问 AI 浮钮（dock 左侧聊天钮 = 触点表「笔记底部聊天浮层」的入口）
     $('#chat').onclick=()=>this.toggleChat();
+    // 阶段二 Step 3：两颗 AI 钮（✦ 优化文字 / ▦ 卡片结构化）
+    $('#ai-opt').onclick=()=>this.runOptimize();
+    $('#ai-card').onclick=()=>this.runStructure();
     $('#chatclose').onclick=()=>this.toggleChat(false);
     $('#chatsend').onclick=()=>this.sendChat();
     $('#chatstop').onclick=()=>this.chatAbort?.abort();
@@ -305,18 +313,156 @@ class App {
     const nn=tmp.firstElementChild; node.replaceWith(nn); this.wireBlock(nn,b);
   }
 
-  // ---- 卡片视图（docState 到 carded 前是空状态；结构化按钮 Step 3 接上）----
+  // ---- 卡片视图（Step 3 实装：全部块渲染成卡片流；空状态按钮直接触发 ▦）----
   renderCards(){
     const c=$('#content');
     if(this.cur.docState!=='carded'){
-      c.innerHTML=`<div class="structured-empty">还没结构化<br>—— 按 AI 结构化后这里会变成卡片</div>`;
+      c.innerHTML=`<div class="structured-empty"><div>还没结构化<br>—— 按下面的按钮，AI 会把笔记整理成一张张主题卡</div>
+        <button class="btn" id="gostruct" style="margin-top:14px">▦ 卡片结构化</button></div>`;
+      $('#gostruct').onclick=()=>this.runStructure();
       return;
     }
     const bs=this.sortedBlocks();
-    c.innerHTML=`<div class="blocks">${bs.map(b=>`<div class="card" style="padding:12px">
-      <div class="faint" style="font-size:10px;font-weight:800">${esc(b.type)}${b.pinned?' 📌':''}</div>
-      <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;margin-top:4px">${esc(b.payload?.content||b.payload?.text||JSON.stringify(b.payload||{}).slice(0,140))}</div>
-    </div>`).join('')}</div>`;
+    c.innerHTML='<div class="blocks" id="cards"></div>';
+    const w=$('#cards');
+    if(!bs.length){ w.innerHTML='<div class="faint" style="padding:6px 8px">没有卡片——切回文章视图写点内容吧</div>'; return; }
+    for(const b of bs){
+      const tmp=document.createElement('div'); tmp.innerHTML=this.cardHTML(b);
+      const node=tmp.firstElementChild; w.appendChild(node); this.wireCard(node,b);
+    }
+  }
+  isModule(b){ return !['text','heading','todo'].includes(b.type); }
+  cardHTML(b){
+    // 模组卡：沿用文章视图同一个组件框（决策 7：两视图长一样），只多删除钮
+    if(this.isModule(b)) return `<div class="block module" data-b="${b.id}">
+      <div class="mhead">📌 模组 · ${esc(b.type)}</div>
+      <div class="mjson">${esc(JSON.stringify(b.payload||{}).slice(0,140))}</div>
+      <div class="cardtools"><button class="cdel" aria-label="删除卡" title="删除">${svg('trash',12,1.8)}</button></div></div>`;
+    const title=b.payload?.title;
+    const content=b.payload?.content ?? b.payload?.text ?? '';
+    return `<div class="card aicard ${b.pinned?'pinned':''}" data-b="${b.id}">
+      <div class="cardtools"><button class="cpin ${b.pinned?'on':''}" aria-label="钉选" title="${b.pinned?'取消钉选':'钉选（AI 永不动）'}">📌</button><button class="cdel" aria-label="删除卡" title="删除">${svg('trash',12,1.8)}</button></div>
+      ${title?`<div class="cardtitle">${b.pinned?'<span class="pinmark">📌</span>':''}${esc(title)}</div>`:''}
+      <div class="cardbody">${esc(content)||'<span class="faint">（空白，点击编辑）</span>'}</div></div>`;
+  }
+  wireCard(node,b){
+    const pin=node.querySelector('.cpin');
+    if(pin) pin.onpointerdown=async ev=>{ ev.preventDefault();
+      const np=!b.pinned;
+      await services.blocks.pin(b.id,np); b.pinned=np;
+      this.toast(np?'已钉选（AI 永不动）':'已取消钉选');
+      const tmp=document.createElement('div'); tmp.innerHTML=this.cardHTML(b);
+      const nn=tmp.firstElementChild; node.replaceWith(nn); this.wireCard(nn,b); };
+    const del=node.querySelector('.cdel');
+    if(del) del.onclick=async()=>{
+      await services.systems.saveVersion(this.cur.id,'delete'); // 删卡前落一步
+      await services.blocks.delete(b.id);
+      this.cur.blocks=this.cur.blocks.filter(x=>x.id!==b.id); node.remove();
+      if(!this.cur.blocks.length) this.renderCards();
+      this.toast('已删除卡'); this.refreshHistoryBtns(); };
+    // 点内容就地编辑（blur 存，有变才落一步 cardEdit）
+    const body=node.querySelector('.cardbody');
+    if(body) body.onclick=()=>{
+      const key = b.payload?.content!==undefined||b.type!=='todo' ? 'content' : 'text';
+      const old = b.payload?.[key] ?? '';
+      body.innerHTML=`<textarea rows="1">${esc(old)}</textarea>`;
+      const ta=body.querySelector('textarea');
+      ta.oninput=()=>autoraf(ta); autoraf(ta);
+      ta.focus(); ta.selectionStart=ta.selectionEnd=ta.value.length;
+      ta.onblur=async()=>{
+        const v=ta.value;
+        const redraw=()=>{ const tmp=document.createElement('div'); tmp.innerHTML=this.cardHTML(b);
+          const nn=tmp.firstElementChild; node.replaceWith(nn); this.wireCard(nn,b); };
+        if(v===old){ redraw(); return; }                                  // 没变只收起、不落步
+        await services.systems.saveVersion(this.cur.id,'cardEdit');       // 有变才落一步
+        b.payload={...b.payload,[key]:v};
+        await services.blocks.update(b.id,{payload:b.payload});
+        redraw(); this.saved(); this.refreshHistoryBtns();
+      };
+    };
+  }
+
+  // ---- 阶段二 Step 3 · 两颗 AI 钮的流程 ----
+  // 自制置中确认框：「要不要顺便分主题、加小标题？」→ true / false / null(取消)
+  askGroupTopics(){
+    return new Promise(resolve=>{
+      const el=document.createElement('div'); el.className='confirm-scrim';
+      el.innerHTML=`<div class="confirm">
+        <div class="confirm-title">要不要顺便分主题、加小标题？</div>
+        <div class="confirm-btns">
+          <button class="btn" data-v="yes">要</button>
+          <button class="btn btn-ghost" data-v="no">不要</button>
+          <button class="btn btn-ghost" data-v="cancel">取消</button>
+        </div></div>`;
+      this.root.appendChild(el);
+      el.querySelectorAll('button').forEach(btn=>btn.onclick=()=>{
+        el.remove();
+        resolve(btn.dataset.v==='yes'?true:btn.dataset.v==='no'?false:null);
+      });
+    });
+  }
+  // 锁定编辑区（半透明遮罩＋顶部细进度条＋文字），AI 操作进行中防竞态（§1.2b-6）
+  aiLock(on,msg){
+    const el=$('#ailock'); if(el) el.classList.toggle('hidden',!on);
+    const m=$('#ailockmsg'); if(m&&msg) m.textContent=msg;
+    ['#ai-opt','#ai-card','#chat','#fab','#undo','#redo'].forEach(s=>{ const b=$(s); if(b) b.disabled=!!on; });
+  }
+  aiErrToast(e){
+    if(e.code==='safety_valve') this.toast('变动过大，已保留原内容');
+    else if(e.code==='need_real_backend') this.toast('此功能需要真后端（config.js 切 real）');
+    else this.toast('出错：'+(e.error||e.code||'未知错误'));
+  }
+  // ✦ 优化文字：确认框 → 锁定 → 串流收 patch → 完成 toast → 重渲染（↶ 可整批撤销）
+  async runOptimize(){
+    if(this.aiBusy) return;
+    if(AI_BACKEND!=='real'){ this.toast('此功能需要真后端（config.js 切 real）'); return; }
+    const g=await this.askGroupTopics(); if(g===null) return;
+    this.aiBusy=true; this.aiLock(true,'AI 整理中…');
+    this.aiAbort=new AbortController();
+    let n=0, skip=null, err=null;
+    await services.ai.optimize(this.cur.id,{groupTopics:g},{
+      onCard:()=>{ n++; },
+      onCardRemoved:()=>{},
+      onProgress:(c,t,msg)=>{ if(msg) skip=msg; },
+      onError:e=>{ err=e; },
+    }, this.aiAbort.signal);
+    this.aiBusy=false; this.aiAbort=null; this.aiLock(false);
+    if(err) this.aiErrToast(err);
+    else if(skip&&!n) this.toast(skip);          // 「内容没变，未消耗 AI」
+    else this.toast(`已优化 ${n} 段`);
+    await this.reload();                          // 重渲染文章视图
+  }
+  // ▦ 卡片结构化：锁定 → 自动切卡片视图 → 卡片随 card_done 逐张浮现（先骨架后填）→ 完成解禁页签
+  async runStructure(){
+    if(this.aiBusy) return;
+    if(AI_BACKEND!=='real'){ this.toast('此功能需要真后端（config.js 切 real）'); return; }
+    this.aiBusy=true; this.aiLock(true,'AI 整理中…');
+    this.view='cards'; sessionStorage.setItem(VIEW_KEY+this.cur.id,'cards');
+    const a=$('#v-article'), cseg=$('#v-cards');
+    if(a&&cseg){ a.classList.remove('on'); cseg.classList.add('on'); cseg.disabled=false; }
+    $('#content').innerHTML='<div class="blocks" id="aicards"></div>';
+    this.aiAbort=new AbortController();
+    let n=0, skip=null, err=null;
+    const wrap=()=>$('#aicards');
+    await services.ai.structure(this.cur.id,{mode:'full'},{
+      onCardStart:(i,title)=>{ const w=wrap(); if(!w) return;       // 骨架占位先浮现
+        const el=document.createElement('div'); el.className='card aicard skel'; el.dataset.i=i;
+        el.innerHTML=`<div class="cardtitle">${esc(title||'…')}</div><div class="cardbody shimmer">　</div>`;
+        w.appendChild(el); el.scrollIntoView({block:'end'}); },
+      onCard:(i,card)=>{ n++; const w=wrap(); if(!w) return;        // 再填内容
+        let el=w.querySelector(`[data-i="${i}"]`);
+        if(!el){ el=document.createElement('div'); el.className='card aicard'; el.dataset.i=i; w.appendChild(el); }
+        el.classList.remove('skel');
+        el.innerHTML=`<div class="cardtitle">${esc(card?.title||'')}</div><div class="cardbody">${esc(card?.content||'')}</div>`;
+        el.scrollIntoView({block:'end'}); },
+      onProgress:(c,t,msg)=>{ if(msg) skip=msg; },
+      onError:e=>{ err=e; },
+    }, this.aiAbort.signal);
+    this.aiBusy=false; this.aiAbort=null; this.aiLock(false);
+    if(err) this.aiErrToast(err);
+    else if(skip&&!n) this.toast(skip);
+    else this.toast(`回传 ${n} 张卡`);
+    await this.reload(); // docState 成 carded → 卡片页签解除禁用（syncViewSeg）；失败则自动弹回文章
   }
   saved(){ const s=$('#save'); if(s){ s.textContent='已储存'; setTimeout(()=>{ if(s) s.textContent=''; },1200);} }
 

@@ -26,4 +26,7 @@ export const TOUCHPOINTS = [
   // ---- 阶段二 · AI（Step 1 引擎 + Step 2 单笔记聊天；模拟层↔Fly.io 层签名与 SSE 协议一致）----
   { method:'ai.health()',            ui:'验收页', api:'GET /ai/health', swift:'AIService.health()' },
   { method:'ai.chatNote(id,msgs)',   ui:'笔记底部聊天浮层', api:'POST /ai/chat/note', swift:'AIService.chatNote()' },
+  // ---- 阶段二 · Step 3 两个 AI 按钮（hash gate / diff / 安全阀 / 套用在前端服务层；server 无状态只调 Claude）----
+  { method:'ai.optimize(id,{groupTopics})', ui:'笔记页·✦ 优化钮（先弹分主题确认框）', api:'POST /ai/optimize', swift:'AIService.optimize()' },
+  { method:'ai.structure(id,{mode})',       ui:'笔记页·▦ 卡片钮／卡片视图空状态按钮', api:'POST /ai/structure', swift:'AIService.structure()' },
 ];
