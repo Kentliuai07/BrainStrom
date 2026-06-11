@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P2-b 筆記頁 · 卡片視圖 — BrainStrom 設計稿 v2</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* 頂欄（同 P2）＋視圖切換 */
+.topbar { height:52px; flex:none; display:flex; align-items:center; padding:0 16px; gap:8px; border-bottom:1px solid var(--line); }
+.tb-back { font-size:20px; color:var(--print2); width:28px; }
+.tb-mid { flex:1; text-align:center; min-width:0; }
+.tb-mid .model { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.3em; color:var(--print3); display:block; margin-bottom:1px; }
+.tb-mid .name { font-size:14px; font-weight:700; }
+.tb-keys { display:flex; gap:6px; }
+.tb-keys .key { width:28px; height:26px; font-size:12px; border-radius:6px; --key-travel:1.5px; }
+
+/* 視圖切換：硬體滑動開關（文章｜卡片） */
+.viewseg { margin:14px var(--page-x) 0; height:36px; border-radius:9px; background:var(--recess); border:1px solid var(--line); box-shadow:inset 0 2px 4px rgba(0,0,0,.22); display:flex; padding:3px; position:relative; }
+.phone.day .viewseg { box-shadow:inset 0 2px 4px rgba(60,55,40,.12); }
+.viewseg .seg { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; font-size:13px; color:var(--print2); z-index:1; font-weight:600; }
+.viewseg .seg small { font-family:var(--font-mono); font-size:7.5px; letter-spacing:.16em; }
+.viewseg .thumb { position:absolute; top:3px; bottom:3px; left:50%; width:calc(50% - 3px); background:var(--panel2); border:1px solid var(--line-strong); border-radius:7px; box-shadow:var(--emboss), 0 1.5px 3px rgba(0,0,0,.3); transition:left var(--t-rail) var(--spring); }
+.viewseg .seg.act { color:var(--print); }
+
+/* 卡片格 */
+.stage { flex:1; overflow:hidden; padding:16px var(--page-x) 0; position:relative; }
+.grid { display:flex; flex-direction:column; gap:12px; }
+.kard { padding:14px 16px 13px; }
+.kard .khead { display:flex; align-items:baseline; gap:9px; margin-bottom:8px; }
+.kard .khead .mid { font-family:var(--font-mono); font-size:8px; letter-spacing:.26em; color:var(--print3); }
+.kard .khead .kt { font-size:15px; font-weight:700; }
+.kard .khead .kact { margin-left:auto; display:flex; gap:9px; color:var(--print3); font-size:13px; align-self:center; }
+.kard .kbody { font-size:14px; line-height:1.7; color:var(--print2); }
+.kard .kbody b { color:var(--print); }
+
+/* 釘選卡：橘斜紋左緣 */
+.kard.pin { overflow:hidden; }
+.kard.pin::after { content:""; position:absolute; left:0; top:0; bottom:0; width:9px; background:repeating-linear-gradient(45deg, var(--orange) 0 5px, transparent 5px 10px); opacity:.85; }
+.kard.pin .khead .mid { color:var(--orange); }
+
+/* 表格模組卡 */
+.kard table { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:2px; }
+.kard th { text-align:left; font-family:var(--font-mono); font-size:9px; letter-spacing:.16em; color:var(--print3); font-weight:600; padding:0 0 6px; }
+.kard td { padding:7px 0; border-top:1px solid var(--line); }
+.kard td.num { font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+
+/* GitHub 模組卡 */
+.repo { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line); }
+.repo .rn { font-family:var(--font-mono); font-size:12px; flex:1; }
+.repo .star { font-family:var(--font-mono); font-size:10px; color:var(--led-a); }
+.repo .lng { width:8px; height:8px; border-radius:50%; }
+
+/* 進度模組卡：LCD 大數字＋LED 段 */
+.prog { display:flex; align-items:center; gap:16px; }
+.prog .lcd { font-family:var(--font-mono); font-size:34px; font-weight:600; color:var(--orange); letter-spacing:.02em; text-shadow:0 0 12px rgba(255,77,0,.35); }
+.prog .lcd small { font-size:13px; color:var(--print2); text-shadow:none; }
+.prog .pr { flex:1; display:flex; flex-direction:column; gap:7px; }
+.prog .est { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.18em; color:var(--print3); }
+
+/* ---- 拖曳（drag）---- */
+.st-drag .kard.lift { transform:scale(1.03) rotate(.6deg); box-shadow:var(--emboss), 0 18px 44px rgba(0,0,0,.5); z-index:3; border-color:var(--orange); }
+.dropslot { display:none; height:54px; border:1.5px dashed var(--orange); border-radius:var(--r-card); clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%); align-items:center; justify-content:center; font-family:var(--font-mono); font-size:8.5px; letter-spacing:.26em; color:var(--orange); animation:slotpulse 1.2s ease-in-out infinite; }
+@keyframes slotpulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+.st-drag .dropslot { display:flex; }
+
+/* ---- 結構化串流（streaming）---- */
+.streamcard { display:none; border-color:var(--orange); box-shadow:var(--emboss), 0 0 18px rgba(255,77,0,.22); position:relative; overflow:hidden; }
+.streamcard::after { content:""; position:absolute; left:0; right:0; top:0; height:2px; background:var(--orange); animation:scanx 1.6s linear infinite; box-shadow:0 0 8px rgba(255,77,0,.6); }
+@keyframes scanx { from{transform:translateX(-100%)} to{transform:translateX(100%)} }
+.st-streaming .streamcard { display:block; }
+.streamtoast { display:none; position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:6; background:var(--panel); border:1px solid var(--line-strong); border-radius:10px; padding:9px 16px; font-size:12.5px; align-items:center; gap:9px; box-shadow:var(--shadow-card); white-space:nowrap; }
+.st-streaming .streamtoast { display:flex; }
+.fading { transition:opacity .4s; }
+.st-streaming .fading { opacity:.25; }
+.st-streaming .fading .khead::after { content:"REMOVED"; font-family:var(--font-mono); font-size:7.5px; letter-spacing:.2em; color:var(--led-r); margin-left:8px; }
+
+/* ---- 空狀態 ---- */
+.emptybox { display:none; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:14px; height:100%; padding-bottom:40px; }
+.st-empty .emptybox { display:flex; }
+.st-empty .grid { display:none; }
+.emptybox .slotart { width:150px; height:96px; border:1.5px dashed var(--line-strong); border-radius:var(--r-card); clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:var(--print3); font-size:18px; }
+.emptybox .slotart span { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.26em; }
+.emptybox p { font-size:14px; color:var(--print2); text-align:center; line-height:1.7; }
+.emptybox .key { width:190px; height:50px; flex-direction:row; gap:8px; font-size:15px; font-weight:600; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a href="index.html">‹ 總覽</a>
+  <h1>P2-b · 筆記頁 卡片視圖<small>模組機架——卡片是插在機箱上的板卡</small></h1>
+  <div class="toggles">
+    <span class="lab">THEME</span>
+    <button data-theme="night" class="on">霧面黑</button>
+    <button data-theme="day">暖灰機殼</button>
+    <span class="lab">STATE</span>
+    <button data-state="normal">正常</button>
+    <button data-state="drag">拖曳</button>
+    <button data-state="streaming">結構化串流</button>
+    <button data-state="empty">空</button>
+  </div>
+</header>
+
+<main>
+<div class="phone" id="phone">
+  <div class="inner">
+    <div class="statusrow"><span>9:41</span><span class="r">●●● ⌁ ▮</span></div>
+
+    <div class="topbar">
+      <div class="tb-back">‹</div>
+      <div class="tb-mid">
+        <span class="model">SYS-01 · NOTE-012</span>
+        <span class="name">期末報告構想</span>
+      </div>
+      <div class="tb-keys"><div class="key">⋯</div></div>
+    </div>
+
+    <div class="viewseg">
+      <div class="seg">¶<small>ARTICLE</small></div>
+      <div class="seg act">▦<small>CARDS</small></div>
+      <div class="thumb"></div>
+    </div>
+
+    <div class="stage">
+      <div class="grid">
+        <!-- 釘選卡 -->
+        <div class="hcard kard pin rise d1" style="padding-left:22px">
+          <div class="khead"><span class="mid">PINNED</span><span class="kt">核心問題</span><span class="kact"><span>📌</span><span>⋯</span></span></div>
+          <div class="kbody">為什麼同一條街，早上跟下午的體感差這麼多？<b>資料要能回答這一句。</b></div>
+        </div>
+
+        <!-- 一般卡（拖曳示範對象） -->
+        <div class="hcard kard lift rise d2">
+          <div class="khead"><span class="mid">CARD-02</span><span class="kt">觀測方法</span><span class="kact"><span>📌</span><span>⋯</span></span></div>
+          <div class="kbody">三條路線、每天同時間量三次：捷運出口、騎樓下、公園樹蔭。紅外線溫度計，量地表與離地 1.5m。</div>
+        </div>
+
+        <div class="dropslot">DROP HERE</div>
+
+        <!-- 表格模組卡 -->
+        <div class="hcard kard rise d3">
+          <div class="khead"><span class="mid">MOD · TABLE</span><span class="kt">樣本統計</span><span class="kact"><i class="led g pulse"></i></span></div>
+          <table>
+            <tr><th>路線</th><th>樣本</th><th>均溫差</th></tr>
+            <tr><td>捷運—學校</td><td class="num">18</td><td class="num">−2.8°C</td></tr>
+            <tr><td>河堤—公園</td><td class="num">9</td><td class="num">−3.2°C</td></tr>
+          </table>
+        </div>
+
+        <!-- 結構化串流中的新卡 -->
+        <div class="hcard kard streamcard">
+          <div class="khead"><span class="mid" style="color:var(--orange)">MOD · BUILDING</span><span class="kt">綠覆率對照</span></div>
+          <div class="kbody">樹蔭路段的溫差比無樹路段平均多 1.4°C，初步支持綠覆率假設<span class="caret"></span></div>
+        </div>
+
+        <!-- GitHub 模組卡 -->
+        <div class="hcard kard rise d4">
+          <div class="khead"><span class="mid">MOD · GITHUB</span><span class="kt">參考程式</span><span class="kact"><i class="led a"></i></span></div>
+          <div class="repo"><span class="lng" style="background:#3572A5"></span><span class="rn">microclimate-logger</span><span class="star">★ 412</span></div>
+          <div class="repo"><span class="lng" style="background:#F05138"></span><span class="rn">swift-charts-demo</span><span class="star">★ 96</span></div>
+        </div>
+
+        <!-- 進度模組卡 -->
+        <div class="hcard kard rise d5">
+          <div class="khead"><span class="mid">MOD · PROGRESS</span><span class="kt">整體進度</span><span class="kact"><i class="led o pulse"></i></span></div>
+          <div class="prog">
+            <div class="lcd">40<small>%</small></div>
+            <div class="pr">
+              <div class="ledbar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <span class="est">EST · 粗略估計 · 27/68 樣本</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 將被 card_removed 的卡 -->
+        <div class="hcard kard fading rise d6">
+          <div class="khead"><span class="mid">CARD-07</span><span class="kt">舊的待辦清單</span><span class="kact"><span>⋯</span></span></div>
+          <div class="kbody">（內容已併入「觀測方法」）</div>
+        </div>
+      </div>
+
+      <!-- 空狀態 -->
+      <div class="emptybox">
+        <div class="slotart">▦<span>EMPTY RACK</span></div>
+        <p>這份筆記還沒結構化。<br>讓 AI 把文章拆成一塊塊板卡。</p>
+        <div class="key orange">▦ 卡片結構化</div>
+      </div>
+    </div>
+
+    <div class="streamtoast"><i class="led o pulse"></i>結構化中 · 已產出 3 卡<span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.14em;color:var(--led-r);border:1px solid var(--led-r);border-radius:5px;padding:2.5px 8px">STOP</span></div>
+
+    <div class="printfoot" style="padding-bottom:8px">RACK VIEW <i></i> 8 CARDS <i></i> DRAG TO SORT</div>
+    <div class="home"><i></i></div>
+  </div>
+</div>
+
+<aside class="notes">
+  <h2>// 佈局</h2>
+  <li>視圖切換 = <b>硬體滑動開關</b>（凹槽軌道＋實體滑塊 <span class="tm">spring</span>）：¶ ARTICLE｜▦ CARDS。</li>
+  <li>卡片 = 插在機架上的板卡：<code>CARD-02 / MOD · TABLE</code> 編號銘板＋功能 LED；釘選卡帶橘斜紋左緣。</li>
+  <li>模組卡三款：表格（mono 數字）、GitHub（語言點＋★ 琥珀）、進度（<b>LCD 大數字發光</b>＋10 段 LED＋「粗略估計」印刷）。</li>
+  <li>進場 <span class="tm">stagger 40ms</span> 由上而下。</li>
+  <h2>// 狀態</h2>
+  <li><b>拖曳</b>：長按 <span class="hp">haptic .impact(.medium)</span> → 卡片 scale 1.03 rotate 0.6° 浮起＋橘框；下方 <code>DROP HERE</code> 虛線槽位脈動；放下 <span class="hp">.impact(.light)</span>。<span class="tp">card.reorder</span></li>
+  <li><b>結構化串流</b>：新卡橘框＋頂緣掃描線逐字長出（<code>card_start/card_done</code>）；被合併的卡標 <code>REMOVED</code> 淡出（<code>card_removed</code>）；底部 toast 計數＋紅 STOP。<span class="tp">ai.structize</span></li>
+  <li><b>空</b>：EMPTY RACK 虛線槽位＋「▦ 卡片結構化」橘鍵 CTA。</li>
+  <h2>// 無障礙</h2>
+  <li>卡片 VoiceOver=「觀測方法，卡片，2 之 8」；串流中 announce「正在產出第 3 張卡」。</li>
+</aside>
+</main>
+<script src="shared.js"></script>
+</body>
+</html>

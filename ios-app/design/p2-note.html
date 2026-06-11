@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P2 筆記頁 · 文章視圖 — BrainStrom 設計稿 v2</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* ============ 頂欄銘板 ============ */
+.topbar { height:52px; flex:none; display:flex; align-items:center; padding:0 16px; gap:8px; border-bottom:1px solid var(--line); position:relative; }
+.topbar::after { content:""; position:absolute; left:16px; right:16px; bottom:3px; height:1px; background:var(--line); opacity:.5; }
+.tb-back { font-size:20px; color:var(--print2); width:28px; }
+.tb-mid { flex:1; text-align:center; min-width:0; }
+.tb-mid .model { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.3em; color:var(--print3); display:block; margin-bottom:1px; }
+.tb-mid .name { font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tb-keys { display:flex; gap:6px; }
+.tb-keys .key { width:28px; height:26px; font-size:12px; border-radius:6px; --key-travel:1.5px; }
+.tb-keys .key.dis { opacity:.35; pointer-events:none; }
+
+/* ============ 內文 ============ */
+.stage { flex:1; overflow:hidden; padding:18px var(--page-x) 0; position:relative; display:flex; flex-direction:column; }
+.h1blk { font-size:28px; font-weight:800; line-height:1.3; margin:8px 0 5px; }
+.meta { font-family:var(--font-mono); font-size:10px; color:var(--print2); letter-spacing:.08em; margin-bottom:16px; }
+.meta i { font-style:normal; color:var(--orange); }
+.p { font-size:17px; line-height:1.75; margin-bottom:14px; }
+.p.dim { color:var(--print2); }
+
+/* 編輯中的塊：通電框 */
+.editing { position:relative; border:1px solid var(--orange); border-radius:10px; padding:10px 12px; margin-bottom:14px; background:var(--orange-dim); }
+.editing .p { margin:0; }
+.tools { position:absolute; right:8px; top:-15px; display:flex; gap:5px; }
+.tools .key { width:26px; height:24px; font-size:11px; border-radius:6px; --key-travel:1.5px; }
+
+/* 釘選＝橘斜紋警示銘板 */
+.pinned { position:relative; margin:4px 0 16px; padding:12px 14px 12px 22px; background:var(--panel); border:1px solid var(--line); border-radius:10px; font-size:16px; line-height:1.7; overflow:hidden; }
+.pinned::before { content:""; position:absolute; left:0; top:0; bottom:0; width:9px; }
+.pinned::before { background:repeating-linear-gradient(45deg, var(--orange) 0 5px, transparent 5px 10px); opacity:.85; }
+.pinned .pin { display:block; font-family:var(--font-mono); font-size:9px; letter-spacing:.26em; color:var(--orange); margin-bottom:5px; font-weight:700; }
+
+/* 待辦開關 */
+.todo { display:flex; gap:12px; align-items:center; font-size:16.5px; line-height:1.6; margin-bottom:11px; }
+.todo.on span { color:var(--print2); text-decoration:line-through; text-decoration-color:var(--print3); }
+
+/* 內嵌模組卡 */
+.modcard { padding:13px 16px 14px; margin:8px 0 18px; }
+.modcard .scrs .scr.tl { top:6px; left:6px; } .modcard .scrs .scr.bl { bottom:6px; left:6px; } .modcard .scrs .scr.br { bottom:6px; right:6px; }
+.modcard .mhead { padding-left:8px; margin-bottom:10px; }
+.mrow { display:flex; align-items:center; gap:10px; padding:7px 0 7px 8px; border-top:1px solid var(--line); }
+.mrow .rname { font-size:13px; width:92px; flex:none; }
+.mrow .rnum { font-family:var(--font-mono); font-size:10.5px; color:var(--print2); width:42px; text-align:right; flex:none; font-variant-numeric:tabular-nums; }
+
+.cont { font-size:15px; color:var(--print2); opacity:.75; padding:0 0 8px; }
+
+/* ============ AI 進行中（aibusy）============ */
+.busychase { display:none; position:absolute; top:0; left:0; right:0; height:3px; z-index:5; }
+.busychase i { position:absolute; top:0; bottom:0; width:10%; background:var(--orange); border-radius:2px; box-shadow:0 0 8px rgba(255,77,0,.6); animation:run 1.2s linear infinite; }
+@keyframes run { from{left:-10%} to{left:105%} }
+.st-aibusy .busychase { display:block; }
+.lockveil { display:none; position:absolute; inset:52px 0 0; z-index:4; background:var(--scrim); backdrop-filter:blur(2.5px); }
+.st-aibusy .lockveil { display:block; }
+.busytoast { display:none; position:absolute; left:50%; bottom:88px; transform:translateX(-50%); z-index:6;
+  background:var(--panel); border:1px solid var(--line-strong); border-radius:10px; padding:9px 16px;
+  font-size:12.5px; display:none; align-items:center; gap:9px; box-shadow:var(--shadow-card); white-space:nowrap; }
+.busytoast .stop { font-family:var(--font-mono); font-size:9px; letter-spacing:.14em; color:var(--led-r); border:1px solid var(--led-r); border-radius:5px; padding:2.5px 8px; cursor:pointer; }
+.st-aibusy .busytoast { display:flex; }
+
+/* ============ AI 確認銘板（confirm）============ */
+.confirmplate { display:none; top:50%; transform:translateY(-50%); }
+.st-confirm .confirmplate { display:block; }
+.st-confirm .scrim { opacity:1; pointer-events:auto; }
+.confirmplate .mhead { margin-bottom:12px; }
+.confirmplate .mhead .mname { color:var(--orange); letter-spacing:.06em; }
+.confirmplate .q { font-size:16px; line-height:1.7; margin-bottom:14px; }
+.confirmplate .opt { display:flex; align-items:center; gap:11px; padding:9px 2px; font-size:14.5px; border-top:1px solid var(--line); }
+.confirmplate .opt small { margin-left:auto; font-family:var(--font-mono); font-size:8.5px; letter-spacing:.16em; color:var(--print3); }
+.confirmplate .acts { display:flex; gap:10px; margin-top:16px; }
+.confirmplate .acts .key { flex:1; height:46px; flex-direction:row; gap:7px; font-size:15px; font-weight:600; }
+
+/* ============ 聊天面板（chat）：操作員主控台 ============ */
+.chatpanel { display:none; position:absolute; left:0; right:0; bottom:0; height:54%; z-index:9;
+  background:var(--panel); border-top:1px solid var(--line-strong);
+  clip-path:polygon(0 var(--notch-rail), var(--notch-rail) 0, 100% 0, 100% 100%, 0 100%);
+  flex-direction:column; box-shadow:0 -16px 50px rgba(0,0,0,.45); }
+.st-chat .chatpanel { display:flex; }
+.st-chat .scrim { opacity:1; pointer-events:auto; }
+.chatpanel .chead { display:flex; align-items:center; gap:9px; padding:13px 16px 10px; border-bottom:1px solid var(--line); }
+.chatpanel .chead .mid { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.26em; color:var(--print3); }
+.chatpanel .chead .mname { font-size:12.5px; font-weight:800; letter-spacing:.08em; }
+.chatpanel .chead .ref { margin-left:auto; font-family:var(--font-mono); font-size:9px; letter-spacing:.1em; color:var(--orange); border:1px solid var(--orange); border-radius:5px; padding:2.5px 8px; }
+.chatpanel .clog { flex:1; overflow:hidden; padding:13px 16px; display:flex; flex-direction:column; gap:11px; }
+.bub { max-width:84%; padding:10px 13px; border-radius:11px; font-size:14.5px; line-height:1.65; }
+.bub.me { align-self:flex-end; background:var(--orange); color:var(--orange-ink); border-radius:11px 11px 3px 11px; }
+.bub.ai { align-self:flex-start; background:var(--bg); border:1px solid var(--line); border-radius:11px 11px 11px 3px; }
+.bub.ai .bmeta { display:flex; gap:10px; margin-top:7px; font-family:var(--font-mono); font-size:8.5px; letter-spacing:.12em; color:var(--print3); }
+.chatpanel .cin { display:flex; gap:8px; padding:10px 16px 14px; border-top:1px solid var(--line); }
+.chatpanel .cin .slot { flex:1; height:42px; display:flex; align-items:center; padding:0 13px; font-size:14px; color:var(--print3); }
+.chatpanel .cin .key { width:42px; height:42px; font-size:15px; }
+.chatpanel .cin .key.stopk { background:var(--led-r); border-color:var(--led-r); color:#fff; box-shadow:0 var(--key-travel) 0 0 #7A1A0E; }
+
+/* ============ 版本歷史（versions）：磁帶記錄器 ============ */
+.verpanel { display:none; position:absolute; left:0; right:0; bottom:0; height:62%; z-index:9;
+  background:var(--panel); border-top:1px solid var(--line-strong);
+  clip-path:polygon(0 var(--notch-rail), var(--notch-rail) 0, 100% 0, 100% 100%, 0 100%);
+  flex-direction:column; box-shadow:0 -16px 50px rgba(0,0,0,.45); }
+.st-versions .verpanel { display:flex; }
+.st-versions .scrim { opacity:1; pointer-events:auto; }
+.verpanel .chead { display:flex; align-items:center; gap:9px; padding:13px 16px 10px; border-bottom:1px solid var(--line); }
+.verpanel .chead .mid { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.26em; color:var(--print3); }
+.verpanel .chead .mname { font-size:12.5px; font-weight:800; letter-spacing:.08em; }
+.verpanel .chead .cnt { margin-left:auto; font-family:var(--font-mono); font-size:9px; color:var(--print3); }
+.vlist { flex:1; overflow:hidden; padding:6px 16px; }
+.ver { display:flex; align-items:center; gap:12px; padding:12px 2px; border-bottom:1px solid var(--line); position:relative; }
+.ver::before { content:""; position:absolute; left:3px; top:0; bottom:0; width:1px; background:var(--line); }
+.ver .vled { position:relative; z-index:1; margin-left:0; }
+.ver .vbody { flex:1; }
+.ver .vt { font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px; }
+.ver .vt .badge { font-family:var(--font-mono); font-size:7.5px; letter-spacing:.18em; padding:2px 7px; border-radius:4px; }
+.badge.opt { color:var(--orange); border:1px solid var(--orange); background:var(--orange-dim); }
+.badge.card { color:var(--led-g); border:1px solid var(--led-g); }
+.badge.hand { color:var(--print2); border:1px solid var(--line-strong); }
+.badge.rest { color:var(--led-r); border:1px solid var(--led-r); }
+.ver .vm { font-family:var(--font-mono); font-size:9px; letter-spacing:.08em; color:var(--print3); margin-top:4px; }
+.ver .vm b { color:var(--led-g); font-weight:500; }
+.ver .vm b.neg { color:var(--led-r); }
+.ver .key { width:54px; height:30px; font-size:10px; border-radius:7px; --key-travel:1.5px; font-family:var(--font-mono); letter-spacing:.1em; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a href="index.html">‹ 總覽</a>
+  <h1>P2 ★ 筆記頁 · 文章視圖<small>活文件＋模組直條＋AI 全流程</small></h1>
+  <div class="toggles">
+    <span class="lab">THEME</span>
+    <button data-theme="night" class="on">霧面黑</button>
+    <button data-theme="day">暖灰機殼</button>
+    <span class="lab">STATE</span>
+    <button data-state="normal">正常</button>
+    <button data-state="rail">直條</button>
+    <button data-state="confirm">AI 確認</button>
+    <button data-state="aibusy">AI 進行中</button>
+    <button data-state="chat">聊天</button>
+    <button data-state="versions">版本</button>
+  </div>
+</header>
+
+<main>
+<div class="phone" id="phone">
+  <div class="inner">
+    <div class="statusrow"><span>9:41</span><span class="r">●●● ⌁ ▮</span></div>
+
+    <div class="topbar">
+      <div class="tb-back">‹</div>
+      <div class="tb-mid">
+        <span class="model">SYS-01 · NOTE-012</span>
+        <span class="name">期末報告構想</span>
+      </div>
+      <div class="tb-keys">
+        <div class="key">↶</div>
+        <div class="key dis">↷</div>
+        <div class="key">⋯</div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="sect">DOCUMENT · ARTICLE VIEW</div>
+      <div class="h1blk">期末報告構想</div>
+      <div class="meta">REV 12 · 14:32 · <i>1,248</i> CHARS · SYNC OK</div>
+
+      <p class="p">這學期想做「城市裡的微氣候」。先從通學路線的溫差開始記錄，捷運站出口、騎樓下、公園樹蔭，每天同一時間量三次。</p>
+
+      <div class="pinned">
+        <span class="pin">PINNED · AI 永不改動</span>
+        核心問題：為什麼同一條街，早上跟下午的體感差這麼多？資料要能回答這一句。
+      </div>
+
+      <div class="todo on"><div class="sw on"></div><span>借紅外線溫度計（已跟實驗室登記）</span></div>
+      <div class="todo"><div class="sw"></div><span>畫出三條觀測路線的地圖</span></div>
+
+      <div class="hcard modcard">
+        <span class="scrs"><span class="scr tl"></span><span class="scr bl"></span><span class="scr br"></span></span>
+        <div class="mhead"><span class="mid">MOD-01</span><span class="mname">觀測進度</span><span class="mled"><i class="led g pulse"></i><i class="led a"></i></span></div>
+        <div class="mrow"><span class="rname">捷運—學校</span><span class="ledbar"><i class="on g"></i><i class="on g"></i><i class="on g"></i><i class="on g"></i><i class="on g"></i><i class="on g"></i><i></i><i></i><i></i><i></i></span><span class="rnum">18/30</span></div>
+        <div class="mrow"><span class="rname">河堤—公園</span><span class="ledbar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="rnum">9/30</span></div>
+      </div>
+
+      <div class="editing">
+        <div class="tools">
+          <div class="key">📌</div><div class="key">▲</div><div class="key">▼</div><div class="key">✕</div>
+        </div>
+        <p class="p dim">下一段想寫：如果溫差跟綠覆率有關，那校門口那排被砍掉的樟樹</p>
+      </div>
+
+      <div class="cont">繼續寫，或叫 AI 幫你接<span class="caret"></span></div>
+    </div>
+
+    <div class="printfoot" style="padding-bottom:8px">REC <i></i> 即時保存 <i></i> UNDO ∞</div>
+    <div class="home"><i></i></div>
+
+    <!-- AI 進行中 -->
+    <div class="busychase"><i></i></div>
+    <div class="lockveil"></div>
+    <div class="busytoast"><i class="led o pulse"></i>AI 優化中 · 內容已鎖定保護<span class="stop">STOP</span></div>
+
+    <!-- 直條 -->
+    <div class="handle" id="handle"><span class="rib"></span><span class="rib"></span><span class="star">✦</span><span class="rib"></span><span class="rib"></span></div>
+    <div class="scrim" id="scrim"></div>
+    <aside class="rail">
+      <div class="key orange">✦<small>OPTIMIZE</small></div>
+      <div class="key orange">▦<small>CARDS</small></div>
+      <div class="rsep"><i></i><span>MOD</span><i></i></div>
+      <div class="key">⊞<small>TABLE</small></div>
+      <div class="key">◷<small>PROG</small></div>
+      <div class="key">⌥<small>GITHUB</small><span class="lock">PRO</span></div>
+      <div class="key close">✕</div>
+    </aside>
+
+    <!-- AI 確認銘板 -->
+    <div class="plate confirmplate">
+      <div class="mhead"><span class="mid">AI</span><span class="mname">✦ 優化文字</span><span class="mled"><i class="led o"></i></span></div>
+      <p class="q">要不要順便分主題、加小標題？</p>
+      <div class="opt"><div class="sw on"></div>分主題段落<small>RESTRUCT</small></div>
+      <div class="opt"><div class="sw on"></div>加小標題<small>HEADINGS</small></div>
+      <div class="opt"><div class="sw"></div>順便修錯字<small>PROOF</small></div>
+      <div class="acts">
+        <div class="key">取消</div>
+        <div class="key orange">✦ 開始</div>
+      </div>
+    </div>
+
+    <!-- 聊天主控台 -->
+    <div class="chatpanel">
+      <div class="chead"><span class="mid">CONSOLE</span><span class="mname">跟這份筆記對話</span><span class="ref">引用 3 卡</span></div>
+      <div class="clog">
+        <div class="bub me">幫我看河堤路線為什麼落後？</div>
+        <div class="bub ai">看了你的觀測表：河堤—公園只在週末有紀錄。平日 17:00 後天色變暗，你大概都跳過了。建議改成早上通學前量，或把這條線改隔日一次<span class="caret"></span>
+          <div class="bmeta"><span>TOKENS 412</span><span>REF MOD-01</span></div>
+        </div>
+      </div>
+      <div class="cin">
+        <div class="slot">問點什麼…</div>
+        <div class="key stopk">■</div>
+      </div>
+    </div>
+
+    <!-- 版本歷史 -->
+    <div class="verpanel">
+      <div class="chead"><span class="mid">TAPE</span><span class="mname">版本歷史</span><span class="cnt">12 REVS</span></div>
+      <div class="vlist">
+        <div class="ver">
+          <i class="led o vled"></i>
+          <div class="vbody"><div class="vt">AI 優化文字<span class="badge opt">OPTIMIZE</span></div><div class="vm">今天 14:32 · <b>+86</b> 字</div></div>
+          <div class="key">當前</div>
+        </div>
+        <div class="ver">
+          <i class="led g vled"></i>
+          <div class="vbody"><div class="vt">卡片結構化<span class="badge card">CARDS</span></div><div class="vm">今天 11:18 · 產出 4 卡</div></div>
+          <div class="key">還原</div>
+        </div>
+        <div class="ver">
+          <i class="led off vled"></i>
+          <div class="vbody"><div class="vt">手動編輯<span class="badge hand">MANUAL</span></div><div class="vm">昨天 22:04 · <b>+213</b> 字</div></div>
+          <div class="key">還原</div>
+        </div>
+        <div class="ver">
+          <i class="led r vled"></i>
+          <div class="vbody"><div class="vt">還原到 REV 8<span class="badge rest">RESTORE</span></div><div class="vm">昨天 21:50 · <b class="neg">−147</b> 字</div></div>
+          <div class="key">還原</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<aside class="notes">
+  <h2>// 佈局</h2>
+  <li>頂欄銘板：<code>SYS-01 · NOTE-012</code> 型號行＋標題；右側 ↶↷⋯ 為迷你鍵帽（行程 1.5px）。</li>
+  <li>釘選 = <b>橘斜紋警示銘板</b>（LOCKED 隱喻：AI 勿動）；待辦 = 撥動開關（可以真的撥，<span class="hp">haptic .selection</span>）。</li>
+  <li>編輯中的塊 = 橘色通電框＋上方迷你工具鍵（📌▲▼✕）。</li>
+  <li>底部機身印刷：<code>REC · 即時保存 · UNDO ∞</code> = 永不丟字的可見承諾。</li>
+  <h2>// 直條（拍板交互不變）</h2>
+  <li>右緣防滑紋把手（✦ <span class="tm">呼吸 4s</span>）→ 全屏模糊調光（<span class="tm">0.25s</span>）→ 78pt 側板 <span class="tm">spring 滑入</span>；AI 雙橘鍵在頂、模組鍵帽在下、PRO 琥珀角標。</li>
+  <h2>// AI 全流程</h2>
+  <li><b>確認</b>：銘板浮層＋選項開關（分主題/小標/錯字）＋ ✦ 開始橘鍵。<span class="tp">ai.optimize</span></li>
+  <li><b>進行中</b>：頂緣 <b>橘色 LED 追逐條</b>＋內容鎖定薄紗＋toast（含紅 STOP）。<span class="tm">SSE delta 流式</span>，<span class="hp">完成 .notification(.success)</span></li>
+  <li><b>聊天</b>：54% 主控台面板（CONSOLE）；我=橘膠囊、AI=面板泡＋<code>TOKENS/REF</code> 印刷；紅 ■ 停止鍵。<span class="tp">ai.chat</span></li>
+  <li><b>版本</b>：磁帶記錄器（TAPE）；LED 色=類型（橘優化/綠結構化/灰手改/紅還原）＋字數 delta。<span class="tp">doc.restoreVersion</span></li>
+  <h2>// 無障礙</h2>
+  <li>直條開啟 announce「模組選擇器」；AI 進行中 announce 進度；版本列=「AI 優化文字，今天 14:32，增加 86 字」。</li>
+</aside>
+</main>
+<script src="shared.js"></script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+import Foundation
+import SwiftData
+
+// ============================================================
+// 組合根 —— 全 App 唯一的依賴拼裝點
+// UI 只認識協議；Stub/Live 在這裡一處切換（AI_USE_STUB）
+// ============================================================
+
+/// 登入會話狀態。
+enum SessionState: Equatable {
+    case checking                // 啟動自檢中
+    case signedOut
+    case signedIn(UserAccount)
+}
+
+@MainActor
+@Observable
+final class CompositionRoot {
+
+    // —— 服務（抽象）——
+    let ai: any AIServicing
+    let auth: any AuthServicing
+    let theme = ThemeStore()
+    let toast = ToastModel()
+    private(set) var repository: (any NotesRepositoring)?
+
+    // —— 會話 ——
+    private(set) var session: SessionState = .checking
+
+    init() {
+        let config = AIConfig.fromBundle()
+        if let config, !config.useStub {
+            self.ai = AIServiceLive(config: config)
+        } else {
+            self.ai = AIServiceStub()
+        }
+        self.auth = AuthServiceStub()  // 真 Sign in with Apple 於 P0 實作時替換
+    }
+
+    /// RootView 出現時掛上 SwiftData context。
+    func attachRepository(context: ModelContext) {
+        guard repository == nil else { return }
+        repository = NotesRepository(context: context)
+    }
+
+    /// 冷啟動憑證檢查（P0 自檢層）。
+    func restoreSession() async {
+        let account = await auth.restoreSession()
+        session = account.map(SessionState.signedIn) ?? .signedOut
+    }
+
+    func signIn() async {
+        do {
+            let account = try await auth.signInWithApple()
+            Haptics.success()
+            session = .signedIn(account)
+        } catch {
+            Haptics.error()
+            session = .signedOut
+        }
+    }
+
+    func signOut() async {
+        await auth.signOut()
+        session = .signedOut
+    }
+}

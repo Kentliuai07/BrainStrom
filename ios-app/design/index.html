@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BrainStrom iOS · 設計稿包 v2「工業硬體」</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--font-body); background:#161614; color:#C9C9C6; min-height:100vh; padding:56px 24px 90px; display:flex; flex-direction:column; align-items:center; }
+.wrap { width:100%; max-width:920px; }
+.mk { font-family:var(--font-mono); font-size:10px; letter-spacing:.34em; color:#5C5A52; margin-bottom:12px; display:flex; align-items:center; gap:12px; }
+.mk::after { content:""; width:60px; height:1px; background:#3A3A36; }
+h1 { font-family:var(--font-display); font-size:40px; font-weight:700; letter-spacing:.05em; color:#EDEDEA; display:flex; align-items:flex-start; gap:6px; }
+h1 .dot { width:11px; height:11px; margin-top:5px; background:#FF4D00; display:inline-block; clip-path:polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 0 100%); }
+.sub { font-size:14.5px; color:#8E8E8A; margin:14px 0 38px; line-height:1.75; }
+.sub b { color:#E8E4D8; }
+
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; margin-bottom:40px; }
+.pcard {
+  display:block; text-decoration:none; color:inherit; padding:20px 20px 17px; position:relative;
+  background:#222220; border:1px solid #4A4A45; border-radius:14px;
+  clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+  box-shadow:inset 0 1px 0 rgba(232,228,216,.07), 0 4px 14px rgba(0,0,0,.28);
+  transition:transform .18s cubic-bezier(.3,1.22,.42,1), border-color .18s;
+}
+.pcard:hover { transform:translateY(-3px); border-color:#FF4D00; }
+.pcard .ph { display:flex; align-items:baseline; gap:9px; margin-bottom:9px; }
+.pcard .pid { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.28em; color:#FF4D00; font-weight:700; }
+.pcard h3 { font-size:17px; font-weight:800; color:#EDEDEA; }
+.pcard .led { margin-left:auto; width:7px; height:7px; border-radius:50%; background:#54D62C; box-shadow:0 0 6px #54D62C; align-self:center; animation:pulse 2.4s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+.pcard p { font-size:12.5px; line-height:1.62; color:#8E8B80; }
+
+.principles { background:#222220; border:1px solid #3A3A36; border-radius:14px; padding:24px 28px; clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%); }
+.principles h2 { font-family:var(--font-mono); font-size:11px; letter-spacing:.24em; font-weight:700; color:#FF4D00; margin-bottom:14px; }
+.principles ol { padding-left:20px; display:flex; flex-direction:column; gap:9px; font-size:13.5px; line-height:1.65; color:#B5B2A8; }
+.principles b { color:#E8E4D8; }
+.foot { margin-top:30px; font-size:12px; color:#5C5A52; line-height:1.8; }
+.foot code { font-family:var(--font-mono); background:#222220; border-radius:5px; padding:1px 6px; font-size:11px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mk">BRAINSTROM INSTRUMENTS · DESIGN PACK</div>
+  <h1>BrainStrom<span class="dot"></span></h1>
+  <p class="sub">
+    設計稿包 <b>v2「工業硬體」</b> · 2026-06-11 · 風格基準：v3 探索樣張 E（使用者拍板）<br>
+    世界觀：<b>App 是一台筆記儀器</b>（Teenage Engineering / Braun）。受眾＝喜歡科技與創作的開發者。<br>
+    每頁右上可切 <b>霧面黑／暖灰機殼</b> 與該頁全部狀態；P2 直條、待辦開關、鍵帽都可以實際互動。
+  </p>
+
+  <div class="grid">
+    <a class="pcard" href="p0-login.html">
+      <div class="ph"><span class="pid">P0</span><h3>登入</h3><span class="led"></span></div>
+      <p>品牌銘板＋Apple 登入黑鍵帽 54pt＋通電自檢開機儀式＋紅斜紋行內錯誤。</p>
+    </a>
+    <a class="pcard" href="p1-home.html">
+      <div class="ph"><span class="pid">P1</span><h3>首頁 · 我的系統</h3><span class="led"></span></div>
+      <p>OPERATOR 問候＋凹槽搜索與 ✦ ASK 橘鍵＋SYS 模組卡機架＋左滑刪除＋全屏 AI 搜索。</p>
+    </a>
+    <a class="pcard" href="p2-note.html">
+      <div class="ph"><span class="pid">P2 ★</span><h3>筆記頁 · 文章視圖</h3><span class="led"></span></div>
+      <p>活文件＋橘斜紋釘選＋撥動開關待辦＋模組直條（鍵帽側板）＋AI 確認/進行中/聊天主控台/版本磁帶。</p>
+    </a>
+    <a class="pcard" href="p2b-cards.html">
+      <div class="ph"><span class="pid">P2-B</span><h3>筆記頁 · 卡片視圖</h3><span class="led"></span></div>
+      <p>板卡機架＋表格/GitHub/進度（LCD 發光數字）模組卡＋拖曳槽位＋結構化串流掃描線＋EMPTY RACK。</p>
+    </a>
+    <a class="pcard" href="p3-settings.html">
+      <div class="ph"><span class="pid">P3</span><h3>設定</h3><span class="led"></span></div>
+      <p>機器背板：群組銘板面板＋機殼色票三選一＋紅斜紋危險區三道閘刪帳號。</p>
+    </a>
+  </div>
+
+  <div class="principles">
+    <h2>// 設計原則 v2（全包貫徹）</h2>
+    <ol>
+      <li><b>App 是一台儀器</b>——銘板、編號（SYS/NOTE/MOD/REV/SN）、LED、機身印刷無處不在但都很小聲：這就是系統感。</li>
+      <li><b>缺角簽名不變</b>——卡右上 45° 切 12pt、直條左上切 16pt，配上橘色缺角點＝品牌識別。</li>
+      <li><b>遊戲趣味＝可以按可以撥的東西</b>——鍵帽有 2.5px 行程、待辦是撥動開關、進度是 LED 段條；不靠霓虹。</li>
+      <li><b>橘色是唯一主強調</b>——TE 橘只給 AI 與關鍵操作；綠/琥珀/紅 LED 只表狀態。深淺主題＝同一台機器的兩種機殼。</li>
+      <li><b>永不丟字</b>——底部印刷 <b>REC · 即時保存 · UNDO ∞</b> 把承諾印在機身上。</li>
+    </ol>
+  </div>
+
+  <p class="foot">
+    色票、字階、間距、動效唯一來源：<code>tokens.css</code>（= 之後 <code>DesignSystem/Tokens.swift</code> 1:1）。display 字體 = <code>Avenir Next Condensed</code>（iOS 系統內建，零依賴）。<br>
+    驗收：逐頁看雙主題與所有狀態 → 回饋修改點 → 確認後開工搭工程骨架（規格書 §7）。風格來源樣張保留在 <code>v3-explore/</code>。
+  </p>
+</div>
+</body>
+</html>

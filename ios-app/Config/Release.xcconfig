@@ -1,0 +1,9 @@
+#include "Shared.xcconfig"
+
+// —— Release 專屬 ——
+SWIFT_OPTIMIZATION_LEVEL = -O
+SWIFT_COMPILATION_MODE = wholemodule
+GCC_OPTIMIZATION_LEVEL = s
+DEBUG_INFORMATION_FORMAT = dwarf-with-dsym
+VALIDATE_PRODUCT = YES
+ENABLE_NS_ASSERTIONS = NO

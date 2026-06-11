@@ -1,0 +1,1352 @@
+[
+ {
+  "title": "登入中沒有明確視覺回饋：web 按鈕會變字「登入中…」，iOS 只有 disabled + 變暗，無文字變化也無 spinner",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:69-70 login()：$('#apple').disabled=true; textContent='登入中…'（origin/claude/session-sh92z7）",
+  "iosStatus": "partial_in_code",
+  "detail": "ios-app/BrainStrom/Features/Login/LoginScreen.swift:57-58 只做 .disabled(isSigningIn) + .opacity(0.6)。設計稿 p0-login.html 的三態（normal/checking/error）裡也沒有「登入中」態；iOS 規格書 §P0 寫的是按鈕轉 spinner，同樣未做。",
+  "page": "P0-登入頁（登入、會話、登出後回登入）",
+  "verifyNote": "三方證據都核實成立。(1) web 證據真實：git show origin/claude/session-sh92z7:web/src/main.js 的 login() 中確有 `$('#apple').disabled=true; $('#apple').textContent='登入中…';`（在該版本約第 70-71 行，與聲稱的 69-70 僅差一行，內容完全一致）。(2) iOS 確實只有占位：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Login/LoginScreen.swift:57-58 僅 `.disabled(isSigningIn)` + `.opacity(isSigningIn ? 0.6 : 1)`；全 ios-app 目錄 grep 無任何 ProgressView/spinner/「登入中」文字。(3) 設計稿 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p0-login.html 的三態確為 normal/checking(開機自檢全屏覆蓋)/error，沒有「登入中」按鈕態；而規格書 docs/iOS正式前端-设计与工程规格.md（本地與 origin/claude/session-sh92z7 同有）第 50 行明寫「登入中按鈕轉 spinner」，iOS 未實作。iosStatus 標 partial_in_code 準確：程式碼有 isSigningIn 狀態與 disabled/變暗的部分回饋，但缺規格要求的 spinner/文字變化，無需修正。"
+ },
+ {
+  "title": "會話沒有綁到資料層：web 所有資料操作前 requireUser 檢查 session（無則 401），系統有 ownerId 歸屬；iOS 的 SwiftData 資料完全沒有 user 概念，會話只是路由開關",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/api/mockClient.js requireUser()（無 session throw 401）、signInWithApple()（建 user、db.session=userId）、listSystems()（ownerId===session 過濾）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端 CompositionRoot.restoreSession() 只解碼 UserDefaults 的 stub.account blob（AuthServiceStub.swift:11-14），不驗證任何東西；NotesRepository 的 SystemEntity 無 owner 欄位，登出再用另一帳號登入會看到同一批資料。web 端登出後任何資料操作都會被 401 擋下，行為語意不同。設計稿（p0/p3）也未涉及資料層鑑權。",
+  "page": "P0-登入頁（登入、會話、登出後回登入）",
+  "verifyNote": "逐行核實成立。Web（origin/claude/session-sh92z7:web/src/api/mockClient.js）：requireUser() 在 L388 確實存在（無 session throw err(401)）；signInWithApple()（L218）建 user 並設 db.session=userId；listSystems()（L235-238）以 ownerId===session 過濾；約 20 處資料操作（create/get/update/deleteSystem、block ops）都先 requireUser 再檢查 s.ownerId!==u。iOS：PersistentModels.swift 的 SystemEntity/NoteEntity/CardEntity/RevisionEntity 全無 owner/user 欄位；NotesRepository.swift grep owner/user 零命中；AuthServiceStub.swift:11-14 的 restoreSession() 只解碼 UserDefaults 的 stub.account blob、無任何驗證；CompositionRoot 的 session 只驅動 RootView 路由 switch，資料層與 session 完全解耦。設計稿 ios-app/design/（p0-login、p3-settings 等）grep 鑑權/owner/401 無命中，未涉及資料層鑑權。唯一保留：iOS stub 的 signInWithApple 寫死回傳 \"stub-user\"，故「換帳號看到同批資料」目前無法字面重現，但「資料無 user 概念、會話僅路由開關、登出後資料層無 401 等價閘」的結構性 behavior_diff 確實成立。iosStatus not_in_code_not_in_design 標註正確。"
+ },
+ {
+  "title": "登入本身是寫死帳號的開發替身：永遠成功、永遠回傳同一個 email（kentliuai08@gmail.com），沒有 web mock 的「查 db.users 沒有才建一個」使用者建檔語意",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/api/mockClient.js signInWithApple()：取 db.users 第一個使用者、沒有才建（email you@privaterelay.appleid.com），session 與 user 記錄掛鉤",
+  "iosStatus": "partial_in_code",
+  "detail": "AuthServiceStub.swift:16-23：睡 600ms 後固定回 UserAccount(\"stub-user\")，不可能失敗也不產生使用者記錄。兩邊都還不是真 Apple 登入（這點不算差異），但 web mock 至少維護 users 表與 session 對應；iOS 連這層等價語意都沒有。檔頭註解自承「真 Sign in with Apple 於畫面實作階段補上」。",
+  "page": "P0-登入頁（登入、會話、登出後回登入）",
+  "verifyNote": "核實成立。Web 端：origin/claude/session-sh92z7 的 web/src/api/mockClient.js:218-224 確有「取 db.users 第一個、沒有才建（email you@privaterelay.appleid.com）、db.session 掛鉤 user 記錄」語意，且 deleteAccount 刪 db.users 並級聯，下次登入建新 uid——使用者記錄生命週期真實存在。iOS 端：ios-app/BrainStrom/Data/Auth/AuthServiceStub.swift:16-23 確為睡 600ms 後固定回 UserAccount(\"stub-user\", kentliuai08@gmail.com)，無失敗路徑、無 users 表；全 iOS 程式碼僅 AuthServicing.swift 定義 UserAccount，持久層（PersistentModels/NotesRepository）完全不掛使用者，刪帳後重登仍是同一 stub-user，無等價的使用者建檔語意；檔頭註解第 4 行自承真 Apple 登入待補。partial_in_code 標註正確（LoginScreen 與 session 持久化存在，但缺該語意層）。小瑕疵：描述中「永遠成功、永遠回傳同一 email」其實 web mock 也如此（email 同為寫死常數），這兩點非差異本身，但不影響核心 behavior_diff 成立。"
+ },
+ {
+  "title": "刪除帳號後回登入頁的會話終結流程沒有 UI 入口（登出有、刪帳沒有）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:562-564 settings()：#del → confirm → auth.deleteAccount() → toast「帐号已删除」→ 600ms 後回登入頁；mockClient.deleteAccount() 級聯硬刪 systems/blocks/versions 並清 session",
+  "iosStatus": "partial_in_code",
+  "detail": "iOS AuthServiceStub.deleteAccount() 已實作（AuthServiceStub.swift:29-32）但沒有任何畫面呼叫；SettingsScreen 只有登出鍵，無危險區。且 iOS stub 的刪帳只清 UserDefaults 憑證，不刪 SwiftData 資料（web 是級聯全刪）。設計稿 p3-settings.html 有完整刪帳三道閘 → 主要落點是 P3 設定頁，但「刪帳後 session 結束回登入」屬本頁會話範圍，列出供 P3 比對方併。登出回登入頁本身 iOS 已可用（CompositionRoot.signOut → .signedOut → LoginScreen），無差異。",
+  "page": "P0-登入頁（登入、會話、登出後回登入）",
+  "verifyNote": "查證成立。Web 端（origin/claude/session-sh92z7）：web/src/main.js:555 設定頁有「删除帐号」按鈕（#del），main.js:562-563 confirm → services.auth.deleteAccount() → toast「帐号已删除」→ 600ms 後 this.login() 回登入頁；web/src/api/mockClient.js:227-233 deleteAccount() 確實級聯硬刪 systems/blocks/versions/versionPtr、刪 user 並清 db.session——證據行全部實際存在。iOS 端：grep 整個 ios-app/ 只有兩處 deleteAccount——協定宣告（Domain/Services/AuthServicing.swift:25）與替身實作（Data/Auth/AuthServiceStub.swift:29-32，僅 removeObject UserDefaults 憑證，不碰 SwiftData），無任何 View/CompositionRoot 呼叫它；Features/Settings/SettingsScreen.swift 全文僅有外觀機殼與「登出」鍵（root.signOut），無危險區/刪帳入口，且檔頭註解明寫「危險區於畫面實作階段依 p3-settings.html 完成」。設計稿 ios-app/design/p3-settings.html 確有完整刪帳三道閘（HAZARD 面板→確認銘板→Apple 重新驗證），證明是規劃中但未實作。登出回登入頁鏈路（signOut → session=.signedOut → RootView .signedOut）已可用，與聲稱一致。iosStatus=partial_in_code 標註正確（service 層有占位、UI 層完全缺、資料級聯缺），無需修正。"
+ },
+ {
+  "title": "AI 後端鑑權實際沒在用：web 已切 real 模式用 Bearer token 連 Fly.io；iOS 的 AIServiceLive + Bearer 已寫好但預設 AIUseStub=YES、token 為 REPLACE_ME 時退回罐頭 stub，health() 也從未被呼叫",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/config.js：BACKEND.ai='real'、aiBaseUrl=https://brainstrom-ai.fly.dev、authToken='af326683…'；services/index.js realStream() 帶 Authorization: Bearer",
+  "iosStatus": "partial_in_code",
+  "detail": "登入後 web 的 AI 呼叫已真實鑑權打後端；iOS CompositionRoot.init()（CompositionRoot.swift:30-37）依 AIConfig.fromBundle() 決定，目前預設走 AIServiceStub，AIServicing.health() 定義了但無人呼叫（連設計稿啟動自檢的「AI 連線 brainstrom-ai」那行在程式裡也只是沒有的靜態文字）。",
+  "page": "P0-登入頁（登入、會話、登出後回登入）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。Web 端（origin/claude/session-sh92z7）：web/src/config.js 確有 BACKEND.ai='real'、aiBaseUrl='https://brainstrom-ai.fly.dev'、authToken='af326683262af4747c5b0b6f6bf81d53'；web/src/services/index.js:198-203 realStream() 帶 'Authorization':'Bearer '+BACKEND.authToken，:291 依 ai==='real' 走真後端，:294-300 health() 會 fetch /ai/health——web 真實鑑權打後端屬實。iOS 端：AIServiceLive.swift:73 確有 Bearer header、:12-14 有 health() 打 ai/health，但 CompositionRoot.swift:30-37 依 AIConfig.fromBundle() 決定，而 AIConfig.swift:23 預設 stubFlag='YES'，且 Config.example.xcconfig 與本機 Config.xcconfig（不進 git）皆 AI_USE_STUB=YES → 實際組出 AIServiceStub；AIConfig.swift:20 確有 token=='REPLACE_ME' 即視為無 token 的退路邏輯。全 repo grep 證實 health() 除定義/實作外零呼叫點。設計稿 ios-app/design/p0-login.html:121 畫了「[ OK ] AI 連線 · brainstrom-ai」自檢行，但 Swift 程式（RootView.swift:37 註明動效後補）完全沒有對應實作或該文字。唯一細節修正（不影響結論）：本機 Config.xcconfig 其實已填真 token af326683…（非 REPLACE_ME），但因 AI_USE_STUB=YES 仍走 stub；且該檔不進 git，repo 內預設值仍是 REPLACE_ME。iosStatus=partial_in_code 標註正確：Live 路徑程式碼已寫好但預設未啟用、health() 無人呼叫。"
+ },
+ {
+  "title": "登入頁（與全 App）缺離線偵測橫幅「目前离线，变更暂存本地」",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:46-47（online/offline 事件）、:54-57 frame() 內 #offbar，登入頁同樣套 frame 會顯示",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式碼無任何網路狀態監聽（NWPathMonitor 等）；設計稿 p0-login.html 也沒有離線態（右上 PWR LED 純裝飾）。屬全域功能，登入頁是其中一個落點，其他頁比對方可能重複列出。",
+  "page": "P0-登入頁（登入、會話、登出後回登入）",
+  "verifyNote": "差異真實成立。Web 端證據確認：origin/claude/session-sh92z7 的 web/src/main.js 中 start() 確有 window.addEventListener('online'/'offline') 監聽（約 :46-47），frame() 模板含 <div class=\"offline\" id=\"offbar\">⚠ 目前离线，变更暂存本地</div> 並依 navigator.onLine 切換 show（:54-57），且 login() 透過 this.frame(...) 渲染，登入頁同樣會顯示此橫幅。iOS 端確認缺失：grep 整個 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 無 import Network、NWPathMonitor、Reachability、offline/离线 任何網路狀態監聽或離線 UI；唯一相近字串是 HomeScreen.swift:58 的純裝飾文字 \"OPERATOR · ONLINE\"（verbatim 硬編碼，非真實狀態）。設計稿 ios-app/design/p0-login.html 的右上 PWR 綠 LED 確為純裝飾（註解明寫「App 活著的訊號」呼吸燈），無離線態；v3-explore 各稿亦無 offline/offbar。iosStatus 標 not_in_code_not_in_design 正確，無需修正。屬全域功能，登入頁為落點之一，與說明一致。"
+ },
+ {
+  "title": "隱私小字承諾不一致：web 誠實寫「收集 email 供登入、储存你的笔记」；iOS 寫「內容永遠存在你自己的裝置與 iCloud」但 ModelContainer 完全沒接 CloudKit，承諾無程式支撐",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js:67 login() 的 faint 小字「收集 email 供登入、储存你的笔记（示范用 dev 登入）」",
+  "iosStatus": "partial_in_code",
+  "detail": "LoginScreen.swift:60 文案承諾 iCloud；整個 ios-app 無 CloudKit/同步程式碼。文案差異本身是改版設計，但「承諾了不存在的功能」是行為落差，需在做 P0 時改文案或補同步。",
+  "page": "P0-登入頁（登入、會話、登出後回登入）",
+  "verifyNote": "三方證據都核實成立。1) web 證據真實：origin/claude/session-sh92z7 的 web/src/main.js login() 內確有 faint 小字「收集 email 供登入、储存你的笔记（示范用 dev 登入）」，誠實描述實際行為。2) iOS 文案真實：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Login/LoginScreen.swift:60 寫「只用來識別你的帳號。\\n筆記內容永遠存在你自己的裝置與 iCloud。」，且 design/p0-login.html:108 設計稿也畫了同樣文案（屬刻意設計，非筆誤）。3) 程式無支撐屬實：全 ios-app 對 CloudKit/iCloud/NSUbiquitous 的 grep 只命中上述兩處「文案字串」本身；BrainStromApp.swift:16 的 ModelContainer 用預設初始化（無 ModelConfiguration(cloudKitDatabase:)），repo 內也沒有任何 .entitlements/iCloud capability 檔案，SwiftData 預設純本機儲存不會自動同步 iCloud。對抗角度檢查過「SwiftData 會不會默認接 CloudKit」——不會，必須顯式設定 cloudKitDatabase 加 entitlements。故「文案承諾 iCloud 但無任何同步實作」的 behavior_diff 真實成立。iosStatus=partial_in_code 標註恰當（文案在程式碼中存在、功能不存在），不需修正。唯一細部修飾：文案前半「存在你自己的裝置」是真的（本機 SwiftData），只有「與 iCloud」這半句無支撐。"
+ },
+ {
+  "title": "點系統卡片無法進入該系統的實際內容（筆記頁），只會落到占位頁",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js home() 約 96-100 行：.syscard onclick=()=>this.note(b.dataset.id)，直接載入該系統活文件",
+  "iosStatus": "partial_in_code",
+  "detail": "ios-app/BrainStrom/Features/Home/HomeScreen.swift:36-38 的 navigationDestination(for: UUID.self) 直接丟棄傳入的 UUID，一律 push 純占位的 NoteScreen()（Features/Note/NoteScreen.swift 全檔 41 行不接參數、不讀資料）。設計稿 p1-home.html 系統卡可點進 P2，程式只做了一半。另外 iOS 資料模型是 系統→筆記→卡片 三層，理論上還需要「系統內筆記列表」中間層，這頁設計稿和程式都不存在。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "查證成立。Web 端：origin/claude/session-sh92z7 的 web/src/main.js home() 確有 box.querySelectorAll('.syscard').forEach(b=>b.onclick=()=>this.note(b.dataset.id))，note(id) 載入完整活文件（文章/卡片視圖、Undo/Redo、AI 聊天）。iOS 端：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Home/HomeScreen.swift:36-38 的 navigationDestination(for: UUID.self) { _ in NoteScreen() } 確實丟棄 UUID，NoteScreen.swift 全檔 42 行不接參數、不讀資料，只顯示寫死的「骨架占位」文案，全專案無其他進入筆記內容的路徑。iosStatus=partial_in_code 標註正確（導航骨架存在但落點是占位頁）。唯一小出入：設計稿 p1-home.html 是靜態 mock，系統卡並無實際連到 p2 的 onclick/href，「設計稿系統卡可點進 P2」描述不精確，但不影響差異本體成立。"
+ },
+ {
+  "title": "新增系統後沒有直接進入筆記頁，且預設名稱不同",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js:87、93：#add 與 #first 都是 services.systems.create('未命名系统') 後立刻 this.note(s.id) 直接開筆記頁",
+  "iosStatus": "partial_in_code",
+  "detail": "HomeScreen.swift:143-148 createSystem() 建立寫死名稱「新系統」（web 為「未命名系统」）後只 reload() 留在列表，不導航進該系統。FAB 與空態按鈕本身存在（真的會落盤 SwiftData），但後續行為與 web 不同。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "查證成立，無法推翻。(1) Web 證據確認：git show origin/claude/session-sh92z7:web/src/main.js 第 87 行（#add）與第 93 行（#first）皆為 `const s=await services.systems.create('未命名系统'); this.note(s.id);` —— 建立後立刻以 this.note(s.id) 直接進入筆記頁，預設名稱「未命名系统」。(2) iOS 確認：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Home/HomeScreen.swift:143-148 的 createSystem() 寫死 `String(localized: \"新系統\")`，呼叫 repository.createSystem(name:) 後只 reload() 更新列表，完全沒有 push NavigationStack path 或任何導航（HomeScreen 的導航只有列表卡片的 NavigationLink(value:) 與 navigationDestination，與建立流程無關）。FAB（125-137 行）與空態按鈕（111-118 行）確實存在且真的透過 NotesRepository 落盤，故「按鈕在、行為與 web 不同」的 partial_in_code 標註正確。(3) 設計稿 ios-app/design/p1-home.html 存在 P1 頁面，但行為差異仍在程式碼層面成立。兩點差異（不導航 + 預設名「新系統」vs「未命名系统」）皆真實。"
+ },
+ {
+  "title": "刪除系統（含二次確認與完成回饋）完全沒有 UI",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:152-153 note() 內 #dsys：confirm('删除这个系统？此动作无法复原。') → systems.delete → toast「已删除系统」→ 回首頁；mockClient.deleteSystem 軟刪",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 ios-app/design/p1-home.html 有 swipe 態：卡片左滑 96pt 露出紅斜紋 ⌦ DELETE 鍵＋確認 alert（API 註記 system.delete）。程式端 NotesRepository.swift:42-46 deleteSystem(id:) 已實作，但 Features/ 全目錄 grep 不到任何呼叫——首頁無左滑、無刪除鈕，占位 NoteScreen 也沒有。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "差異真實成立。Web 端（origin/claude/session-sh92z7）證據確認：web/src/main.js:125 有 #dsys 垃圾桶鈕，152-153 行為 confirm('删除这个系统？此动作无法复原。') → services.systems.delete → toast「已删除系统」→ 300ms 後回首頁；services 層在 web/src/services/index.js:251 呼叫 Mock.deleteSystem，mock 實作在 web/src/api/mockClient.js:272。iOS 端確認：deleteSystem(id:) 僅存在於 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/Persistence/NotesRepository.swift:42-46 與 Domain/Services/NotesRepositoring.swift:16（protocol 宣告），全 ios-app 的 .swift 檔 grep deleteSystem/onDelete/swipeActions/删除 在 Features/（Home、Note、Login、Settings 四目錄）零命中，HomeScreen.swift 亦無任何 delete/trash 相關 UI。設計稿 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p1-home.html 確實畫了左滑 96pt 紅斜紋 ⌦ DELETE swipe 態（136-153 行）並註記「確認 alert 再刪，system.delete」（214 行），故 in_design_not_in_code 標註正確。唯一小註腳：web 的刪除鈕入口在系統詳情頁（note() 視圖）而非首頁列表本身，與「P1 首頁」的頁面歸類略有出入，但 iOS 設計稿把此功能放在首頁左滑，且不影響「web 有此功能、iOS 程式碼完全沒有 UI」的結論。"
+ },
+ {
+  "title": "改名系統（編輯系統標題）在 iOS 任何地方都做不到",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js 筆記頁標題 textarea（#title）blur 即存、空值回填「未命名系统」；web 的系統＝筆記，改標題即改名系統（note() 內標題區）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式：NoteScreen 是純占位，首頁也沒有改名入口；NotesRepository 雖有 saveNote 可改 title，但沒有改系統 name 的 API 以外入口被接上。設計稿 p1-home.html / p2-note.html 也只把名稱當靜態銘板展示，沒有任何改名互動狀態。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "查證成立。(1) Web 證據屬實：origin/claude/session-sh92z7 的 web/src/main.js L208 渲染 `<textarea class=\"note-title\" id=\"title\">`，L213 `title.onblur` 取值 trim 後空值回填「未命名系统」並呼叫 services.systems.update(this.cur.id,{title:v}) 即存——改標題＝改系統名，功能真實存在（另 L87/L93 建立系統時也以「未命名系统」為預設名）。(2) iOS 程式碼確實沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔 42 行純骨架占位（僅 Nameplate＋說明文字，navigationTitle 固定為「筆記」）；HomeScreen.swift grep rename/edit/sheet/alert/menu 零命中；整個 ios-app 無任何 TextField/contextMenu/rename；NotesRepository.swift L83 的 saveNote(_:) 雖可寫 title，但無任何 UI 入口接上。(3) 設計稿也沒畫：ios-app/design/p1-home.html 無任何 title/rename/input 互動；p2-note.html 名稱僅為靜態 `<span class=\"name\">期末報告構想</span>`（L156）與 `<div class=\"h1blk\">`（L167），無 contenteditable/textarea/onblur 等改名狀態；shared.js 亦無相關互動。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "系統卡片缺私密/公開徽章（visibility 概念整個不存在）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:95-96：卡片渲染 pill（lock/globe icon＋「私密/公开」），資料來自 mockClient.listSystems 的 visibility 欄位；listSystems 同時會列出他人 public 系統",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS NoteSystem/SystemEntity（NotesRepository.swift:19-31）沒有 visibility 欄位，SystemCardView 只顯示名稱、筆記數、卡片數、相對時間、LED；設計稿 p1-home.html 系統卡規格（SYS 編號銘板＋LED＋mono 計數行）也沒有私密/公開徽章。可見性切換在 web 是首頁卡片可見的核心資訊。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 側證據屬實：origin/claude/session-sh92z7 的 web/src/main.js:95 首頁系統卡確實渲染 visibility pill（lock/globe icon＋「私密/公开」），main.js:159-162 還有可點擊的切換按鈕呼叫 services.systems.setVisibility（web/src/services/index.js:249）；資料源 web/src/api/mockClient.js:238 的 listSystems 過濾條件為 ownerId===u || visibility==='public'（確實會列出他人公開系統），:248 建立系統時預設 visibility:'private'，:263 支援 patch visibility。(2) iOS 側確實完全沒有：grep 整個 ios-app/ 的 Swift 檔，\"visibility/isPublic/公開/私密/globe\" 零命中（private 命中皆為 Swift 存取修飾詞）；ios-app/BrainStrom/Data/Persistence/NotesRepository.swift:19-31 的 NoteSystem 對映只有 id/name/createdAt/updatedAt/noteCount/cardCount，無 visibility 欄位；HomeScreen.swift:152 起的 SystemCardView 只顯示 Nameplate(名稱)+LED、筆記數、卡片數、相對時間，無任何徽章。(3) 設計稿也沒畫：grep ios-app/design/ 全部檔案（含 p1-home.html、v3-explore/）\"visibility/公開/公开/私密/globe/private/public\" 零命中。iosStatus = not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "系統卡片缺內容摘要 snippet（含空白系統引導文案）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:98：卡片顯示 s.snippet（mockClient.listSystems 取首塊內容前 60 字），空白時顯示「（空白系统，点开开始写）」",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 卡片（HomeScreen.swift:152-186 SystemCardView）只有筆記/卡片計數，看不到任何內容預覽；設計稿同樣以 mono 計數行取代摘要，無 snippet。使用者在首頁無法憑內容辨識系統。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "查證成立，無法推翻。1) Web 證據屬實：origin/claude/session-sh92z7 的 web/src/main.js 第 97 行確有 `<div class=\"sys-snip\">${esc(s.snippet||'（空白系统，点开开始写）')}</div>`，且 web/src/api/mockClient.js 第 242 行確實由系統首塊內容取前 60 字產生 snippet（`snippet:snip.slice(0,60)`）。2) iOS 確實沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Home/HomeScreen.swift 的 SystemCardView（152-186 行）只渲染 Nameplate（系統名）、筆記/卡片計數 metric 與 updatedAt 相對時間，無任何內容摘要；整個 ios-app/ grep \"snippet/摘要/預覽/空白系\" 在功能程式碼中零命中（僅 #Preview 等無關詞）。3) 設計稿也沒畫：ios-app/design/p1-home.html 的 .syscard 結構僅 mhead（名牌）＋ .crow（筆記 N / 卡片 N / 更新時間），無 snippet 行；VoiceOver 規格也只念「6 筆記 21 卡片，今天 14:32 更新」。空白引導文案在 iOS 只有「整個列表為空」的 emptyRack（EMPTY SLOT），與 web 每張卡的空白 snippet fallback 不同。iosStatus 標註 not_in_code_not_in_design 正確。"
+ },
+ {
+  "title": "系統卡片缺 tags 標籤膠囊",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:99：s.tags 存在時渲染 .tags 標籤膠囊列",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 資料模型（NoteSystem）無 tags 欄位，SystemCardView 與設計稿 p1-home.html 系統卡都沒有標籤元素。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "差異真實成立。(1) web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js 首頁系統卡 render 中確有 `${s.tags?.length?`<div class=\"tags\">${s.tags.map(t=>`<span class=\"tag\">…`)}…`:''}`，即 s.tags 存在時渲染標籤膠囊列。(2) iOS 確實沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Domain/Models/DomainModels.swift:41 的 NoteSystem 只有 id/name/createdAt/updatedAt/noteCount/cardCount，無 tags 欄位；/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Home/HomeScreen.swift:152 的 SystemCardView 只顯示 Nameplate、筆記/卡片計數與更新時間，無標籤元素。全 ios-app Swift 檔 grep \"tag\" 僅命中 Tokens.swift 的 stagger 動畫常數（誤中字串），非標籤功能。(3) 設計稿 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p1-home.html grep tag/標籤/标签/chip/pill 均無命中（僅 stage/stagger 誤中），系統卡未畫標籤。iosStatus = not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "首頁載入中狀態缺失",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:84：#syslist 初始渲染「载入中…」，列表回來後才替換",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p1-home.html 有 loading 態（3 條 skeleton 卡 shimmer）；程式端 HomeScreen.swift:139-141 reload() 是同步 try? 直接賦值，沒有任何載入中 UI。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "三方證據都核實成立。(1) Web 端：origin/claude/session-sh92z7 的 web/src/main.js 第 84 行確為 `<div id=\"syslist\"><div class=\"muted\" ...>载入中…</div></div>`，在 `await services.systems.list()` 回來後才以系統卡片（或空態/錯誤態）替換，web 真的有首頁載入中狀態。(2) iOS 程式碼：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Home/HomeScreen.swift:139-141 的 reload() 確為同步 `systems = (try? root.repository?.systems()) ?? []` 直接賦值，全檔及整個 ios-app 的 Swift 程式碼 grep skeleton/shimmer/loading/載入皆無命中（只有 AI progress 事件，與首頁列表載入無關），無任何載入中 UI。(3) 設計稿：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p1-home.html 第 61-68 行有 .st-loading/.skel shimmer 樣式、第 168 行 loadbox 內正好 3 個 .skel 骨架卡，與聲稱完全一致。故 iosStatus=in_design_not_in_code 標註正確。唯一可辯處：iOS 目前資料源是同步本機 repository，技術上可能不需 loading 態；但設計稿明確規範了該態（第 215 行「載入=骨架 shimmer」），且日後接遠端後端時必需，差異本身真實存在。"
+ },
+ {
+  "title": "首頁載入失敗狀態＋重試按鈕缺失，錯誤被靜默吞掉",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:102-103：catch 後渲染「载入失败」＋ #retry「重试」按鈕重跑 home()",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p1-home.html 有 error 態（ERR · LOAD FAILED＋安撫句＋↻ 重試鍵）；程式端 HomeScreen.swift:140 `systems = (try? root.repository?.systems()) ?? []` 把錯誤吞成空陣列——載入失敗會被誤顯示成「還沒有任何系統」空態，比 web 行為更危險。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "三路證據皆親自驗證成立。(1) web 端：git show origin/claude/session-sh92z7:web/src/main.js 確認 home() 末尾確有 `}catch(e){ $('#syslist').innerHTML=...载入失败...<button id=\"retry\">重试</button>...; $('#retry').onclick=()=>this.home(); }`，載入失敗會顯示錯誤＋重試鍵重跑 home()。(2) iOS 程式碼：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Home/HomeScreen.swift:139-141 的 reload() 確為 `systems = (try? root.repository?.systems()) ?? []`，錯誤被 try? 吞成空陣列；全檔（及全 ios-app Swift 檔 grep retry/error/failed）無任何 error 態 view 或重試按鈕，失敗時會落入 line 28 `if systems.isEmpty { emptyRack }` 而誤顯示「還沒有任何系統」空態——說明中「比 web 更危險」的描述屬實。(3) 設計稿：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p1-home.html 第 70-76、172-175 行確有 errbox（ERR · LOAD FAILED、安撫句、↻ 重試鍵）及 state 切換按鈕。故 iosStatus=in_design_not_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "進首頁時中斷殘留 AI/聊天串流（省錢鐵律 F8）沒有對應機制",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:75-76：home() 開頭 chatAbort?.abort(); aiAbort?.abort(); aiBusy=false",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 的 AI 層（Data/AI/AIServiceLive）雖已實作 SSE 串流，但沒有任何畫面呼叫，自然也沒有「返回首頁即 abort 串流」的生命週期處理；設計稿各頁只有手動 STOP 鍵，未標註導航時自動中斷。等筆記頁 AI 接上後此行為需補。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "差異真實成立。(1) web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js home() 開頭確實有「this.chatAbort?.abort(); // 离开笔记页：中断进行中的 AI 串流（省钱铁律，F8）」與「this.aiAbort?.abort(); this.aiAbort=null; this.aiBusy=false;」。(2) iOS 程式碼確認缺：grep 整個 ios-app 無任何 abort；AIServiceLive/SSEParser 雖存在且在 CompositionRoot.swift:32 注入，但 Features/ 下沒有任何畫面引用 aiService，HomeScreen.swift 僅有 .task { reload() }，無 onDisappear/Task.cancel 等導航中斷串流的生命週期處理。(3) 設計稿確認：design/p2-note.html 與 p2b-cards.html 只有手動紅色 STOP 鍵標註，p1-home.html 及全部設計檔皆無「返回首頁自動中斷串流」標註。iosStatus 標 not_in_code_not_in_design 正確，無需修正。相關檔案：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Home/HomeScreen.swift、/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/App/CompositionRoot.swift、/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html。"
+ },
+ {
+  "title": "卡片更新時間顯示格式不同：web 為絕對日期 MM/DD，iOS 為相對時間",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js:96 與 fmt()（main.js:568 附近）：toLocaleDateString 顯示「月/日」",
+  "iosStatus": "partial_in_code",
+  "detail": "HomeScreen.swift:166 `Text(system.updatedAt, style: .relative)` 顯示相對時間（如「3 分鐘前」）。輕微差異，設計稿（SYS 卡 mono 計數行含「今天 14:32 更新」）又是第三種格式，三者皆不一致，待拍板。",
+  "page": "P1 首頁（系統列表）",
+  "verifyNote": "三方證據全部親自核實成立。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 第 96 行系統卡確有 `${fmt(s.updatedAt)}`，第 569 行 `function fmt(iso){ return new Date(iso).toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'}) }` → 絕對日期 MM/DD。(2) iOS 證據屬實：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Home/HomeScreen.swift:166 在 SystemCardView 計數行確為 `Text(system.updatedAt, style: .relative)` → 相對時間，與 web 格式確實不同。(3) 設計稿第三種格式也屬實：ios-app/design/p1-home.html:142/149 卡片 `.upd` 顯示「14:32」「昨天」（時刻/智慧相對混合），p1-home.html:219 VoiceOver 註明「今天 14:32 更新」——三者皆不一致。iosStatus 標 partial_in_code 合理：iOS 已有更新時間顯示功能（非缺漏、非占位），只是格式與 web 和設計稿都不一致，屬 behavior_diff，無需修正。"
+ },
+ {
+  "title": "整個筆記頁是占位殼：不接收筆記 ID、不讀資料、沒有任何活文件內容",
+  "kind": "missing_page",
+  "webEvidence": "web/src/main.js:107-173 note() 完整載入 systems.get(id)、渲染雙視圖",
+  "iosStatus": "partial_in_code",
+  "detail": "ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔 41 行純占位（只印「骨架占位」文字）；HomeScreen.swift:36-38 navigationDestination 還把傳入的 UUID 丟掉。設計稿 p2-note.html / p2b-cards.html 已完整定義此頁。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "三方證據都成立，無法推翻。1) Web 端：git show origin/claude/session-sh92z7:web/src/main.js 確認第 107 行起的 async note(id) 完整存在——呼叫 services.systems.get(id) 載入資料、渲染文章/卡片雙視圖（#v-article/#v-cards）、Undo/Redo、可見性切換、問 AI 聊天面板、優化/結構化按鈕，與聲稱完全一致。2) iOS 端：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔 41 行確為純占位（無屬性接收筆記 ID、不讀任何 repository、只顯示「骨架占位」文字與 Nameplate）；HomeScreen.swift 的 .navigationDestination(for: UUID.self) { _ in NoteScreen() } 確實把 UUID 丟棄。grep 全 ios-app 確認沒有其他筆記頁/活文件 UI 實作。3) 設計稿 ios-app/design/p2-note.html 與 p2b-cards.html 確實存在。iosStatus 標 partial_in_code 合理：UI 是占位殼，但支撐此頁的資料層已存在（Data/Persistence/NotesRepository.swift 有 fetchSystem(id:)、Domain/Services/NotesRepositoring.swift、AIServiceLive/SSEParser 等），且導航路由已接到 NoteScreen，屬「程式碼中部分存在」而非完全缺失，無需修正。"
+ },
+ {
+  "title": "區塊讀取/就地編輯：點段落變編輯器、失焦才存、內容沒變不落 undo 步",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:206-314 renderArticle()/editBlock()/wireBlock()",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p2-note.html:189-193 有 .editing 通電框＋浮動工具鍵；Swift 端只有 Block 模型（DomainModels.swift:89），無任何編輯 UI。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "三方查證皆成立，無法推翻。1) Web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js 在 ~206-314 行確有 renderArticle()（「点哪段改哪段」）、wireBlock()（text/heading 的 .ptext.onclick → editBlock）、editBlock()（點段落原地換成 textarea，ta.onblur 才存；且明確有「if(v===old){ this.redrawBlock(node,b); return; } // 没变只收起、不落步」與「有变才落一步 saveVersion('cardEdit')」），與差異描述逐項吻合。2) iOS 程式碼確認缺失：grep 整個 ios-app/ 的 *.swift 找不到任何 editBlock/contenteditable/editing/TextEditor/TextField 相關編輯 UI；Features/Note/NoteScreen.swift（僅 41 行）自述「骨架占位——活文件編輯器…於畫面實作階段完成」，只有靜態占位卡片；Swift 端僅有資料模型 struct Block（DomainModels.swift:89）與 blocksData JSON 持久化，無任何編輯互動。3) 設計稿確認有畫：ios-app/design/p2-note.html ~187-193 行有 <div class=\"editing\"> 編輯態區塊含浮動工具鍵（📌 ▲ ▼ ✕）。故 iosStatus=in_design_not_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "標題就地編輯（blur 存檔、空值回填「未命名系统」）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js note() 標題 textarea blur → systems.update",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿頂欄銘板有標題（p2-note.html:155-157），規格說可編輯；程式無任何標題編輯。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：git show origin/claude/session-sh92z7:web/src/main.js 第 208 行 note() 渲染標題 textarea（class=\"note-title\" id=\"title\"），第 213 行 title.onblur 將 e.target.value.trim()||'未命名系统' 透過 services.systems.update(this.cur.id,{title:v}) 存檔——blur 存檔與空值回填行為完全如所述。(2) iOS 程式碼確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 整個 P2 是 42 行的「骨架占位」，僅有 Nameplate(id:\"P2\") 與說明文字，無任何 TextField/標題編輯/標題顯示綁定；全 ios-app 的 Swift 檔 grep 也只有資料層 model 的 title 屬性與 stub，無編輯 UI。(3) 設計稿確認有畫：ios-app/design/p2-note.html 約 154-157 行 topbar 的 tb-mid 含 model 行「SYS-01 · NOTE-012」與標題「期末報告構想」，第 277 行規格註記「頂欄銘板：型號行＋標題」，stage 內另有 h1blk 標題塊——標題元素確實在設計稿中。小保留：設計稿/README 中未找到明確寫「標題可編輯」或 blur/回填規格的文字（靜態 mock 只展示標題顯示），但這不影響差異成立。iosStatus「in_design_not_in_code」標記正確，無需修正。"
+ },
+ {
+  "title": "待辦塊勾選切換 done（含刪除線完成態）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js:251-292 wireBlock() .tick → blocks.toggleDone",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p2-note.html:177-178 撥動開關可實際撥（haptic .selection）；程式只有 Block.isDone 欄位，無 UI。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異成立。1) Web 端證據確認：origin/claude/session-sh92z7 的 web/src/main.js wireBlock() 內確有 `node.querySelector('.tick').onclick = ... await services.blocks.toggleDone(b.id, b.payload)`（先 saveVersion 再切 done、切換 .on class），功能真實存在。2) iOS 端：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 41 行，是明確標註「骨架占位」的 placeholder，無任何 todo 區塊渲染、無勾選互動、無 toggleDone 類資料寫入；Domain 層只有 Block.isDone 欄位（DomainModels.swift:93）。設計稿 ios-app/design/p2-note.html:177-178 確有 .todo/.sw 撥動開關與 .todo.on 刪除線完成態（CSS 42-43 行），故 in_design_not_in_code 在「P2 功能層級」成立。唯一需修正的細節：說明中「程式無 UI」不完全精確——DesignSystem/Components/Controls.swift 已有 HardwareToggleStyle（含 Haptics.selection() 與 .strikethrough 完成態，第 12-27 行），即撥動開關「元件」已建好並有 Preview，只是尚未接入 NoteScreen、也沒有任何資料持久化串接；這屬於元件先行，不影響「待辦塊勾選切換 done 功能在 iOS 缺失」的結論。"
+ },
+ {
+  "title": "📌 釘選/解釘按鈕（AI 永不動，含釘選視覺標記）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js wireTools() .bpin（onpointerdown 不搶焦點）＋ blocks.pin",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿有釘選銘板（p2-note.html:172-174）與工具鍵 📌（:191）；程式無釘選切換邏輯。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js 第 246-249 行有 .bpin 釘選按鈕（含 on 狀態與 title「釘選（AI 永不動）」）、第 271-277 行 onpointerdown 帶 ev.preventDefault() 不搶焦點並呼叫 services.blocks.pin(b.id,np)、第 237 行有 pinmark 📌 視覺標記、第 343-352 行 AI 卡片也有 .cpin 同款邏輯——與聲稱證據完全吻合。(2) iOS 確認缺失：ios-app/BrainStrom/Features/Note/ 只有 NoteScreen.swift，整個 Features/ 目錄 grep 不到任何 pin/📌（唯一命中是 PingFang 字型名）；pin 相關字只存在資料/領域層（PersistentModels.swift:60 isPinned、DomainModels.swift:21 BlockKind.pinned、NotesRepository.swift、AIServicing.swift:59 將 pinned 旗標送後端），完全沒有 UI 釘選/解釘按鈕、切換邏輯或釘選視覺標記。(3) 設計稿確認：ios-app/design/p2-note.html 有 pinned 銘板（class=\"pinned\" + 「PINNED · AI 永不改動」，約 172-174 行）與編輯工具列 📌 鍵（約 190 行）。故 iosStatus=in_design_not_in_code 正確（資料層雖有 isPinned 欄位屬基礎建設，UI 功能仍未實作），無需修正。"
+ },
+ {
+  "title": "釘選資料模型行為不同：web 是 text/heading 塊上的布林屬性可釘可解；iOS 把 pinned 做成獨立 BlockKind",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/api/mockClient.js updateBlock({pinned})；main.js 釘選後塊型別不變",
+  "iosStatus": "partial_in_code",
+  "detail": "DomainModels.swift:16-22 BlockKind 含 case pinned，與 paragraph/heading 互斥——無法表達「已釘選的標題塊」、解釘後型別會丟失；NotePayload 也以 kind==.pinned 判斷 pinned（AIServicing.swift:50-62）。另 web 模組塊強制 pinned:true，iOS 模型無此概念。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "逐項對抗查證後無法推翻，差異真實成立。(1) Web 證據屬實：origin/claude/session-sh92z7 的 web/src/api/mockClient.js L296 updateBlock 處理 patch.pinned 布林（b.pinned = isModuleType(b.type) ? true : !!patch.pinned，模組塊強制恆釘選、L285 同），L110/121 顯示 pinned 是每個 block 的獨立布林屬性；web/src/main.js L246-247、L271-277 證實 text/heading 塊有釘選按鈕，切換只改 b.pinned 布林（services.blocks.pin(b.id,np)），塊 type 不變，可釘可解，且能表達「已釘選的標題塊」（L239 heading 帶 pinned class）。(2) iOS 證據屬實：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Domain/Models/DomainModels.swift L16-23 BlockKind 為 enum { paragraph, heading1, heading2, todo, pinned, module }，case pinned 與 paragraph/heading 互斥；L89-109 Block struct 完全沒有 isPinned 布林欄位，故確實無法表達「已釘選的 heading」、改回 paragraph/heading 時原 kind 無處保存；AIServicing.swift L59 NotePayload 確以 pinned: block.kind == .pinned 判斷；module 塊在 iOS 模型也無「強制 pinned」概念（payload 中 module 塊 pinned 恆為 false，與 web 模組塊恆 true 相反）。唯一相近的 isPinned 布林只存在於 Card/CardEntity（DomainModels.swift L117、PersistentModels.swift L60），那是卡片視圖實體，不是筆記頁的 Block 模型，不構成反證。(3) 設計稿 ios-app/design/p2-note.html L36-39、L172-173 也把 pinned 畫成獨立塊樣式（PINNED 標籤塊），與程式碼一致，故 iOS 實作是有意的不同模型而非缺漏占位。iosStatus=partial_in_code 標註恰當（釘選概念在 iOS 程式碼中存在但模型形態不同、能力不完整），無需修正。"
+ },
+ {
+  "title": "▲▼ 區塊上移/下移排序（含 reorder 原子性檢查）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js wireTools() .bmv → blocks.reorder；mockClient.js reorderBlocks 409 原子檢查",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿工具鍵有 ▲▼（p2-note.html:191）；程式無排序操作，blocks 只是 Note 內陣列的 orderIndex。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。(1) Web 端證據確認：origin/claude/session-sh92z7 的 web/src/main.js L249 渲染 .bmv ▲▼ 按鈕（aria-label 上移/下移），L285-290 wireTools 點擊後呼叫 services.blocks.reorder；mockClient.js 實際路徑為 web/src/api/mockClient.js（非 web/src/mockClient.js），其 reorderBlocks（L306 起）含原子性檢查：ids 集合與現存 blocks 不符即 throw err(409)。(2) iOS 端確認缺失：grep ios-app/ 全部 .swift，無任何 reorder/onMove/swapAt/moveBlock/上移/下移/▲▼ 等排序操作；orderIndex 僅出現在 PersistentModels.swift、DomainModels.swift、NotesRepository.swift（讀取時被動 sorted），無寫入重排邏輯。(3) 設計稿確認有畫：ios-app/design/p2-note.html 的 .tools 工具鍵列含 ▲ 與 ▼（實際在約 L189，原證據標 L191 屬微小行號偏差，不影響結論）。iosStatus=in_design_not_in_code 標註正確，無需修正。唯一小瑕疵是 web 證據檔案路徑應為 web/src/api/mockClient.js。"
+ },
+ {
+  "title": "🗑 刪除單一區塊（含 toast「已删除区块」與刪空後空態）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js wireTools() .bdel → saveVersion('delete') → blocks.delete",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿工具鍵有 ✕（p2-note.html:191）；程式無刪塊邏輯。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "逐項親驗皆成立。Web 端：origin/claude/session-sh92z7:web/src/main.js L249 渲染 .bdel 鍵，L278-284 del.onclick 完整實作 saveVersion('delete') → blocks.delete → node.remove() → 刪空後 renderArticle() 空態 → toast('已删除区块')，與聲稱證據完全吻合。iOS 端：NoteScreen.swift 僅 41 行骨架占位，全 Swift 程式碼無刪塊邏輯（NotesRepository 只有整篇 deleteNote/deleteSystem，非單一區塊）。設計稿：ios-app/design/p2-note.html 確有 ✕ 刪除工具鍵（實際在 L189 而非聲稱的 L191，僅行號小偏差），故 iosStatus=in_design_not_in_code 正確，無需修正。"
+ },
+ {
+  "title": "文末常駐「繼續寫…」續寫區＋自動切塊（空行分段、# 開頭成標題、```圍欄不切）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js renderArticle() #contwrite；mockClient.js splitIntoBlocks()",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿只有靜態提示列「繼續寫，或叫 AI 幫你接」（p2-note.html:194），無輸入元件；Swift 完全沒有 splitIntoBlocks 對應邏輯。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異成立。Web 端證據屬實：origin/claude/session-sh92z7 的 web/src/main.js renderArticle() 第 210 行有常駐 textarea#contwrite（placeholder「继续写…（空行分段、# 开头成标题）」），第 219-227 行 onblur 時呼叫 splitIntoBlocks 並逐塊 append；splitIntoBlocks 實作在 web/src/api/mockClient.js 第 19-38 行（注意：路徑是 web/src/api/mockClient.js，原報告寫 web/src/mockClient.js 少了 api/ 一層），規則完全符合描述：空行切段、行首 # 成 heading（#>1 為 level 2）、``` 圍欄內不切。iOS 端確認缺失：ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 41 行，是明示的「骨架占位」靜態畫面，無任何 TextField/TextEditor 或 block append 邏輯；全 ios-app 的 Swift 檔 grep split/heading/繼續 僅命中 AI 服務的 splitTopics/addHeadings 選項與 DomainModels 的 heading1/heading2 枚舉，無 splitIntoBlocks 對應切塊邏輯。設計稿 ios-app/design/p2-note.html 第 194 行有靜態 <div class=\"cont\">繼續寫，或叫 AI 幫你接</div>（純視覺提示列＋假游標，非輸入元件），故 in_design_not_in_code 標記正確，無需修正。唯一小瑕疵是 web 證據檔路徑應為 web/src/api/mockClient.js。"
+ },
+ {
+  "title": "插入文字/待辦/標題塊的加模組選單項",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js:525-541 openDial()/insertModule()，MODULES 含 文字/待办/标题 三可用項",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 設計稿直條只有 ✦OPTIMIZE / ▦CARDS / ⊞TABLE / ◷PROG / ⌥GITHUB（p2-note.html:207-215），完全沒有插入文字類塊的入口；程式也沒有。使用者在 iOS 上將無法手動新增 todo/heading 塊。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js 第 29-36 行定義 MODULES，含 text(文字)/todo(待办)/heading(标题) 三個 locked:false 可用項；第 525-531 行 openDial() 渲染加模組選單、第 533-540 行 insertModule() 實際插入塊（FAB 入口在第 169 行 this.fab.onclick=()=>this.openDial()）。(2) iOS 程式碼確認缺：ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行，是明寫「骨架占位」的 stub，整個 ios-app Swift 程式碼 grep 不到任何 openDial/insertModule/加模組/插入塊 UI（DomainModels.swift 雖有 .todo/.heading1/.heading2 的 BlockKind 枚舉，但那只是資料模型，無任何新增入口）。(3) iOS 設計稿確認沒畫：design/p2-note.html 的直條 rail 只有 ✦OPTIMIZE / ▦CARDS / ⊞TABLE / ◷PROG / ⌥GITHUB(PRO) / ✕，todo 塊只有展示樣式（177-178 行）而無新增入口；全 design/ 目錄 grep「加模/dialmenu/insertModule」零命中。iosStatus 標 not_in_code_not_in_design 正確，無需修正。唯一可挑剔處是說明引用的行號（p2-note.html:207-215）實際 rail 在約 209-217 行、web 的 MODULES 定義在 29 行而非 525-541 區段內，但屬行號微差，不影響差異成立。"
+ },
+ {
+  "title": "模組直條/FAB 本體（展開收合、點選插入模組卡、上鎖項提示）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:525-541 FAB dial＋scrim＋insertModule（saveVersion('addModule')）",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿直條互動完整（把手/scrim/✕，shared.js:29-38）；程式只有 ModuleKind enum（table/progress/github），無直條 UI 與插入邏輯。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。(1) Web 確認有：origin/claude/session-sh92z7 的 web/src/main.js 中 #fab 按鈕（line 127，line 169 綁 openDial）、openDial/closeDial（line 525 起，含 #dial 選單、#scrim、上鎖項點擊 toast「AI 模组：阶段二」）、insertModule（先 saveVersion(...,'addModule') 再 blocks.add 插入），證據行屬實。(2) iOS 確認沒有：ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行，註解明寫「骨架占位——活文件編輯器、模組直條、AI…於畫面實作階段完成」，無任何直條/FAB/插入邏輯；全 ios-app Swift grep（fab/dial/rail/insertModule/ModuleKind）只命中 ModuleKind enum（Domain/Models/DomainModels.swift:26，table/progress/github）、設計系統 token（Tokens.swift 的 Notch.rail 尺寸與 rail 動畫曲線）與 NotchedRectangle 註解，皆為占位/原語非功能 UI。(3) 設計稿確認有畫：ios-app/design/shared.js（handle 點擊加 rail-open、scrim/✕ 關閉，約 29-38 行）與 p2-note.html（#handle、#scrim、aside.rail、含 GITHUB 鍵的 PRO 上鎖標記、直條 state 切換鈕）互動完整。iosStatus 標 in_design_not_in_code 正確，無需修正。"
+ },
+ {
+  "title": "✦ AI 優化文字全流程（確認→鎖定→串流收 patch→完成 toast→重渲染）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:416-433 runOptimize()；services/index.js AIService.optimize()",
+  "iosStatus": "partial_in_code",
+  "detail": "Data/AI/AIServiceLive.swift 已實作 optimize SSE 呼叫、OptimizeOptions 已定義，但沒有任何畫面呼叫；設計稿有 confirm/aibusy 兩態。缺的是整條 UI 接線與結果落庫。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "Web 證據屬實：origin/claude/session-sh92z7 的 web/src/main.js ~416-433 行有完整 runOptimize()（askGroupTopics 確認框→aiLock 鎖定→services.ai.optimize 串流收 patch→完成 toast『已优化 N 段』→reload 重渲染），services/index.js:317 有 AIService.optimize 走 realStream('/ai/optimize') 並落庫。iOS 端 grep 確認 optimize 只存在於 Data/AI/AIServiceLive.swift（SSE 呼叫 ai/optimize）、AIServiceStub.swift、Domain/Services/AIServicing.swift（OptimizeOptions＋protocol），無任何 View/ViewModel 呼叫、無確認銘板/鎖定/toast 的 SwiftUI 實作；設計稿 ios-app/design/p2-note.html 有 st-confirm 與 st-aibusy 兩態但僅為 HTML mock。iosStatus=partial_in_code 標註正確，差異真實成立。"
+ },
+ {
+  "title": "AI 省錢/安全前端管線：hash gate（內容沒變不叫 AI）、diff 只送變動塊、安全閥（±30%/50% 整批拒絕）、aiHash 寫回",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js fullHash()/diffBlocks()/checkOptimizePatch()/CHANGE_RATIO_CAP=0.3/TOUCH_RATIO_CAP=0.5",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS Note/Block 模型連 lastAiHash/aiHash/source/structureGen 欄位都沒有（DomainModels.swift:62-110）；NotePayload 全量送出所有塊、無 changed 標記（AIServicing.swift:35-62）。沒有這層，optimize 結果也無法安全套用。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 端證據確認存在：git show origin/claude/session-sh92z7:web/src/services/index.js 確有 CHANGE_RATIO_CAP=0.3（L13，±30% 單塊變化整批拒絕）、TOUCH_RATIO_CAP=0.5（L14）、fullHash()（L39）、hash gate（L47：lastAiHash 比對 fullHash 決定是否叫 AI）、diffBlocks()（L51-55：用 aiHash 判斷 changed 只送變動塊）、checkOptimizePatch()（L66-80 安全閥）、套用後寫回 aiHash/lastAiHash/source/structureGen（L130、L148、L156-189）。(2) iOS 程式碼確認沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Domain/Models/DomainModels.swift 的 Note（L62-86）與 Block（L89-109）只有 id/kind/text/isDone/moduleKind/modulePayload/orderIndex 等欄位，完全沒有 aiHash/lastAiHash/source/structureGen；全 ios-app 的 Swift grep aiHash/diffBlocks/structureGen/安全閥 零命中（僅 Hashable 假陽性）。AIServicing.swift 的 NotePayload 確實全量送出所有 blocks（sorted 後 map 全部），只有 pinned 標記、無 changed/diff 機制。(3) 設計稿確認沒畫：ios-app/design/p2-note.html 等檔 grep hash/省錢/拒絕/gate 零命中（僅 CSS 的 50% 定位假陽性）。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "▦ 卡片結構化全流程（自動切卡片視圖、骨架卡逐張浮現、釘選/模組塊按原位穿插回去、docState 升 carded）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:436-465 runStructure()；services/index.js computeStructuredBlocks()/checkStructureCards()",
+  "iosStatus": "partial_in_code",
+  "detail": "AIServiceLive.structure＋SSEParser 已支援 card_start/card_done/card_removed，NotesRepository.saveCards 也在；但無 UI、無 client 端套用邏輯（computeStructuredBlocks 等完全沒有對應）。設計稿 p2b-cards.html 有 streaming 態。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "查證成立。Web 端：git show origin/claude/session-sh92z7:web/src/main.js 確認 runStructure()（約 436-465 行）完整存在——自動切卡片視圖（this.view='cards'＋頁籤切換）、onCardStart 建骨架卡（class 'card aicard skel' + shimmer）、onCard 逐張填內容、完成後 reload 註明 docState 成 carded 解鎖卡片頁籤；services/index.js 有 checkStructureCards()（L106，空卡/吸收釘選整批拒絕）、computeStructuredBlocks()（L123，釘選/模組塊按原 position 穿插回去）、applyStructureCards() 落庫並設 docState:'carded'（L190）。iOS 端：grep 全部 ios-app/*.swift 確認只有資料層存在——AIServiceLive.swift L40 structure() 打 ai/structure、SSEParser.swift L64-74 解析 card_start/card_done/card_removed、NotesRepository.swift L122 saveCards、DomainModels.swift 有 DocState.carded；但 Features/Note/NoteScreen.swift 僅 41 行占位（檔頭註明「於逐畫面實作階段依 p2-note.html / p2b-cards.html 完整實作」），無卡片視圖 UI、無骨架卡渲染、無任何對應 computeStructuredBlocks/checkStructureCards 的 client 端套用合併邏輯。設計稿 ios-app/design/p2b-cards.html 確有 streaming 態（.streamcard 掃描線、card_removed 淡出標 REMOVED、底部計數 toast）。聲稱的 iosStatus=partial_in_code 準確，無需修正。"
+ },
+ {
+  "title": "卡片視圖整頁（卡片流、卡片就地編輯、卡片釘選/刪卡、兩種空態）",
+  "kind": "missing_page",
+  "webEvidence": "web/src/main.js:317-383 renderCards()/wireCard()/cardHTML()",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p2b-cards.html 完整（含拖曳排序、空態 EMPTY RACK＋結構化 CTA），但卡片就地編輯態未在 mockup 展示；程式只有 Card 模型與 cards()/saveCards repo 方法，無任何 view。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js 確有 renderCards()/cardHTML()/wireCard() 完整實作——卡片流渲染、釘選（cpin + services.blocks.pin）、刪卡（cdel + saveVersion('delete')）、點 cardbody 就地編輯（textarea、blur 存檔、cardEdit 落版本），以及兩種空態（docState!=='carded' 時顯示「还没结构化」＋「▦ 卡片结构化」CTA；carded 但無 blocks 時顯示「没有卡片——切回文章视图写点内容吧」）。(2) iOS 程式碼確認缺：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 42 行，是明確標註「骨架占位」的 placeholder view，無任何卡片 UI；card 相關程式碼僅限資料層（DomainModels.swift 的 Card struct、PersistentModels.swift 的 CardEntity、NotesRepository.swift 的 cards(of:)/saveCards()），與聲稱「只有 Card 模型與 repo 方法、無任何 view」完全相符。(3) 設計稿確認有：ios-app/design/p2b-cards.html（214 行）含 .kard.pin 釘選樣式、.st-drag 拖曳排序態、EMPTY RACK 空態＋結構化 CTA；grep 未見就地編輯態的展示，與說明一致。iosStatus 標 in_design_not_in_code 正確，無需修正。"
+ },
+ {
+  "title": "卡片頁籤禁用態：docState ≠ carded 時卡片視圖 disabled＋提示「先按 AI 结构化」",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:175-185 setView()/syncViewSeg()",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿 p2b 的 viewseg 滑動開關沒有禁用態示範；程式有 DocState enum 但無任何判斷邏輯。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "查證成立。(1) Web 證據屬實：origin/claude/session-sh92z7 的 web/src/main.js 中 setView() 有 `if(v==='cards' && this.cur.docState!=='carded'){ this.toast('先按 AI 结构化'); return; }`，syncViewSeg() 有 `c.disabled=!carded; c.title=carded?'':'先按 AI 结构化'`，且 reload() 也會在非 carded 時強制退回 article 視圖——禁用態＋提示確實存在。(2) iOS 程式碼確實沒有：唯一的 P2 畫面 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 是純骨架占位（只有 Nameplate 和占位文字，無 viewseg、無 docState 判斷）；全 ios-app 中 docState/carded 只出現在 DomainModels.swift 的 DocState enum 定義與 PersistentModels/NotesRepository 的持久化欄位，零判斷邏輯。(3) 設計稿也沒畫：p2b-cards.html 的 .viewseg 只有 .seg/.act/.thumb 樣式，無 disabled 態；p2-note.html 只有橘色 CARDS keycap 與版本紀錄文案，同樣沒有卡片頁籤禁用態示範。iosStatus 標 not_in_code_not_in_design 正確（enum 僅為資料模型，非此 UI 功能），無需修正。"
+ },
+ {
+  "title": "AI 進行中鎖定態（遮罩＋進度條＋禁用 ✦/▦/💬/FAB/↶/↷＋防重入）",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:405-413 aiLock()/aiBusy 防重入",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿有 busychase/lockveil/busytoast＋STOP（p2-note.html:200-202）；程式零實作。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異成立。1) Web 端證據確認：origin/claude/session-sh92z7 的 web/src/main.js ~405-413 行確實有 aiLock(on,msg)（切換 #ailock 遮罩、設定訊息、禁用 #ai-opt/#ai-card/#chat/#fab/#undo/#redo 六個控件），且 runOptimize()/runStructure() 開頭都有 if(this.aiBusy) return 防重入，進行中設 this.aiBusy=true + aiLock(true,'AI 整理中…')。2) iOS 程式碼確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行（占位畫面），全 ios-app Swift 碼 grep lock/busy/inProgress/overlay-veil/stop 無任何 AI 鎖定態實作；僅 Data/AI 層有 .progress 事件定義（SSEParser.swift、AIServiceStub.swift），屬資料事件而非 UI 鎖定態。3) 設計稿確實有畫：ios-app/design/p2-note.html 行 56-66 定義 .busychase/.lockveil/.busytoast（含 .stop STOP 鈕、.st-aibusy 狀態類），行 201-202 有對應 DOM。iosStatus=in_design_not_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "AI 錯誤/跳過回饋分類：「变动过大，已保留原内容」（safety_valve）、「内容没变，未消耗 AI」（skip）、「需真后端」",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:405-413 aiErrToast()；runOptimize() skip 分支",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿兩頁都沒有這幾種 toast 態；程式無 toast 系統也無錯誤分類。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "Web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js:410-413 有 aiErrToast()，分類 safety_valve→「变动过大，已保留原内容」、need_real_backend→「此功能需要真后端」、其他→「出错：…」；main.js:431/463 有 skip 分支 toast（註解「内容没变，未消耗 AI」）——行號聲稱 405-413 略偏但功能真實。iOS 端：NoteScreen.swift 僅 41 行骨架占位，無 toast 系統、無錯誤分類 UI；資料層雖有泛用 .error(message:) 事件（SSEParser.swift:52-56、AIServicing.swift:12），但無 safety_valve/need_real_backend/skip 分類且無任何 UI 消費。設計稿 p2-note.html/p2b-cards.html 只畫進行中 toast（busytoast/streamtoast＋STOP），無錯誤/跳過回饋態。iosStatus=not_in_code_not_in_design 正確（細微保留：資料層已有泛用錯誤事件管道，但非此差異所指的分類回饋功能）。"
+ },
+ {
+  "title": "↶↷ Undo/Redo（操作前 saveVersion、整步撤銷重做、無步可退 disabled）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:187-196 refreshHistoryBtns()；mockClient.js saveVersion/undoVersion/redoVersion 指針法",
+  "iosStatus": "partial_in_code",
+  "detail": "NotesRepository 有 snapshot()/revisions()（快照入庫），但完全沒有 undo/redo 指針邏輯與還原方法；設計稿頂欄有 ↶↷ 鍵（含 dis 態）。目前 iOS 任何破壞性操作都不可逆。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。(1) Web 端確認存在：origin/claude/session-sh92z7 的 web/src/main.js 有 refreshHistoryBtns()（約 L196-202，依 canUndo/canRedo 設 #undo/#redo disabled），且各破壞性操作前均先呼叫 services.systems.saveVersion（L223/254/261/280/288/304/358/377/536）；版本邏輯實作在 web/src/api/mockClient.js（注意實際路徑是 web/src/api/，非 web/src/mockClient.js）：saveVersion(L315)、undoVersion(L322)、redoVersion(L338)、指針法 canUndo/canRedo(L357-358)。(2) iOS 端確認缺失：grep ios-app/ 全部 .swift 完全無 undo/redo 字樣；ios-app/BrainStrom/Data/Persistence/NotesRepository.swift 只有 snapshot()(L148) 與 revisions()(L165)，無指針、無還原方法。且 snapshot 實際只存 metadata（kind/charDelta/cardCount），RevisionEntity 不含內容快照，連還原所需資料都沒存——比聲稱的還更缺。(3) 設計稿確認有畫：ios-app/design/p2-note.html L159-160 有 ↶ 與 ↷（含 dis 態，.tb-keys .key.dis 樣式在 L19）。iosStatus=partial_in_code 標得合理（有 revision 快照入庫骨架但無還原能力），不需修正；唯一小瑕疵是 web 證據引用的 mockClient.js 路徑少了 api/ 一層、main.js 行號略偏（實際約 196-202），不影響結論。"
+ },
+ {
+  "title": "版本還原 restore（還原到指定版本、還原本身再落一步）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js SystemsService.restore()；mockClient.js restoreVersion()（web 服務層就緒，UI 接了 ↶↷）",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 verpanel 每列有「還原」鍵（p2-note.html:247-271）、RevisionKind 含 restore 色語義，但 NotesRepositoring 協議沒有 restore 方法，無從還原。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。Web 側（origin/claude/session-sh92z7）：web/src/services/index.js:258 確有 `async restore(id,v){ const r=await Mock.restoreVersion(id,v); this.changed({type:'restore'}); return r; }`，另 255-256 行有 undo/redo；mockClient 的 restoreVersion 在第 363 行，且第 368 行 `pushVersion(db, systemId, 'restore')` 證實「還原本身再落一步」。唯一小瑕疵：mockClient 路徑是 web/src/api/mockClient.js 而非 web/src/services/mockClient.js，但檔案與功能確實存在。main.js 117-118/165-167 行 UI 確實接了 ↶↷（undo/redo），restore() 僅服務層就緒未接 UI——與差異描述措辭一致。iOS 側：ios-app/BrainStrom/Domain/Services/NotesRepositoring.swift 協議僅有 snapshot()/revisions()，無任何 restore/undo/redo 方法；NotesRepository.swift 實作同樣沒有；全 Swift 程式碼 grep \"restore\" 只命中 auth 的 restoreSession 與 DomainModels.swift:37 的 `case restore // 紅`（RevisionKind 色語義佔位），且 Features/ 沒有任何版本歷史 UI。設計稿 ios-app/design/p2-note.html 247-271 行 verpanel 每列確有「還原」鍵帽、287 行標注 doc.restoreVersion 觸點。故 iOS 狀態 in_design_not_in_code 標記正確，無需修正。"
+ },
+ {
+  "title": "儲存：blur 即時落盤＋「已储存」chip 1.2 秒回饋",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:467 saved()；各 blur handler 即存",
+  "iosStatus": "partial_in_code",
+  "detail": "NotesRepository.saveNote 已實作但無人呼叫；設計稿只有靜態機身印刷「REC · 即時保存 · UNDO ∞」，沒有瞬時儲存回饋元件——回饋形式與 web 不同且程式全缺。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。Web 端證據確認：origin/claude/session-sh92z7 的 web/src/main.js:467 確有 saved(){ s.textContent='已储存'; setTimeout(...,1200) }，且至少 8 處 blur/編輯 handler（main.js:213、221-227、257、260-263、292、301-307、372-380）在落盤後呼叫 this.saved()，「blur 即存＋已储存 chip 1.2 秒」功能屬實。iOS 端確認：ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 41 行，是明寫「骨架占位」的靜態畫面，無編輯器、無任何儲存邏輯與回饋元件；NotesRepository.swift:83 的 saveNote(_:) 與 NotesRepositoring.swift:24 協定已定義，但全 codebase 無任何呼叫端（grep 僅命中定義處）。設計稿 ios-app/design/p2-note.html:197 只有靜態機身印刷 <div class=\"printfoot\">REC · 即時保存 · UNDO ∞</div>，無瞬時「已儲存」chip 回饋元件。iosStatus 標 partial_in_code 準確（資料層方法存在但無人呼叫，UI 全缺），不需修正。"
+ },
+ {
+  "title": "💬 問 AI 聊天面板（逐字串流、停止鈕、tokens 用量小字、「引用到卡」徽章、錯誤紅字、Enter 送出）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:471-522 toggleChat()/sendChat()/chatLock()",
+  "iosStatus": "partial_in_code",
+  "detail": "AIServiceLive.chat＋SSEParser（usage/progress 事件）已實作，無 UI；設計稿 chatpanel 完整（含 TOKENS 412、引用 3 卡、■ 停止）。另行為差：web 聊天歷史只存記憶體、切筆記即清空（D7），iOS 規格改為本機持久保留——實作時需拍板。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 端證據確認：origin/claude/session-sh92z7 的 web/src/main.js 確有完整聊天面板——toggleChat() L471-476、chatLock() L490-493、sendChat() L494-522，含 onDelta 逐字串流入氣泡 (L509)、onUsage tokens 用量小字 cmeta (L510)、onProgress「引用到卡」徽章 cbadge (L511)、onError 紅字 cerr (L512)、#chatstop 停止鈕 (L135/L148/L491)、Enter 送出 (L151: onkeydown Enter&&!shiftKey → sendChat)。聲稱的證據行號與內容相符。(2) iOS 端確認缺 UI：grep 整個 ios-app/BrainStrom 的 Features/ 與 App/ 無任何 chat 視圖（僅 HomeScreen.swift:72 一句佔位文字「搜尋，或直接問 AI…」）；但服務層已有 Data/AI/AIServiceLive.swift:47 chat(messages:context:) 走 ai/chat SSE 串流、Data/AI/SSEParser.swift 已解析 usage(L58)/progress(L76) 事件——即「有資料層、無 UI」。(3) 設計稿確認：ios-app/design/p2-note.html L81-99、L232-237 有完整 chatpanel（CONSOLE 面板、「引用 3 卡」ref、TOKENS 412 bmeta、紅色 stopk 停止鍵）。(4) 行為差異 D7 亦屬實：web main.js L470 註解明寫「历史只存内存（this.chatMsgs），切换笔记清空（D7）」。iosStatus=partial_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "優化前確認框契約不同：web 是「要/不要/取消」單一 groupTopics 布林；iOS 設計改成三開關（分主題/加小標/修錯字）＋取消/開始",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js:387-403 askGroupTopics()；services AIService.optimize(id,{groupTopics})、POST /ai/optimize 只帶 groupTopics",
+  "iosStatus": "partial_in_code",
+  "detail": "OptimizeOptions（splitTopics/addHeadings/proofread）已在 AIServicing.swift:29-33 定義但無 UI；後端 /ai/optimize 契約目前只收 groupTopics，proofread 選項後端沒對應參數。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。1) web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js askGroupTopics()（約 386-403 行）確為「要/不要/取消」三按鈕，resolve 為 true/false/null 單一布林；web/src/services/index.js:317 optimize(systemId,{groupTopics=false}) 且 :345 realStream('/ai/optimize',{note, groupTopics:!!groupTopics}) 只帶 groupTopics，與聲稱一致。2) iOS 確認：ios-app/BrainStrom/Domain/Services/AIServicing.swift:29-32 已定義 OptimizeOptions(splitTopics/addHeadings/proofread)，Data/AI/AIServiceLive.swift:25-36 會把三選項放進 request body，但全 Features/ 層 grep 不到任何呼叫 optimize 或 OptimizeOptions 的 UI 程式碼（唯一 UI 相關只有 KeycapButtonStyle.swift 的 \"OPTIMIZE\" 鍵帽文字與 Controls.swift 的 Toggle 樣式註解），即只有 service 層占位、無確認框 UI。3) 設計稿確認：ios-app/design/p2-note.html:221-224 確實畫了三開關（分主題段落 RESTRUCT / 加小標題 HEADINGS / 順便修錯字 PROOF），:284 註明「銘板浮層＋選項開關＋✦開始橘鍵」。iosStatus=partial_in_code 標註正確（程式碼有 OptimizeOptions 定義與傳輸但無 UI），無需修正。附帶確認：web 後端契約只收 groupTopics，iOS Live service 送出的 splitTopics/addHeadings/proofread 與後端契約確有不匹配，聲稱說明也成立。"
+ },
+ {
+  "title": "刪除整個系統/筆記入口（dock 🗑 ＋ confirm「删除这个系统？」）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js:152-153 #dsys confirm → systems.delete",
+  "iosStatus": "partial_in_code",
+  "detail": "repository.deleteSystem/deleteNote 已實作；設計稿頂欄只有 ⋯ 鍵但未展示選單內容；程式無任何刪除 UI（首頁也沒接）。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。Web 端證據確認：origin/claude/session-sh92z7 的 web/src/main.js:125 dock 有 trash 圖示鈕 `<button class=\"iconbtn\" id=\"dsys\">${svg('trash')}</button>`，main.js:152-153 綁定 confirm('删除这个系统？此动作无法复原。') → services.systems.delete → 返回首頁，與聲稱完全一致。iOS 端確認：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/Persistence/NotesRepository.swift:42 deleteSystem、:96 deleteNote 已實作（協定在 Domain/Services/NotesRepositoring.swift:16,25），但全專案 Swift 程式碼中無任何 UI 層呼叫者（grep 排除 Persistence/協定後零結果），也無 swipeActions/contextMenu/confirmationDialog/「删除」等刪除 UI；設計稿 ios-app/design/p2-note.html:161 頂欄僅有「⋯」鍵帽，檔內無 trash/删除選單內容。iosStatus=partial_in_code 標註準確，無需修正。"
+ },
+ {
+  "title": "私密/公開可見性切換 pill（🔒/🌐）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js note() #vis → systems.setVisibility",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "p2-note.html / p2b-cards.html 都沒有可見性元件；NoteSystem/Note 模型連 visibility 欄位都沒有（DomainModels.swift:41-87 grep 無 visibility）。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "查證成立。(1) Web 端確認存在：origin/claude/session-sh92z7 的 web/src/main.js note() 內，L119 nav bar 有 `<button class=\"pill priv\" id=\"vis\">`（lock icon + 私密），L159-162 renderVis() 依 sys.visibility 切換 lock/globe 與「私密/公开」文案，onclick 呼叫 services.systems.setVisibility(id, ...) 在 private/public 間切換——證據行真實存在（嚴格說切的是該筆記所屬「系統」的可見性，但 pill 確實顯示在 P2 筆記頁工具列）。(2) iOS 端確認缺失：grep ios-app/ 全部 .swift 對 visibility|isPrivate|isPublic|🔒|🌐 零命中；DomainModels.swift 的 NoteSystem（id/name/createdAt/updatedAt/noteCount/cardCount）與 Note（id/systemID/title/docState/blocks/updatedAt/revisionNumber）皆無 visibility 欄位。(3) 設計稿確認沒畫：ios-app/design/p2-note.html、p2b-cards.html 及 v3-explore 各 style 均無可見性 pill；grep 命中的 \"lock\" 皆無關（.lockveil 是 AI 忙碌遮罩、.key .lock 是 GITHUB 鍵帽的 PRO 角標、PINNED·LOCKED 是釘選銘板）。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "超長段落 >2000 字「建議拆分」警告（F7）",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:295-296 LONG_PARA hint",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "規格書有提黃色細條，但設計稿 mockup 與程式都沒有。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "查證成立。(1) Web 端確有此功能：origin/claude/session-sh92z7 的 web/src/main.js 第 40 行定義 `const LONG_PARA = 2000;`（註解明標 F7），第 296 行在 editBlock 中渲染 `<div class=\"longhint\">⚠ 这段超过 2000 字，建议拆分</div>`，證據行精確存在。(2) iOS 程式碼確實沒有：grep 全部 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 的 .swift 檔（含 Features/Note/NoteScreen.swift）找不到任何 LONG_PARA、2000、拆分、超長、字數計數相關邏輯，零命中。(3) 設計稿也沒畫：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html（294 行）grep hint/warn/拆/2000/count 全部無命中（exit 1）；design 目錄唯二的 \"2000\" 命中是 shared.css 與 v3-explore/style-e.html 的 SVG xmlns 網址，與此功能無關。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "視圖偏好記憶（按系統記住文章/卡片視圖、未 carded 強制回文章）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:40,177 sessionStorage brainstrom.view.{id}",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 無任何視圖偏好持久化。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js 第 39 行定義 VIEW_KEY='brainstrom.view.'，第 157-158 行載入時讀 sessionStorage 按系統 id 還原視圖、且 docState!=='carded' 時強制回 article，第 177 行 setView 寫回 sessionStorage（另 440 行結構化完成後寫 'cards'）——功能完整存在（行號 40/177 與實際 39/157/177 僅差一行，屬同一程式碼）。iOS 端確認：ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行占位（註明「於逐畫面實作階段依 p2-note.html / p2b-cards.html 完整實作」），全 codebase 的 UserDefaults 只用於主題（Theme.swift）與登入 stub（AuthServiceStub.swift），無任何視圖偏好持久化。設計稿 ios-app/design/p2b-cards.html 雖畫了文章/卡片硬體滑動開關（視圖切換 UI），但全 design/ 目錄 grep 不到任何「記住偏好/持久化/未 carded 強制回文章」的行為規格，故「視圖偏好記憶」這項行為在設計稿也未涵蓋。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "離開筆記頁/切筆記即中斷 AI 與聊天串流（省錢鐵律 F8）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:75-76,108-111 chatAbort/aiAbort.abort()",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "AIServicing 用 AsyncThrowingStream 理論上可 cancel，但無任何生命週期掛鉤去取消；設計稿未涵蓋。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js 第 75-76 行（home() 開頭「离开笔记页：中断进行中的 AI 串流（省钱铁律，F8）」chatAbort/aiAbort.abort()）與第 109、111 行（note() 開頭切筆記先 abort 上一篇殘留串流）確實存在，行號與引用相符。(2) iOS 端確認缺失：ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅為骨架占位（檔內自述「骨架占位——活文件編輯器…AI 全流程…於畫面實作階段完成」），完全沒有呼叫 AI 串流，更沒有 onDisappear/.task 取消或任何生命週期掛鉤；全 Features/App 目錄 grep 不到 abort/cancel/onDisappear。AIServiceLive/Stub 雖在 continuation.onTermination 做 task.cancel()（機制上可取消），但無人在離開頁面時觸發，與聲稱說明一致。(3) 設計稿確認：ios-app/design/p2-note.html 與 p2b-cards.html 只畫了使用者手動停止（紅 STOP toast、紅 ■ 停止鍵），完全沒有「離開頁面/切筆記自動中斷」的行為描述；grep 離開/返回/切換等關鍵字皆無此規則。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "文章視圖空白筆記提示態（「空白笔记——直接在下方『继续写…』开始，或＋加模组」）",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:206-228 renderArticle() #bhint",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "p2-note.html 的 6 個狀態（normal/rail/confirm/aibusy/chat/versions）沒有空文件態；p2b 只有卡片空態。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "差異成立。Web 端：git show origin/claude/session-sh92z7:web/src/main.js 確認 renderArticle()（約 206-229 行）第 216 行確實有 `if(!bs.length) $('#blocks').innerHTML=...#bhint...「空白笔记——直接在下方『继续写…』开始，或＋加模组」`，且 appendBlock() 第 231 行會移除 #bhint，是真實的空文件提示態。iOS 端：(1) 程式碼 — /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行，是「骨架占位」畫面（自註明於逐畫面實作階段才完整實作），完全沒有編輯器更沒有空文件態；全 ios-app/ Swift 程式碼 grep「空白笔记/继续写/empty/bhint」零命中。(2) 設計稿 — p2-note.html 的狀態切換按鈕確為 6 個（normal/rail/confirm/aibusy/chat/versions），無空文件態；唯一近似元素是第 194 行常駐續寫區「繼續寫，或叫 AI 幫你接」，但它出現在已有大量內容的筆記 mockup 裡，屬文末續寫區（對應 web 的 #contwrite），不是空白筆記提示；設計稿中唯一的空態在 p1-home.html:164（首頁無系統空態），p2b-cards 亦只有卡片層級空態。iosStatus=not_in_code_not_in_design 標註正確，無需修正。微小保留：設計稿的常駐「繼續寫」placeholder 在空筆記時功能上會部分起到引導作用，但並非設計上明確規劃的空文件態，也缺「＋加模組」引導。"
+ },
+ {
+  "title": "筆記載入失敗態（toast「打不开」並退回首頁）",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js note() systems.get 失敗分支",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "p2 設計稿無 error 態；NoteScreen 不讀資料故無從失敗，實作時須補四態鐵律的錯誤態。",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "Web 證據屬實：origin/claude/session-sh92z7:web/src/main.js 第 154 行 note() 內有 `try{ sys=await services.systems.get(id); }catch{ this.toast('打不开'); return this.home(); }`，完全符合「載入失敗 toast『打不开』並退回首頁」。iOS 端：NoteScreen.swift（ios-app/BrainStrom/Features/Note/）為 41 行純骨架占位，不接 id、不讀 repository，無任何載入或錯誤態；Repository 雖定義 RepositoryError.noteNotFound 但 P2 無 UI 消費。設計稿 p2-note.html / p2b-cards.html 僅有 AI 優化中 busytoast 與結構化 streamtoast 兩種進行中態，grep 错/失败/重试/retry 皆無載入失敗視覺。iosStatus=not_in_code_not_in_design 標註正確，無須修正。"
+ },
+ {
+  "title": "整個卡片視圖頁面在 iOS 程式裡不存在——NoteScreen 是 41 行純占位卡，沒有任何卡片流渲染",
+  "kind": "missing_page",
+  "webEvidence": "web/src/main.js:317-334 renderCards()（全部塊渲染成卡片流）、335-347 cardHTML()",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 ios-app/design/p2b-cards.html 已畫出完整卡片視圖（板卡、釘選卡、模組卡、4 個狀態），但程式 Features/Note/NoteScreen.swift:1-41 整檔只有「骨架占位」文字，不接 noteID、不讀資料。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 確認 renderCards()（含「卡片视图（Step 3 实装：全部块渲染成卡片流…）」註解、空狀態按鈕觸發 runStructure）與 cardHTML()（模組卡、釘選卡 cpin、刪除 cdel）確實存在於該行段附近，且 wireCard() 有完整釘選/刪除互動。(2) iOS 程式確實沒有卡片視圖：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔 41 行純占位（自述「骨架占位……於畫面實作階段完成」），不接 noteID、不讀任何資料。全 ios-app grep \"card|pin\" 只命中資料層（CardEntity、SSEParser 的 card_start/card_done 事件、AIServiceStub 假卡片）與 HomeScreen 的 SystemCardView（首頁系統卡，非 P2b 筆記卡片流），沒有任何卡片流 UI 渲染。(3) 設計稿屬實：ios-app/design/p2b-cards.html 存在且畫了完整卡片視圖（視圖切換滑動開關、卡片格 .kard 等），故 iosStatus=in_design_not_in_code 標註正確。唯一小瑕疵：聲稱路徑寫 ios-app/Features/Note/NoteScreen.swift，實際為 ios-app/BrainStrom/Features/Note/NoteScreen.swift，不影響結論。"
+ },
+ {
+  "title": "▦ 卡片結構化端到端流程（按鈕觸發 → SSE 串流 → 落庫 → docState 變 carded）UI 完全沒接",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:436-465 runStructure()、web/src/services/index.js:374-411 AIService.structure()",
+  "iosStatus": "partial_in_code",
+  "detail": "iOS 的 Data/AI/AIServiceLive.swift:40-44 已實作 POST ai/structure + SSE，SSEParser 也解析 card_start/card_done，但全 App 沒有任何畫面或 ViewModel 呼叫它；web 還有「觸發後自動切到卡片視圖、暫時解禁頁籤、換上 #aicards 容器」這段 UI 編排，iOS 零對應。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 端證據屬實：origin/claude/session-sh92z7 的 web/src/main.js 確有 runStructure()（約 436-465 行），包含完整 UI 編排——aiLock 鎖定、自動切 view='cards' 並寫 sessionStorage、暫時解禁 #v-cards 頁籤（cseg.disabled=false）、換上 #aicards 容器、onCardStart 骨架占位逐張浮現、onCard 填內容、完成後 reload 讓 docState='carded' 同步頁籤狀態。web/src/services/index.js 的 AIService.structure()（約 374-411 行）也屬實：hash gate、realStream('/ai/structure') 處理 card_start/card_done/usage/progress/error、saveVersion 快照、applyStructureCards 落庫。(2) iOS 端確認：Data/AI/AIServiceLive.swift:40-44 確有 structure() 發 POST ai/structure + SSE 串流，SSEParser.swift 也解析 card 事件；但全 App grep 後，structure 的呼叫點只存在於 Data/AI 與 Domain/Services 協定層，App/CompositionRoot.swift 僅做依賴注入，Features/ 底下零呼叫。唯一相關畫面 Features/Note/NoteScreen.swift 只有 41 行，自註明「骨架占位——活文件編輯器、模組直條、AI 全流程於逐畫面實作階段完成」，沒有任何按鈕觸發、卡片視圖、串流渲染或 docState 處理。(3) 設計稿 ios-app/design/p2b-cards.html 有畫此流程（第 206 行明載「結構化串流：card_start/card_done 逐字長出、card_removed 淡出、toast 計數＋紅 STOP」），代表此功能在 iOS 規格內、確為待補缺口。iosStatus 標 partial_in_code 正確：服務層已實作、UI/ViewModel 完全未接，無需修正。"
+ },
+ {
+  "title": "結構化串流中的骨架卡呈現：card_start 先浮現 shimmer 骨架卡、card_done 填入標題內容、逐張自動捲到底",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:447-459（onCardStart 建 .card.aicard.skel + onCard 填入並 scrollIntoView）",
+  "iosStatus": "partial_in_code",
+  "detail": "設計稿 p2b-cards.html st-streaming 態有掃描線新卡與逐字長出；程式端 SSEParser.swift:64-72 能解析事件但沒有任何 UI 消費。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "差異真實成立，無法推翻。(1) Web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js runStructure() 中 onCardStart 建立 className='card aicard skel' 的骨架卡（cardbody 帶 shimmer class）並 el.scrollIntoView({block:'end'})；onCard 填入 title/content、移除 skel、再次 scrollIntoView，行號約 448-458（與聲稱的 447-459 吻合）。(2) iOS 確認缺 UI：grep 全部 ios-app/**/*.swift，cardStart 事件只出現在 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/AI/SSEParser.swift:64-66（解析）、Domain/Services/AIServicing.swift:14（事件 enum 定義）、Data/AI/AIServiceStub.swift:38（stub 產出事件），沒有任何 View 層消費；全 Swift 程式碼搜不到 shimmer/skeleton/scrollTo 等骨架卡或自動捲動實作。(3) 設計稿確認：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2b-cards.html 有 .st-streaming 態（streamcard 掃描線動畫、card_start/card_done 說明），即設計已畫但程式只有事件解析層、無 UI。iosStatus=partial_in_code 標註正確（解析層存在、UI 缺失），不需修正。"
+ },
+ {
+  "title": "未結構化空態＋空態內直接觸發結構化的「▦ 卡片结构化」按鈕",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:318-323（docState!=='carded' 顯示「还没结构化…」+ #gostruct 按鈕直呼 runStructure()）",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p2b-cards.html:184-188 有 EMPTY RACK 空態＋「▦ 卡片結構化」橘鍵 CTA；程式完全沒有。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "三方證據全部核實成立。(1) Web 真有：git show origin/claude/session-sh92z7:web/src/main.js 的 renderCards()（約 318-323 行）確認 docState!=='carded' 時渲染 .structured-empty 空態（「还没结构化…」）＋ #gostruct「▦ 卡片结构化」按鈕，onclick 直呼 this.runStructure()，與差異描述完全一致。(2) iOS 程式真沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 只是骨架占位（註解明寫「骨架占位…於逐畫面實作階段依 p2-note.html / p2b-cards.html 完整實作」），無卡片視圖、無空態、無結構化 CTA；AIServicing.swift:84-85 雖宣告了 structure() 服務協定（AIServiceLive/Stub 有實作），但全 codebase 無任何 UI 呼叫點，屬服務層占位而非功能實作，符合 missing_state。(3) 設計稿真有畫：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2b-cards.html 約 183-188 行有 .emptybox（▦ EMPTY RACK 槽位圖＋「這份筆記還沒結構化…」文案＋ .key.orange「▦ 卡片結構化」橘鍵）。故 iosStatus=in_design_not_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "已結構化但卡片被刪光的第二種空態「没有卡片——切回文章视图写点内容吧」",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:327（bs.length===0 時顯示提示）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿只畫了「未結構化」一種空態（EMPTY RACK），carded 後零卡片的空態設計稿和程式都沒有。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "三方查證皆成立。(1) Web 端：git show origin/claude/session-sh92z7:web/src/main.js 確認 renderCards() 在 docState==='carded' 後檢查 if(!bs.length) 並顯示「没有卡片——切回文章视图写点内容吧」（約 327 行，與證據一致），且與未結構化空態（'还没结构化…' + ▦ 卡片結構化按鈕）是兩個不同分支。(2) iOS 程式碼：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 整頁僅為骨架占位（註明「骨架占位——於畫面實作階段完成」），完全沒有卡片視圖，更沒有零卡空態；全 repo Swift 檔 grep「切回/没有卡片/写点内容」零命中。(3) 設計稿：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2b-cards.html 的狀態切換只有 normal/drag/streaming/empty 四種，唯一 emptybox 文案是「這份筆記還沒結構化。讓 AI 把文章拆成一塊塊板卡」＋ EMPTY RACK 槽位＋卡片結構化 CTA，即只畫了「未結構化」空態；carded 後零卡片的第二種空態設計稿確實沒畫。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "卡片刪除鈕（刪前自動落版本快照 saveVersion('delete')、toast「已删除卡」、刪光後重渲染空態、刷新 Undo 鈕）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js:348-356 wireCard() .cdel（saveVersion → blocks.delete → toast → refreshHistoryBtns）",
+  "iosStatus": "not_in_design_not_in_code",
+  "detail": "設計稿卡右上只畫了 ⋯ 入口（p2b-cards.html:129,135，選單內容未展開畫出）；程式端 NotesRepository 雖有刪資料能力但卡片 UI 不存在，刪前快照鏈路也沒人接。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "差異真實成立。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 中 cardHTML() 兩種卡（模組卡與一般卡）皆渲染 .cdel 刪除鈕，wireCard() 的 del.onclick 依序執行 services.systems.saveVersion(this.cur.id,'delete')（刪前快照）→ services.blocks.delete(b.id) → 刪光時 this.renderCards() 重渲染空態 → this.toast('已删除卡') → this.refreshHistoryBtns()，與聲稱逐項吻合（行號約 357-363，與聲稱的 348-356 略偏但同一段程式）。(2) iOS 程式碼確實沒有：ios-app/BrainStrom/Features/Note/NoteScreen.swift 整頁是骨架占位（註明「骨架占位…於畫面實作階段完成」），全 ios-app 無任何卡片 UI 或刪卡鈕；NotesRepository/NotesRepositoring 雖有 saveCards(_:noteID:) 與 snapshot(noteID:kind:charDelta:cardCount:) 等資料層能力，但無人接 UI，符合「刪前快照鏈路沒人接」。(3) 唯一修正點是 iosStatus：聲稱 in_design_not_in_code 過於寬鬆——p2b-cards.html 只在卡頭畫了 ⋯ 入口（129/135/178 行）與工具列 ⋯（116 行），選單內容未展開，且頁尾 STATE/互動註記（200-209 行）只描述釘選、拖曳、串流、空態，完全沒提刪卡；全 design/ 目錄的刪除 UI 只有 p1-home 的系統左滑刪除與 p3-settings 的刪帳號，卡片刪除本身在設計稿任何地方都沒畫出。故較準確的狀態是 not_in_design_not_in_code（設計僅有 ⋯ 入口暗示、刪卡功能未畫、程式未做）。"
+ },
+ {
+  "title": "卡片釘選鈕 📌（pointerdown 切換 pinned、toast「已钉选（AI 永不动）/已取消钉选」、整卡重畫釘選視覺）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js:348-355 wireCard() .cpin、335-346 cardHTML() pinned 樣式/pinmark",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p2b-cards.html:39-41,128-129 有 📌 鈕與 PINNED 橘斜紋左緣視覺；程式端 Block 模型有 pinned 概念但無任何 UI。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "差異真實成立。(1) Web 端證據確認：git show origin/claude/session-sh92z7:web/src/main.js 中 cardHTML()（約 335-346 行）確有 `class=\"card aicard ${b.pinned?'pinned':''}\"`、`.cpin` 📌 鈕（title「钉选（AI 永不动）/取消钉选」）與 pinmark 視覺；wireCard()（約 348-355 行）確有 pin.onpointerdown 切換 pinned、呼叫 services.blocks.pin()、toast('已钉选（AI 永不动）'/'已取消钉选')、並以 cardHTML 重建整卡 node.replaceWith 重畫。(2) iOS 端：grep 整個 ios-app/ 的 Swift 檔，pinned/isPinned 只出現在資料/領域層（Data/Persistence/PersistentModels.swift:60、NotesRepository.swift:114,134、Domain/Models/DomainModels.swift:21,117、Domain/Services/AIServicing.swift:41-59 把釘選塊標記給後端），Features/（Home/Note/Settings/Login）與 DesignSystem 完全沒有任何 pin 相關 UI（無按鈕、無 toast、無視覺）。(3) 設計稿 ios-app/design/p2b-cards.html 確有畫：約 38-41 行 `.kard.pin` 橘斜紋左緣（repeating-linear-gradient）與 PINNED 標示、約 128-129 行釘選卡含 📌 圖示。故 iosStatus=in_design_not_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "卡片內容就地編輯：點 cardbody 變 textarea，blur 有變才 saveVersion('cardEdit')+blocks.update，沒變只收起不落 undo 步；空白卡顯示「（空白，点击编辑）」佔位",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:357-381 wireCard() body.onclick（含 content/text key 自動判斷、autoraf 撐高）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "p2b-cards.html 四個狀態（normal/drag/streaming/empty）都沒有卡片編輯態；程式更是零。iOS 規格書文字有提到卡片就地編輯，但設計稿沒畫、程式沒做。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "查證成立。1) Web 證據確實存在：git show origin/claude/session-sh92z7:web/src/main.js 的 wireCard() 內有「点内容就地编辑（blur 存，有变才落一步 cardEdit）」區塊——body.onclick 把 cardbody 換成 textarea、key 依 payload.content/text 自動判斷、ta.oninput=autoraf 撐高、blur 時 if(v===old) 只 redraw 不落步，有變才 saveVersion(this.cur.id,'cardEdit') + blocks.update；cardHTML 中空白卡顯示 '<span class=\"faint\">（空白，点击编辑）</span>' 佔位，全部與差異描述吻合（位於該檔約 346-383 行區間，與聲稱的 357-381 一致）。2) iOS 程式碼確實沒有：grep 全部 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/**/*.swift 找不到任何 TextEditor/TextField/edit 相關實作，Features 目錄只有 Note/Settings/Home/Login，連卡片頁畫面本身都不存在，遑論就地編輯。3) 設計稿確實沒畫：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2b-cards.html 只有 normal/drag/streaming/empty 四個狀態切換鈕，全檔無 textarea/contenteditable/「点击编辑」佔位或任何編輯態；design/ 其餘檔案與 v3-explore（僅 style-d.html CSS 註解提到筆記「編輯器」，屬 P2 筆記頁風格探索，與卡片就地編輯無關）也都沒有。iosStatus=not_in_code_not_in_design 標記正確，無需修正。"
+ },
+ {
+  "title": "結構化安全閥＋整批套用管線：空卡不收、卡吸收釘選/模組塊整批拒絕；刪全部未釘選文字塊、按卡序建新塊、釘選/模組塊按原位穿插、reorder 收尾、寫回 docState='carded'/lastAiHash/ai_restructure_count",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js:106-119 checkStructureCards()、123-134 computeStructuredBlocks()、171-196 applyStructureCards()",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "這是前端服務層邏輯（server 無狀態），iOS 必須自己實作；目前 Swift 全 codebase 找不到任何 hash/安全閥/合併計畫程式碼（grep fullHash/checkStructure/computeStructured 零命中）。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "查證成立。(1) Web 證據確認存在：git show origin/claude/session-sh92z7:web/src/services/index.js 的 106-119 行正是 checkStructureCards()（empty_cards/empty_card 空卡不收、absorbed 命中 pinned/模組塊回 touch_pinned 整批拒絕）、123-134 行正是 computeStructuredBlocks()（過濾未釘選 DIFF_TYPES 塊、structureGen+1、按卡序建新 entries、kept 塊按原 position splice 穿插）、171-196 行正是 applyStructureCards()（verdict 不 ok 即不動資料 → 刪全部未釘選文字/標題塊 → addBlock 建新卡塊 → reorderBlocks 收尾 → updateSystem 寫回 lastAiHash=fullHash、docState='carded'、ai_restructure_count+1）。引用行號與內容完全吻合。(2) iOS 確認沒有：grep ios-app/ 全部 Swift 對 fullHash/checkStructure/computeStructured/aiHash/structureGen/absorbed/applyStructure/restructure/lastAiHash 全零命中；iOS 僅有 DocState 枚舉含 .carded（DomainModels.swift:9-12，純狀態定義非管線）、AIServicing.swift 的 cardStart/cardDone 串流事件型別、AIServiceLive.swift:40-44 打 ai/structure 端點收事件——只有「接收卡片串流」，完全沒有安全閥檢查、合併計畫、刪塊/建塊/reorder/寫回欄位（lastAiHash、ai_restructure_count 在 iOS 模型中根本不存在）；NoteScreen.swift:5 自註明是占位待依 p2b-cards.html 實作。(3) 設計稿 ios-app/design/p2b-cards.html 只畫了卡片頁視覺（釘選卡橘斜紋、拖曳 reorder 互動），grep 套用/安全/空卡/拒絕/hash/carded 零命中，未涵蓋此服務層安全閥＋整批套用管線。iosStatus=not_in_code_not_in_design 對此差異項成立，無需修正。"
+ },
+ {
+  "title": "hash gate 省錢跳過：carded 後內容沒變就不打 AI，直接提示「内容没变，未消耗 AI」（首次必跑）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js:39-47 fullHash()/shouldSkipAi()、380-383 structure() hash gate；web/src/main.js:461-462 skip toast",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "省錢鐵律 F8 的核心；iOS 設計稿沒畫這個狀態、程式沒有任何 hash 計算。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "差異真實成立。Web 端證據逐行核實：origin/claude/session-sh92z7 的 web/src/services/index.js 確有 fullHash()（39-43 行，FNV-1a 全文指紋）與 shouldSkipAi()（45-47 行，比對 sys.lastAiHash）；structure() 中（約 379-383 行）有 hash gate：`if(sys.docState === 'carded' && shouldSkipAi(sys, blocks))` 直接回 `{ ok:true, skipped:true }` 並 onProgress 提示「内容没变，未消耗 AI」，且首次（非 carded）必跑；web/src/main.js 約 458-462 行 onProgress 收 msg 後 `else if(skip&&!n) this.toast(skip)` 顯示 skip toast。iOS 端：grep 整個 ios-app/ Swift 程式碼，hash 相關命中僅為 struct 宣告的 Hashable protocol（/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Domain/Models/DomainModels.swift），無任何 fullHash/lastAiHash/aiHash/fnv/skip 邏輯；design/（含 p2b-cards.html、p2-note.html、shared.js、README.md）grep「hash/没变/未消耗/省钱/指纹/F8/skip」零命中，設計稿確未畫此狀態。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "結構化前自動落版本快照（saveVersion trigger='structure'），讓 ↶ 一步整批撤銷整次結構化",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js:404-405（realStream 收完卡後、套用前 Mock.saveVersion(systemId,'structure')）",
+  "iosStatus": "partial_in_code",
+  "detail": "iOS Data/Persistence/NotesRepository.swift:148-165 已實作 snapshot(kind:.structize)/revisions 與 RevisionEntity，但沒有任何呼叫端；Undo/Redo UI 也不存在（p2-note 設計稿的 ↶↷ 只是 disabled 示範）。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "Web 端證實：origin/claude/session-sh92z7 的 web/src/services/index.js structurize 流程中，realStream 收完卡後、applyStructureCards 套用前確有 `await Mock.saveVersion(systemId, 'structure')`（含註解「套用前快照（trigger='structure'，一步）」），證據行真實存在。iOS 端證實：NotesRepository.swift:148-165 有 snapshot(kind:)/revisions(of:) 實作、DomainModels 有 RevisionKind.structize、RevisionEntity 已註冊於 ModelContainer，但全 ios-app grep 顯示這些 API 在 Data/Domain 層定義之外完全沒有呼叫端，結構化流程不會落快照，也無任何 Undo/Redo 程式碼。設計稿 design/p2-note.html:159-160 的 ↶↷ 僅為靜態鍵帽示範（↷ 標 dis、↶ 未標但無行為），p2b-cards.html 無版本/撤銷內容。故差異真實，iosStatus=partial_in_code 正確，無需修正。"
+ },
+ {
+  "title": "AI 進行中鎖定態：半透明遮罩＋頂部細進度條＋「AI 整理中…」，並禁用 ✦/▦/💬/FAB/↶/↷ 六顆鈕、aiBusy 防重入",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:405-409 aiLock()、437-441 runStructure 進入時鎖定",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p2-note.html aibusy 態有 LED 追逐條＋內容鎖定薄紗＋busytoast，p2b 有 streamtoast；程式端完全沒有。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "查證成立。(1) Web 端確認存在：origin/claude/session-sh92z7 的 web/src/main.js 有 aiLock(on,msg) 函式（半透明遮罩 #ailock + #ailockmsg 文字，並對 ['#ai-opt','#ai-card','#chat','#fab','#undo','#redo'] 六顆鈕設 disabled），runOptimize/runStructure 均以 if(this.aiBusy) return 防重入並呼叫 this.aiLock(true,'AI 整理中…')，與證據行 405-409、437-441 相符。(2) iOS 程式端確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行骨架占位（自註「AI 確認／進行中／聊天／版本，於畫面實作階段完成」），全 ios-app 無任何 aiBusy/lock/遮罩/禁用鈕邏輯；僅 Data 層有 SSE progress 事件解析（SSEParser.swift、AIServicing.swift），屬資料管線非 UI 鎖定態。(3) 設計稿確有畫：ios-app/design/p2-note.html 有 .st-aibusy（busychase LED 追逐條、lockveil 鎖定薄紗、busytoast「AI 優化中 · 內容已鎖定保護 STOP」），p2b-cards.html 有 .st-streaming streamtoast「結構化中 · 已產出 3 卡 STOP」。故 iosStatus=in_design_not_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "結構化錯誤態與分類提示：safety_valve→「变动过大，已保留原内容」、need_real_backend→提示切真後端、其他顯示錯誤碼；失敗後 reload 自動彈回文章視圖",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:410-413 aiErrToast()、460-465 runStructure 收尾（err 分流＋reload 依 docState 彈回）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "p2b-cards.html 沒有任何錯誤態（只有 normal/drag/streaming/empty）；程式端 SSEParser 雖能吐 error 事件但無人處理、無錯誤 UI。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "Web 證據逐行核實成立：origin/claude/session-sh92z7 的 web/src/main.js 確有 aiErrToast()（safety_valve→「变动过大，已保留原内容」、need_real_backend→提示切真後端、其他顯示錯誤碼）；runStructure 收尾確為 onError 收集→if(err) aiErrToast(err)→await reload()，註解明寫「失败则自动弹回文章」。iOS 端核實確缺：ios-app/ 全域 grep 無 safety_valve/need_real_backend；SSEParser.swift:52-56 與 AIServiceLive.swift:84 雖會吐 .error 事件但無任何 View/ViewModel 消費（NoteScreen.swift 僅為占位骨架）、無錯誤 UI、無失敗彈回文章邏輯；設計稿 design/p2b-cards.html 狀態切換僅 normal/drag/streaming/empty 四態，未畫任何錯誤態。iosStatus=not_in_code_not_in_design 標註正確，差異真實成立。"
+ },
+ {
+  "title": "結構化進度回饋：onProgress 串流計數與完成 toast「回传 N 张卡」",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:460-463（skip/錯誤之外 toast `回传 ${n} 张卡`）、services/index.js:398-399 progress 事件分發",
+  "iosStatus": "in_design_not_in_code（串流計數部分）；完成 toast「回传 N 张卡」部分設計稿與程式皆缺（missing_everywhere）",
+  "detail": "設計稿 streamtoast「結構化中 · 已產出 3 卡」涵蓋串流中計數（p2b-cards.html:191），但完成後的結果 toast 與程式端全部缺。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：git show origin/claude/session-sh92z7:web/src/main.js 在 structure 流程中確有 onProgress:(c,t,msg)=>{ if(msg) skip=msg; } 以及完成後 `if(err) aiErrToast; else if(skip&&!n) toast(skip); else toast(`回传 ${n} 张卡`)`（約 458-463 行）；services/index.js 的 realStream 分發 case 'progress': h.onProgress?.(ev.current, ev.total, ev.message)（約 398 行），且 skip 路徑也走 onProgress('内容没变，未消耗 AI'）。(2) iOS 程式碼確認缺：ios-app/BrainStrom/Features/Note/NoteScreen.swift 只是占位殼（註明「於逐畫面實作階段依 p2b-cards.html 完整實作」），全 app grep 無任何 toast/Toast 元件；Data/AI/SSEParser.swift:76-78 與 Domain/Services/AIServicing.swift:17 雖已定義並解析 .progress(Double) 事件，但 Features/ 與 App/ 層零消費——只是傳輸層管線，無計數 UI、無完成 toast。(3) 設計稿確認：ios-app/design/p2b-cards.html:191 有 streamtoast「結構化中 · 已產出 3 卡」涵蓋串流中計數；但完成後的結果 toast「回传 N 张卡」在所有 design/*.html 均無。細微修正建議：此差異實為兩半——串流計數半部 in_design_not_in_code 正確；完成 toast 半部設計稿也沒畫，嚴格說是 missing_everywhere，原說明文字已如實註明此點，故整體標記可接受。"
+ },
+ {
+  "title": "文章/卡片頁籤的守門行為：docState!=='carded' 時卡片頁籤 disabled＋提示「先按 AI 结构化」、視圖偏好按系統存 sessionStorage、未 carded 強制回文章視圖",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js:175-185 setView()/syncViewSeg()（disabled、tooltip、toast、VIEW_KEY sessionStorage）",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p2b-cards.html:119-123 有 ¶ARTICLE｜▦CARDS 硬體滑動開關，但沒畫禁用態，而且文章視圖頁（p2-note.html）頂欄根本沒有這個切換器；程式端兩個視圖都不存在，視圖偏好持久化更沒有。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "差異真實成立。Web 端證據逐行核實：git show origin/claude/session-sh92z7:web/src/main.js 確認 L39 `const VIEW_KEY='brainstrom.view.'`（sessionStorage 按系統記視圖偏好）、L157-158 載入時讀偏好且 docState!=='carded' 強制回 article、L176 setView() 守門「if(v==='cards' && docState!=='carded'){ toast('先按 AI 结构化'); return; }」、L184-185 syncViewSeg() 設 `c.disabled=!carded; c.title='先按 AI 结构化'`，與聲稱的 175-185 行證據吻合。iOS 程式端核實：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅為骨架占位（StencilLabel \"Document · Article View\"＋註解明寫「於逐畫面實作階段依 p2-note.html / p2b-cards.html 完整實作」），全 ios-app 無任何 article/cards 視圖切換、docState 守門或視圖偏好持久化程式碼（DomainModels.swift 只有 docState 枚舉含 carded case）。設計稿核實：p2b-cards.html L119-123 確有 viewseg ¶ARTICLE｜▦CARDS 滑動開關，其狀態切換器只有 normal/drag/streaming/empty 四態、無禁用態；p2-note.html 頂欄無 viewseg，▦CARDS 只出現在側邊模組直條（rail）作為 AI 結構化動作鍵而非視圖切換器。故 in_design_not_in_code 標註正確：切換器 UI 有畫但守門/持久化行為未畫且程式碼完全沒有。"
+ },
+ {
+  "title": "串流可中斷：AbortController 中斷結構化串流；離開筆記頁/切筆記/回首頁一律自動 abort（省錢鐵律 F8）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:442 aiAbort=new AbortController()、75-76/108-111 進首頁與進筆記時 abort 殘留串流",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 streamtoast 裡畫了紅色 STOP 鍵（手動停止，p2b-cards.html:191），但「離開頁面自動中止」設計稿沒提；程式端 AsyncThrowingStream 本身可取消，但沒有任何呼叫端與生命週期管理。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "差異真實成立。(1) Web 端證據逐行驗證為真：origin/claude/session-sh92z7 的 web/src/main.js 第 444 行（runStructure 結構化串流）`this.aiAbort=new AbortController()` 並在第 460 行把 signal 傳入 services.ai.structure（證據說 442，實為 444，誤差 2 行不影響成立）；home() 第 75-76 行、note() 第 109/111 行確實在進首頁/切筆記時 `?.abort()` 殘留串流，且帶「省钱铁律，F8」註解。(2) iOS 端確認缺失：grep 整個 ios-app/，Features/（NoteScreen、HomeScreen 等）與 App/ 完全沒有任何對 ai.structure/optimize 的呼叫端，更沒有離開頁面取消串流的生命週期管理；僅 Data/AI/AIServiceLive.swift（Task.isCancelled、catch CancellationError、task.cancel()）與 AIServiceStub.swift（continuation.onTermination 取消）在服務層支援可取消，屬未被使用的基礎能力，非功能本身。(3) 設計稿確認：ios-app/design/p2b-cards.html 第 191 行 streamtoast 確有紅色 STOP 鍵（手動停止），第 206 行說明也提到「底部 toast 計數＋紅 STOP」；但「離開頁面自動 abort」在設計稿無任何描述。iosStatus 標 in_design_not_in_code 合理（手動 STOP 有畫、程式無實作）；唯一細微保留是「自動 abort」連設計稿都沒有，該子項實為 not_in_design，但整條差異以 in_design_not_in_code 標示可接受，不需修正。"
+ },
+ {
+  "title": "模組塊在卡片視圖的渲染：沿用文章視圖同組件框（📌 模组 · type ＋ payload JSON 前 140 字）、僅刪除鈕、恆釘選不可解",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:333-340 isModule()/cardHTML() 模組分支",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p2b-cards.html:143-176 畫了三款模組卡（表格/GitHub/進度 LCD），比 web 還豐富；程式端只有 Domain 的 ModuleKind enum 定義（table/progress/github），無任何渲染。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "逐項查證皆成立。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 第 334-340 行確有 isModule(b){return !['text','heading','todo'].includes(b.type)} 與 cardHTML() 模組分支，渲染「📌 模组 · ${type}」標頭 + JSON.stringify(payload).slice(0,140)，工具列僅含 .cdel 刪除鈕、無 .cpin 釘選鈕（wireCard 中 pin 只在 .cpin 存在時綁定），符合「沿用文章視圖同組件框、僅刪除鈕、不可解釘」的描述。(2) iOS 程式碼確實只有資料層占位：grep 全部 ios-app Swift 檔，module 僅出現在 Domain/Models/DomainModels.swift（CardType.module、ModuleKind enum、moduleKind/modulePayload 欄位）與 Data/Persistence 的對應欄位映射，無任何渲染；Features/Note/NoteScreen.swift 第 4、19 行明寫「骨架占位——活文件編輯器、模組直條…於畫面實作階段完成」，無卡片視圖模組渲染。(3) 設計稿屬實：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2b-cards.html 第 141-176 行確有三款模組卡（MOD·TABLE 表格、MOD·GITHUB repo 列表、MOD·PROGRESS LCD 進度），比 web 的 JSON 截字框更豐富。故 iosStatus=in_design_not_in_code 標註正確，差異真實成立。"
+ },
+ {
+  "title": "卡片視圖中仍可新增塊：FAB 加模組在卡片視圖照常可用，插入後整頁重渲染卡片流",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:525-541 openDial()/insertModule()（view==='cards' 時 render() 整頁重繪）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿的模組直條（rail）只出現在 p2-note 文章視圖，p2b 卡片頁沒有任何新增入口；程式端兩者皆無。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "Web 證據屬實：origin/claude/session-sh92z7 的 web/src/main.js L127 FAB + L169 綁 openDial()，FAB 在 article/cards 共用 frame、卡片視圖照常可用；L525-541 openDial()/insertModule()，L539 在 view!=='article'（即 cards）時呼叫 renderContent()→renderCards() 重繪整個卡片流（差異文字寫「render()」函式名略有出入，實為 renderContent，但實質行為相符）。iOS 端：ios-app/BrainStrom/Features/Note/NoteScreen.swift 為骨架占位，全 Swift 程式碼無任何加模組/插塊 UI（僅資料模型有 ModuleKind 欄位）；設計稿 ios-app/design/p2b-cards.html 無 FAB、無模組直條、無任何新增入口，rail（直條）只在 p2-note.html。iosStatus not_in_code_not_in_design 標註正確，差異真實成立。"
+ },
+ {
+  "title": "AI 後端不可用時的擋下行為不同：web 在 AI_BACKEND!=='real' 時直接 toast 擋下不執行；iOS 目前 AIUseStub 預設 YES 會默默改走罐頭串流",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js:438（runStructure 前置檢查 toast「此功能需要真后端」）、services/index.js:384-388",
+  "iosStatus": "partial_in_code",
+  "detail": "iOS App/CompositionRoot.swift 依 AIConfig.fromBundle() 切 Stub/Live（token 缺或 REPLACE_ME 退回 Stub），有切換機制但語意是「換假資料」而非「擋下＋提示使用者」，且 UI 未接所以行為未定。",
+  "page": "P2b-卡片頁(結構化)",
+  "verifyNote": "查證成立。(1) Web 端證據屬實：origin/claude/session-sh92z7 的 web/src/main.js runStructure() 開頭確有 `if(AI_BACKEND!=='real'){ this.toast('此功能需要真后端（config.js 切 real）'); return; }`，明確擋下不執行；web/src/services/index.js structure() 也有 `if(BACKEND.ai !== 'real')` 回 need_real_backend 錯誤事件，雙層防護皆存在。(2) iOS 端確如所述：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/App/CompositionRoot.swift:29-35 在 AIConfig.fromBundle() 回 nil（token 缺/REPLACE_ME，見 AIConfig.swift:20）或 useStub=true（AIUseStub 預設 \"YES\"，AIConfig.swift:23）時靜默改用 AIServiceStub 的罐頭串流，全 ios-app Swift 程式碼 grep 不到任何 toast/alert/擋下提示邏輯；Features/ 目錄的 UI（NoteScreen 等）甚至完全沒有呼叫 ai 服務，行為未接線。(3) 設計稿 ios-app/design/p2b-cards.html 只畫了串流進行中的 streamtoast（結構化中·已產出 N 卡＋STOP），沒有畫「後端不可用擋下提示」。語意差異確實存在：web 是「擋下＋告知使用者」，iOS 是「默默換假資料」。iosStatus 標 partial_in_code 合理——切換機制在程式碼中存在但擋下語意缺失且 UI 未接，不需修正。"
+ },
+ {
+  "title": "設定頁不顯示登入帳號的 email",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:553（origin/claude/session-sh92z7）`<span class=\"val\">${esc(services.auth.user?.email||'')}` 帳號列顯示 email",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p3-settings.html ACC 帳號面板有顯示 Apple ID（kentliuai08@gmail.com）；但程式 ios-app/BrainStrom/Features/Settings/SettingsScreen.swift:31-54 的「帳號」卡只有一列登出，沒有 email 列。UserAccount.email 資料已在 AuthServicing 層存在（AuthServicing.swift:8-11），UI 沒接。",
+  "page": "P3-設定頁",
+  "verifyNote": "逐項親驗皆成立。(1) Web：origin/claude/session-sh92z7 的 web/src/main.js settings() 確有「帐号」列以 `${esc(services.auth.user?.email||'')}` 顯示登入 email。(2) iOS 程式碼：SettingsScreen.swift 的 ACC「帳號」卡（約 31-54 行）只有登出一列，無 email 顯示；全 ios-app grep \"email\" 僅命中 AuthServicing.swift:10 的資料模型欄位與 AuthServiceStub.swift:18 的 stub 值，UI 未接。(3) 設計稿：ios-app/design/p3-settings.html:101 有 Apple ID 列顯示 kentliuai08@gmail.com。故 iosStatus=in_design_not_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "整個「刪除帳號」入口按鈕不存在（危險區整塊沒做）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js:556 `<button class=\"btn btn-danger\" id=\"del\">删除帐号</button>`、main.js:562-563 點擊處理",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p3-settings.html 有 HAZARD 危險區面板（紅斜紋 + 「刪除帳號與所有資料」紅字列）；程式 SettingsScreen.swift 完全沒有危險區，檔頭註解（SettingsScreen.swift:4-5）明寫「帳號/關於/危險區於畫面實作階段完成」。AuthServicing.deleteAccount() 協議已定義（AuthServicing.swift:25）但沒有任何 UI 呼叫它。",
+  "page": "P3-設定頁",
+  "verifyNote": "查證成立。Web：origin/claude/session-sh92z7 的 web/src/main.js 設定頁確實有 `<button class=\"btn btn-danger\" id=\"del\">删除帐号</button>` 及點擊處理（confirm 後呼叫 services.auth.deleteAccount() 並 toast）。iOS：ios-app/BrainStrom/Features/Settings/SettingsScreen.swift 全檔僅有「外觀·機殼」與「帳號/登出」兩個面板，無任何危險區或刪除帳號 UI，檔頭註解（4-5 行）明寫危險區待畫面實作階段完成；全 repo 唯一呼叫 deleteAccount 的是 AuthServiceStub（協議實作），沒有 UI 呼叫點。KeycapButtonStyle.swift 的「驗證並刪除」只是 #Preview 元件示範，非實際畫面。設計稿 ios-app/design/p3-settings.html 第 121-122、133、149-150 行確有 HAZARD 危險區面板與「刪除帳號與所有資料」列（含三道閘流程）。iosStatus=in_design_not_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "刪除帳號的確認對話框狀態（「确定删除帐号？资料将立即永久删除、无法复原」）",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:562 `if(!confirm('确定删除帐号？资料将立即永久删除、无法复原。')) return;`",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p3-settings.html 有 st-delconfirm 狀態（scrim + 紅框刪除確認銘板 + 紅 LED + NO UNDO 警示 + 取消/驗證並刪除兩鍵，p3-settings.html:132-140）；程式裡沒有任何確認彈窗或 confirmationDialog。",
+  "page": "P3-設定頁",
+  "verifyNote": "三方查證皆成立。(1) web 端：origin/claude/session-sh92z7 的 web/src/main.js 確有 `$('#del').onclick=async()=>{ if(!confirm('确定删除帐号？资料将立即永久删除、无法复原。')) return; ...}`（刪除帳號鍵 + confirm 對話框，證據行屬實）。(2) iOS 程式碼：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Settings/SettingsScreen.swift 為骨架版（檔頭註解明寫「帳號/關於/危險區…於畫面實作階段依 p3-settings.html 完成」），只有機殼選擇與登出，無刪除帳號鍵、無 confirmationDialog/alert；全 repo grep 無 confirmationDialog。「驗證並刪除」字串僅出現在 KeycapButtonStyle.swift:119 的 #Preview（元件展示，未接線）；AuthServicing.deleteAccount 只有 protocol + stub，無 UI 呼叫。(3) 設計稿：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p3-settings.html 確有 st-delconfirm 狀態（:63-64 CSS、:83 狀態鍵、:131-140 delplate 含紅 LED、NO UNDO 警示、取消/驗證並刪除兩鍵）。iosStatus=in_design_not_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "刪帳號執行後的回饋與導頁：toast「帐号已删除」+ 自動回登入頁",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:563 `await services.auth.deleteAccount(); this.toast('帐号已删除'); setTimeout(()=>this.login(),600);`",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "iOS 程式既無此流程（deleteAccount 未接 UI），也尚無全域 Toast 元件（DesignSystem 盤點裡沒有 Toast；規格書 §5 有規劃）。刪帳後 session 切回登入頁的分流邏輯也未存在於 RootView。",
+  "page": "P3-設定頁",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：git show origin/claude/session-sh92z7:web/src/main.js 的 settings() 中確有 `$('#del').onclick=async()=>{ ... await services.auth.deleteAccount(); this.toast('帐号已删除'); setTimeout(()=>this.login(),600); }`（位於 550–580 行區間，與引證 :563 相符）。(2) iOS 確實沒有此流程：ios-app/BrainStrom/Features/Settings/SettingsScreen.swift 只有機殼色票與登出，完全沒有刪帳號 UI；deleteAccount 僅存在於 Domain/Services/AuthServicing.swift:25（協定）與 Data/Auth/AuthServiceStub.swift:29（替身），CompositionRoot 沒有 deleteAccount 方法；全 Swift 程式碼 grep 不到任何 Toast 元件。(3) 設計面：ios-app/design/p3-settings.html 第 150 行畫了危險區三道閘到「驗證並刪除→auth.deleteAccount」執行為止，規格書（docs/iOS正式前端-设计与工程规格.md）元件表也列了 Toast，故 in_design_not_in_code 標籤成立。兩點微調說明（不影響結論）：a) 原說明稱「session 切回登入頁的分流邏輯也未存在於 RootView」不精確——RootView.swift:16-24 已有 switch root.session、.signedOut 即顯示 LoginScreen，缺的是 deleteAccount→session=.signedOut 的接線；b) p3 設計稿與規格書都只畫到「執行」為止，刪除成功後的 toast 文案與導頁回饋本身並未明確畫出，是設計稿中尚未細化的尾段。"
+ },
+ {
+  "title": "刪除帳號的資料級聯清除：web 會硬刪該使用者全部 systems/blocks/versions，iOS stub 只清登入憑證、本機 SwiftData 資料原封不動",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/api/mockClient.js Mock.deleteAccount()（級聯刪 user 的所有 systems、其下 blocks、versions/versionPtr，最後刪 user 清 session）；經 web/src/main.js:563 呼叫",
+  "iosStatus": "partial_in_code",
+  "detail": "ios-app/BrainStrom/Data/Auth/AuthServiceStub.swift:29-32 的 deleteAccount() 只 sleep 600ms 後 removeObject(UserDefaults 憑證)，不碰 NotesRepository/SwiftData 裡的 SystemEntity/NoteEntity/CardEntity/RevisionEntity——即使之後接上 UI，行為也與 web「立即永久刪除所有資料」不一致。",
+  "page": "P3-設定頁",
+  "verifyNote": "差異真實成立。Web 端：origin/claude/session-sh92z7 的 web/src/api/mockClient.js:227 deleteAccount() 確實級聯硬刪——遍歷 db.systems 中 ownerId===當前 user 的系統，逐一 delete systems[s.id]、其下所有 blocks、versions[s.id]、versionPtr[s.id]，最後 delete users[u] 並清 session；main.js 設定頁 $('#del').onclick 經 confirm 後呼叫 services.auth.deleteAccount()（約 563 行），文案明示「立即永久删除、无法复原」。iOS 端：ios-app/BrainStrom/Data/Auth/AuthServiceStub.swift:29-32 的 deleteAccount() 僅 Task.sleep(600ms) 後 UserDefaults.removeObject(forKey: \"stub.account\")，完全不碰 SwiftData；NotesRepository.swift 只有 deleteSystem/deleteNote 等單筆刪除，無任何全庫清除方法；且全 repo 除協定宣告（AuthServicing.swift:25）外沒有任何 UI 呼叫 deleteAccount。設計稿 ios-app/design/p3-settings.html 有畫「刪除帳號與所有資料」HAZARD 確認流程並標註 auth.deleteAccount，故功能在規格內但程式碼僅占位——「partial_in_code」標註正確（協定+stub 存在但行為不完整）。結論：web 會永久刪除使用者全部資料，iOS stub 只清登入憑證、本機資料原封不動，behavior_diff 成立。"
+ },
+ {
+  "title": "刪帳號按鈕下方的常駐警語小字（「删除将立即永久移除你的资料、无法复原（正式版会再要求 Apple 验证）」）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:557 `<div class=\"faint\" ...>删除将立即永久移除你的资料、无法复原（正式版会再要求 Apple 验证）。</div>`",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿把這段警語移進確認銘板（NO UNDO 印刷 + 資料盤點「3 座系統、47 張卡片立即永久刪除」）而非常駐顯示；程式兩者皆無。呈現位置與 web 不同，屬可接受的設計差，但目前 0 實作。",
+  "page": "P3-設定頁",
+  "verifyNote": "三方查證後無法推翻，差異成立。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 的 settings() 確有常駐小字 `<div class=\"faint\" style=\"font-size:11px;margin-top:8px\">删除将立即永久移除你的资料、无法复原（正式版会再要求 Apple 验证）。</div>`，緊接「删除帐号」按鈕下方。(2) iOS 程式碼確無：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Settings/SettingsScreen.swift（118 行）僅有機殼色票與登出，註解明寫「骨架版……危險區於畫面實作階段依 p3-settings.html 完成」，全檔 grep 不到任何刪帳號按鈕或警語；全 ios-app Swift 中唯一的「驗證並刪除」出現在 DesignSystem/Components/KeycapButtonStyle.swift:119 的 #Preview（按鈕樣式示範，非設定頁實作），AuthServiceStub.swift 只有 deleteAccount() 服務層 stub、無 UI。(3) 設計稿確有畫且位置改了：ios-app/design/p3-settings.html:134-135 把警語移進確認銘板（「帳號、3 座系統、47 張卡片將立即永久刪除」+「⚠ NO UNDO · 無法復原 · 不留備份」），非常駐顯示，與聲稱說明一致。iosStatus=in_design_not_in_code 標記正確，無需修正。"
+ },
+ {
+  "title": "全域 toast 回饋系統完全沒有：web 全站 20+ 處操作回饋（已删除系统/已钉选/打不开/已优化 N 段…）iOS 一個都吐不出來",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:58 toast()（1.3 秒自動消失，frame() 注入 #toast 全頁共用）；呼叫散見 main.js:153,166,176,275,284,353,362 等",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿只有兩個情境式 toast（p2-note.html:203 busytoast「AI 優化中」、p2b-cards.html:191 streamtoast「結構化中」），沒有通用 toast 元件；iOS 程式 grep 全庫 0 個 toast，DesignSystem/ 也沒有 Toast 元件（規格書 §5 L117 有列 Toast 元件但未做）。",
+  "page": "全域與其他頁面（不屬五大頁的一切：驗收頁、啟動載入、聊天浮層、全域 toast/離線/中斷串流/無障礙）",
+  "verifyNote": "對抗式查證未能推翻。Web 端：origin/claude/session-sh92z7 的 web/src/main.js:58 確有 toast() 方法（1.3s setTimeout 自動消失），main.js:55 frame() 注入全頁共用 #toast，grep 到約 19 處呼叫（153,154,166,168,176,275,284,353,362,411-413,418,431-432,438,463-464,530,540,563），含「已删除系统/已钉选/打不开/已优化 N 段」等，「20+ 處」屬合理近似。iOS 端：ios-app/BrainStrom/ 全部 26 個 Swift 檔 grep toast 為 0，DesignSystem/Components/ 只有 Controls/Indicators/KeycapButtonStyle/Panels，無 Toast 元件，也無 snackbar/banner/HUD 等同義實作（Haptics.swift 僅觸覺回饋）。設計稿僅兩個情境式 toast（design/p2-note.html:203 busytoast、p2b-cards.html:191 streamtoast），無通用元件。規格書 docs/iOS正式前端-设计与工程规格.md §5 元件表確列「Toast｜頂部下落膠囊、2.5s 自動退場」（實際在 L115 而非聲稱的 L117，行號小誤差不影響結論），故 in_design_not_in_code 標註正確，無需修正。"
+ },
+ {
+  "title": "AI 錯誤分類提示沒有：safety_valve→「变动过大，已保留原内容」、need_real_backend、其他錯誤碼的統一 toast 文案",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:405-413 aiErrToast()（三類錯誤分流文案）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式 AI 層雖會丟 SSE error 事件（Data/AI/SSEParser），但沒有任何 UI 消費；設計稿 p2 六個狀態（normal/rail/confirm/aibusy/chat/versions）裡沒有 AI 錯誤態。",
+  "page": "全域與其他頁面（不屬五大頁的一切：驗收頁、啟動載入、聊天浮層、全域 toast/離線/中斷串流/無障礙）",
+  "verifyNote": "查證成立。(1) Web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js 第 410-413 行確實有 aiErrToast(e)，三類分流：safety_valve→「变动过大，已保留原内容」、need_real_backend→「此功能需要真后端（config.js 切 real）」、其他→「出错：…」統一 toast；且在 runOptimize/runStructure 等流程結尾被呼叫（main.js:430、462）。(2) iOS 程式碼確認缺失：全 ios-app/ 無任何 safety_valve、need_real_backend、错误碼分流字串；AIEvent.error 只存在於 Data/AI（SSEParser.swift:52-56、AIServiceLive.swift:84）與 Domain/Services/AIServicing.swift:12 的型別定義，Features/（Note/Home/Settings/Login）對 error/toast/alert 零引用，即 SSE error 事件無任何 UI 消費，亦無 toast 元件。(3) 設計稿確認缺失：ios-app/design/p2-note.html 的狀態只有 normal/rail/confirm/aibusy/chat/versions，aibusy 的 busytoast 是進行中提示非錯誤態，整包設計稿 grep 不到 safety_valve/錯誤分流文案。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "離線偵測橫幅沒有：「⚠ 目前离线，变更暂存本地」",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:46-47 online/offline 事件、:54-57 #offbar + navigator.onLine 初始化",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式無 NWPathMonitor/Reachability 任何網路狀態偵測（grep offline/NWPath 0 hits）；設計稿 p0–p3 也沒有離線狀態層。",
+  "page": "全域與其他頁面（不屬五大頁的一切：驗收頁、啟動載入、聊天浮層、全域 toast/離線/中斷串流/無障礙）",
+  "verifyNote": "查證成立。1) Web 端確認存在：origin/claude/session-sh92z7 的 web/src/main.js 中 App.start() 有 window.addEventListener('online'/'offline', …) 兩行（約 46-47 行），frame() 渲染 <div class=\"offline\" id=\"offbar\">⚠ 目前离线，变更暂存本地</div> 並以 navigator.onLine 初始化顯示，另有 offline(b) 切換方法（約 54-58 行），與證據描述完全相符。2) iOS 端確認缺失：grep /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 全部 *.swift，offline/NWPath/Reachability/Network/离线 皆 0 hits（唯一命中是 HomeScreen.swift:58 的裝飾文字 \"OPERATOR · ONLINE\"，與網路偵測無關）；3) 設計稿 ios-app/design/（p0–p3、shared.*、v3-explore）grep offline/离线/offbar 亦 0 hits，沒有畫離線狀態層。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "省錢鐵律 F8 沒有：離開頁面/切換筆記自動 abort 進行中的 AI 與聊天串流",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:75-76（home() 進首頁 abort）、:108-111（note() 進筆記 abort 殘留串流）chatAbort/aiAbort.abort()",
+  "iosStatus": "partial_in_code",
+  "detail": "iOS Data/AI/AIServiceLive.swift:111-118 串流有 CancellationError 處理與 onTermination task.cancel() 原語（底層能力在），但沒有任何畫面呼叫 AI、更沒有導航離開時取消串流的行為；設計稿只有手動 STOP 鈕（p2/p2b），沒畫自動中斷。",
+  "page": "全域與其他頁面（不屬五大頁的一切：驗收頁、啟動載入、聊天浮層、全域 toast/離線/中斷串流/無障礙）",
+  "verifyNote": "查證成立。(1) web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 中 home() 確有「this.chatAbort?.abort(); // 离开笔记页：中断进行中的 AI 串流（省钱铁律，F8）」與「this.aiAbort?.abort(); this.aiAbort=null; this.aiBusy=false;」，note() 開頭也有「先中断上一篇残留的串流」並 abort chatAbort/aiAbort——進首頁與切換筆記都會自動中斷串流。(2) iOS 確認缺此行為：全 repo grep abort/cancel 只命中 Data 層（ios-app/BrainStrom/Data/AI/AIServiceLive.swift:93,111,118 與 AIServiceStub.swift 的 onTermination task.cancel()），即取消「原語」存在；但沒有任何畫面呼叫 AIService（AIService 只在 App/CompositionRoot.swift 做 DI 注入），ios-app/BrainStrom/Features/Note/NoteScreen.swift 仍是「骨架占位」，全 Features 層無 onDisappear/取消串流邏輯，亦無導航離開時 abort 的程式碼。(3) 設計稿 ios-app/design/p2-note.html 與 p2b-cards.html 只畫了手動 STOP 鈕（busytoast 的紅 STOP、聊天紅 ■ 停止鍵），完全沒提離開頁面/切換筆記自動中斷。iosStatus 標 partial_in_code 準確（底層取消能力在、行為缺），無需修正。"
+ },
+ {
+  "title": "AI 後端不可用時行為不同：web 明確 toast「此功能需要真后端（config.js 切 real）」擋下，iOS 靜默退回 Stub 罐頭資料、使用者無從得知",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js:418,438（AI_BACKEND!=='real' 直接 toast 擋下）＋ web/src/config.js BACKEND.ai 開關",
+  "iosStatus": "partial_in_code",
+  "detail": "iOS App/CompositionRoot.swift 依 AIConfig.fromBundle()（AIUseStub 預設 YES、token 缺或 REPLACE_ME）無聲切 AIServiceStub，沒有任何「目前是模擬資料」的 UI 提示；設計稿也沒畫此態。",
+  "page": "全域與其他頁面（不屬五大頁的一切：驗收頁、啟動載入、聊天浮層、全域 toast/離線/中斷串流/無障礙）",
+  "verifyNote": "差異真實成立。Web 端證據完全屬實：origin/claude/session-sh92z7 的 web/src/main.js 第 418 行（runOptimize）與 438 行（runStructure）都有 `if(AI_BACKEND!=='real'){ this.toast('此功能需要真后端（config.js 切 real）'); return; }` 明確擋下並提示，另有第 412 行 aiErrToast 處理 need_real_backend 錯誤碼；web/src/config.js 也確有 BACKEND.ai 開關（mock/real）。iOS 端確認：ios-app/BrainStrom/App/CompositionRoot.swift:30-35 依 AIConfig.fromBundle() 無聲切換——AIConfig.swift:20-23 在 token 缺/為 REPLACE_ME 時回 nil、AIUseStub 預設 \"YES\"，兩者都導致靜默落入 AIServiceStub()；全 ios-app Swift 程式碼中 useStub/isStub 只出現在 AIConfig 與 CompositionRoot，沒有任何 View/toast/banner 告知使用者目前是模擬資料（AIServiceStub.swift 回傳「核心問題」等罐頭卡片，內容本身也不標示為模擬）。設計稿 ios-app/design/ 五頁 grep 僅命中無關字串（CSS class \"demo\"、repo 名 \"swift-charts-demo\"），沒畫任何 stub/離線提示態。iosStatus 標 partial_in_code 合理：切換機制已在程式碼實作，缺的是使用者可見的提示 UI，無需修正。"
+ },
+ {
+  "title": "prefers-reduced-motion（減少動態）支援沒有：web 全域關動畫，iOS 完全沒處理",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/design/tokens.css:37 @media (prefers-reduced-motion: reduce)",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式 grep reduceMotion 0 hits（無 accessibilityReduceMotion 降級為淡入淡出）；設計稿 HTML/CSS 也沒有對應處理（規格書 L28-29 有要求，但設計稿與程式皆未落地）。",
+  "page": "全域與其他頁面（不屬五大頁的一切：驗收頁、啟動載入、聊天浮層、全域 toast/離線/中斷串流/無障礙）",
+  "verifyNote": "差異真實成立。(1) web 證據確認：git show origin/claude/session-sh92z7:web/src/design/tokens.css 第 37-39 行確實有 `@media (prefers-reduced-motion: reduce){ *{transition:none!important; animation:none!important} }`，即全域關閉動畫。(2) iOS 程式碼確認缺失：grep -riE 'reduceMotion|reduce.motion|accessibilityReduceMotion' /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 為 0 hits；全 repo ios-app 中僅有的兩個 \"reduce\" 是函數式 .reduce(0) 集合運算（/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Domain/Models/DomainModels.swift:72、Data/Persistence/NotesRepository.swift:28），與無障礙無關。(3) 設計稿確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/（含 tokens.css、shared.css、各 p*.html 與 v3-explore/）grep 'prefers-reduced-motion|reduced.motion' 0 hits。聲稱的 iosStatus not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "驗收頁（燈號觀察窗）整頁沒有：web 有 acceptance.html 顯示 14 盞驗收燈與 setLamp 點燈機制",
+  "kind": "missing_page",
+  "webEvidence": "web/acceptance.html:37-61（Mock.status() + LAMPS 渲染、「重新整理」「打开 App →」鈕）；mockClient.js status()/setLamp()",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "凍結契約 touchpoints.js:19 已標明「验收页是 Web，不搬 iOS」，此條可被否決；但連帶的 ai.health() 觸點（touchpoints.js:27 標 Swift：AIServiceLive.health()）在 iOS 已實作卻零呼叫，iOS 端沒有任何等價的後端連通性檢查入口。",
+  "page": "全域與其他頁面（不屬五大頁的一切：驗收頁、啟動載入、聊天浮層、全域 toast/離線/中斷串流/無障礙）",
+  "verifyNote": "查證結果：差異事實成立，但有兩處細節需修正描述。(1) Web 端確認存在：git show origin/claude/session-sh92z7:web/acceptance.html 確有驗收儀表板，LAMPS 陣列渲染燈號、呼叫 Mock.status()、有「重新整理」「打开 App →」鈕；web/src/api/mockClient.js 有 setLamp()（:372）與 status()（:376）。惟燈數是 13 盞不是 14 盞（LAMPS 陣列僅 13 個項目，頁面副標也寫「6＋7＝13 盏」），差異描述的「14 盞」有誤。(2) iOS 端確認缺：grep 整個 ios-app/ 無任何 acceptance/驗收/lamp 相關 Swift 程式碼；ios-app/design/ 只有 p0-login、p1-home、p2-note、p2b-cards、p3-settings，無驗收頁設計稿，iosStatus=not_in_code_not_in_design 標註正確。(3) 連帶觸點查證屬實：AIServiceLive.swift:12 的 health()（打 GET ai/health）與 AIServiceStub、AIServicing.swift:79 協定皆已實作，但全 ios-app 零呼叫點（grep \"\\.health\" 無任何 call site）。(4) 重要脈絡：凍結契約 touchpoints.js 的 status.get() 條目明寫 swift:'(验收页是 Web,不搬)'，故此為「契約明示不搬」的有意缺口，不是遺漏——差異真實存在但可依契約否決搬遷需求；唯一真正懸而未決的是 ai.health() 觸點（touchpoints.js 標 ui:'验收页'、swift:'AIService.health()'）在 iOS 已實作卻無任何入口使用。"
+ },
+ {
+  "title": "問 AI 聊天面板整個浮層沒有（web 筆記頁底部聊天：串流氣泡/token 用量/引用徽章/停止鈕/Enter 送出快捷）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:471-522 toggleChat/renderChat/chatLock/sendChat（Enter 送出、Shift+Enter 換行、onDelta 逐字、onUsage tokens 小字、onProgress 引用徽章、abort 停止）",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "設計稿 p2-note.html:232-244 有 chat 態（54% 主控台面板、引用 chip、■ 停止鍵、TOKENS meta），但程式 Features/Note/NoteScreen.swift 全檔 41 行純占位，AIServiceLive.chat 已實作卻無 UI 接線。註：此條屬筆記頁範圍，若筆記頁組已列可去重。",
+  "page": "全域與其他頁面（不屬五大頁的一切：驗收頁、啟動載入、聊天浮層、全域 toast/離線/中斷串流/無障礙）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 確認 471-521 行有 toggleChat/renderChat/chatBubble/chatLock/sendChat 完整聊天浮層 —— onDelta 逐字接進氣泡、onUsage 產生 \"tokens: in X / out Y\" 小字、onProgress 產生「引用到卡」徽章(cbadge)、AbortController + #chatstop 停止鈕(148行)、Enter 送出且 Shift+Enter 換行(151行 ci.onkeydown)，UI 結構在 129-136 行(#chatpanel/#chatin/#chatstop/#chatsend)。細節修正：實際呼叫的是 services.ai.chatNote(noteId, ...) 而非泛用 chat，但功能描述完全吻合。(2) iOS 程式碼確實沒有 UI：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔 41 行純占位（文字明寫「骨架占位……AI 確認／進行中／聊天／版本，於畫面實作階段完成」）；grep 全 ios-app 僅 Data 層有 AIServiceLive.chat / AIServiceStub.chat / AIServicing 協議，無任何 SwiftUI 聊天視圖、輸入框、停止鍵或 token 顯示。(3) 設計稿已畫：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 80-99 行 .chatpanel（height:54% CONSOLE 主控台）、232-237 行 chat 態含「引用 3 卡」chip、TOKENS 412 meta、stopk 紅停止鍵。故 iosStatus=in_design_not_in_code 標註正確，無需修正。註：此條確屬筆記頁聊天功能（web 端掛在筆記頁底部、設計稿在 p2-note.html），歸入「全域與其他頁面」組是分組偏差，若筆記頁組已列同條應去重。"
+ },
+ {
+  "title": "聊天歷史生命週期規則（D7：歷史只存記憶體、切筆記即清空；部分回答也入歷史並標「（已停止）」）沒有對應實作",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js:108-111（進筆記清空 chatMsgs）、:505-516（中斷附「（已停止）」、部分回答入歷史）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 規格書改為「歷史本機保留於該筆記（SwiftData）」與 web D7 規則相反，這是凍結文件層面的行為分歧；程式端則兩者皆無（NoteScreen 占位、SwiftData 無聊天實體）。列出供裁決。",
+  "page": "全域與其他頁面（不屬五大頁的一切：驗收頁、啟動載入、聊天浮層、全域 toast/離線/中斷串流/無障礙）",
+  "verifyNote": "差異成立，三方證據皆親自驗證。(1) Web 端真實存在：origin/claude/session-sh92z7:web/src/main.js 的 note() 開頭（約 :107-111）有註解「聊天历史只存前端内存，切换笔记即清空（附录 D7）」並執行 this.chatMsgs=[]、chatAbort?.abort()；chatSend() 的 finally 區塊（約 :505-516）有 `if(ac.signal.aborted && acc) meta('cmeta','（已停止）')` 與 `if(acc) this.chatMsgs.push({role:'ai',content:acc}) // 部分回答也进历史`，與聲稱證據行完全吻合。(2) iOS 程式碼確實沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅為占位（「骨架占位——…聊天…於畫面實作階段完成」）；Data/Persistence/PersistentModels.swift 無任何聊天實體；AIServicing.swift 只有 ChatMessage 型別與 chat() 協定方法，無歷史生命週期邏輯（無清空規則、無「（已停止）」）。(3) 設計稿 ios-app/design/p2-note.html 雖畫了聊天面板 UI，但未呈現歷史生命週期規則（無清空時機、無「（已停止）」標記），且凍結規格 docs/iOS正式前端-设计与工程规格.md:91 明寫「歷史本機保留於該筆記（SwiftData）」，與 web D7「只存記憶體、切筆記即清空」直接相反——規格分歧的描述也屬實。iosStatus=not_in_code_not_in_design 就「此生命週期行為」而言正確，無需修正。"
+ },
+ {
+  "title": "全域「需要登入」防護沒有：web 資料層每個操作 requireUser 檢查 session（無 session throw 401），AI mock 串流也檢查並回 unauthorized；iOS Stub 永遠成功、無 401 流程",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/api/mockClient.js requireUser(db)（所有資料操作前置檢查）、aiStream 無 session emit {type:'error',code:'unauthorized'}",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS AuthServiceStub 睡 600ms 後必回寫死帳號（Data/Auth/AuthServiceStub.swift:16-23），全 app 無任何 401/憑證失效處理路徑；設計稿僅 p0 有「登入失敗」紅字態，無憑證過期/未授權全域態。",
+  "page": "全域與其他頁面（不屬五大頁的一切：驗收頁、啟動載入、聊天浮層、全域 toast/離線/中斷串流/無障礙）",
+  "verifyNote": "查證成立。Web 端：origin/claude/session-sh92z7 的 web/src/api/mockClient.js 第 388 行確有 requireUser(db){ if(!db.session) throw err(401) }，14+ 個資料操作（236-364 行）前置呼叫，第 192 行 aiStream 無 session 時 emit {type:'error', code:'unauthorized'}，證據行全部存在。iOS 端：全 ios-app Swift 程式碼 grep 401/unauthor/credential/relogin 等關鍵字零命中；AuthServiceStub.signInWithApple() 睡 600ms 後必回寫死帳號（stub-user），永不 throw；AIServiceLive 對非 200 僅吐通用「伺服器回應 N」錯誤訊息，無 unauthorized 專屬流程、無強制登出或重新驗證路徑；本地 NotesRepository 無任何 session 防護。設計稿僅 p0-login.html 有「登入失敗」行內紅字態與啟動自檢「[OK] 登入憑證」，無全域憑證過期/未授權態。iosStatus=not_in_code_not_in_design 標註正確。唯一微小出入：AuthServiceStub 寫死帳號實際在約 16-24 行而非 16-23，不影響結論。"
+ },
+ {
+  "title": "首頁新建系統應以空 title 建立並直接導航進筆記頁命名態，iOS 卻自動取名「新系統」且停留在首頁",
+  "kind": "behavior_diff",
+  "webEvidence": "bdf26289:web/src/main.js home() 第88、94行：$('#add').onclick / $('#first').onclick 皆 await services.systems.create('') 後 this.note(s.id)",
+  "iosStatus": "partial_in_code",
+  "detail": "ios-app/BrainStrom/Features/Home/HomeScreen.swift:143-148 createSystem() 用 String(localized: \"新系統\") 當預設名呼叫 repository.createSystem(name:)，建完只 reload() 不進筆記頁。設計稿 p1-home.html 也沒有空名直進的流程，行為與 web 相反。",
+  "page": "P2 筆記頁（含 P1 首頁新建入口）— F9「名稱先行」命名態流程",
+  "verifyNote": "雙方證據均親自驗證成立，無法推翻。(1) Web 端：origin/claude/session-sh92z7 (= bdf26289) 的 web/src/main.js 第 88 行 $('#add').onclick 與第 94 行 $('#first').onclick 確實都是 await services.systems.create('')（空 title）後立即 this.note(s.id) 導航進筆記頁；且第 87、161-190 行有完整的 F9「命名態 gate」實作（isNamingGate：空名且零塊即進命名態，禁用 fab/✦/▦/💬）。(2) iOS 端：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Home/HomeScreen.swift:143-148 的 createSystem() 確實用 String(localized: \"新系統\") 當預設名呼叫 repository.createSystem(name:)，之後只 reload() 留在首頁，不做任何導航；全 ios-app 的 Swift 程式碼 grep「命名」無任何命名態/naming gate 實作，導航進筆記頁的唯一途徑是既有系統卡的 NavigationLink（HomeScreen.swift:23）。(3) 設計稿 ios-app/design/p1-home.html 只有「✚ 新增系統」按鈕（第 165 行），無空名直進筆記頁的流程描繪。iosStatus 標 partial_in_code 合理：iOS 有「新建系統」功能本體（按鈕＋createSystem），但行為與 web 相反（自動取名＋停留首頁），缺命名態流程。"
+ },
+ {
+  "title": "命名態 gate 判斷整個缺席：零塊且空名（或舊「未命名系统」空殼）打開時應進命名態",
+  "kind": "missing_feature",
+  "webEvidence": "bdf26289:web/src/main.js isNamingGate() 183-186行：zero && (!title.trim() || title==='未命名系统')；reload() 內重算 this.naming",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "NoteScreen.swift 全頁仍是骨架占位（無標題欄、無 blocks、無任何狀態機）；設計稿 p2-note.html 與 v3-explore 全面搜尋「命名/取個名字/未命名」零命中。",
+  "page": "P2 筆記頁（含 P1 首頁新建入口）— F9「名稱先行」命名態流程",
+  "verifyNote": "查證成立。(1) Web 端：git show origin/claude/session-sh92z7:web/src/main.js 確認 isNamingGate() 真實存在於第 184-186 行（const zero=!(s.blocks||[]).length; return zero && (!String(s.title||'').trim() || s.title==='未命名系统')），且第 229 行 reload() 內確實重算 this.naming=this.isNamingGate(this.cur)，另有 syncNamingUI()（189-190 行禁用 #fab/#ai-opt/#ai-card/#chat）、renderArticle 命名態提示（250-253 行「先给这个点子取个名字」）與 cleanupEmptyNote() 等完整 F9 命名態流程。(2) iOS 端：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 42 行，是明寫「骨架占位」的占位視圖，無標題欄、無 blocks、無任何狀態機；全 ios-app/BrainStrom/ 搜尋 naming/isNamingGate/命名態相關字串零命中（僅 Haptics.swift 註解中無關的「命名」一詞）。(3) 設計稿：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/（含 p2-note.html 與 v3-explore）搜尋「命名/取个名字/取個名字/未命名/先给这个点子/naming」全部零命中。iosStatus = not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "命名態下正文區與文末續寫區完全不渲染，游標自動停在標題欄",
+  "kind": "missing_state",
+  "webEvidence": "bdf26289:web/src/main.js renderArticle() 246-262行：this.naming 時只渲染 naminghint，不渲染 .blocks 與 #contwrite；title.focus() 後 return",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 筆記頁連正文編輯器本體都還沒做（占位卡片一張），命名態的條件渲染自然也沒有；設計稿亦無此態。",
+  "page": "P2 筆記頁（含 P1 首頁新建入口）— F9「名稱先行」命名態流程",
+  "verifyNote": "查證成立。(1) Web 證據確認：git show bdf26289:web/src/main.js 與 origin/claude/session-sh92z7 同版 renderArticle() 中確有命名態 gate——`${this.naming ? naminghint : .blocks + #contwrite}` 的條件渲染（命名態只渲染「✏️ 先给这个点子取个名字，就能开始写」提示，不渲染正文塊與文末續寫區），且 `if(this.naming){ title.focus(); return; }` 註解明寫「命名态：游标停名称栏，正文不渲染」，完全吻合差異描述。(2) iOS 確認缺失：ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 42 行，是明示的「骨架占位」卡片（註解：活文件編輯器於逐畫面實作階段完成），無標題欄、無正文編輯器、無任何 naming/命名態邏輯；對整個 ios-app/（含 Swift 程式碼與 design/ 全部 HTML/CSS/JS 設計稿）grep \"naming|取个名|取個名|命名态\" 均無相關命中（僅 README/Haptics 的「命名」是無關用法），設計稿 p2-note.html 亦未畫此態。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "命名態四鈕禁用：fab／✦（AI 選項）／▦（卡片視圖）／💬（聊天）全 disabled",
+  "kind": "missing_state",
+  "webEvidence": "bdf26289:web/src/main.js syncNamingUI() 188-190行：['#fab','#ai-opt','#ai-card','#chat'].forEach(... b.disabled=!!this.naming)",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS NoteScreen 沒有這四顆按鈕，更沒有依命名態 disable 的邏輯；設計稿 p2-note.html 也未標示禁用態。",
+  "page": "P2 筆記頁（含 P1 首頁新建入口）— F9「名稱先行」命名態流程",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：origin/claude/session-sh92z7 即 bdf26289，web/src/main.js 第188-190行確有 syncNamingUI()，內容為 ['#fab','#ai-opt','#ai-card','#chat'].forEach(s=>{ const b=$(s); if(b) b.disabled=!!this.naming; })，註解明寫「命名态禁用清单（F9）：fab/✦/▦/💬 全 disabled」，且 naming 進入/離開時（295、303行）都會呼叫該方法，功能是活的非死碼。(2) iOS 確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 41 行，是純占位骨架（自述「骨架占位——活文件編輯器、模組直條、AI 確認／進行中／聊天／版本，於畫面實作階段完成」），沒有 fab/AI/卡片/聊天四鈕，更無命名態 disable 邏輯；整個 ios-app Swift 程式碼 grep \"naming/disabled\" 僅 LoginScreen 的 .disabled(isSigningIn) 與 HomeScreen 的 fab（無禁用）。(3) 設計稿確認：對 ios-app/design/ 全目錄 grep「命名|naming|disabled|禁用」零命中；p2-note.html 雖畫了 ✦/▦/聊天等控件，但完全未標示命名態或任何禁用態。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "命名態標題欄文案組：placeholder「先给这个点子取个名字」＋提示「✏️ 先给这个点子取个名字，就能开始写」＋標題 Enter＝提交（blur）",
+  "kind": "missing_feature",
+  "webEvidence": "bdf26289:web/src/main.js renderArticle() 249-258行：placeholder 三元式、.naminghint div、title.onkeydown Enter→preventDefault+blur、onblur→commitTitle",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端無標題輸入欄，兩段文案在程式與設計稿都搜不到。",
+  "page": "P2 筆記頁（含 P1 首頁新建入口）— F9「名稱先行」命名態流程",
+  "verifyNote": "差異真實成立。(1) Web 端證據確認：git show origin/claude/session-sh92z7:web/src/main.js 的 renderArticle()（約 249-261 行）確有 placeholder 三元式 `${this.naming?'先给这个点子取个名字':'标题'}`、命名態 `<div class=\"naminghint\">✏️ 先给这个点子取个名字，就能开始写</div>`、title.onkeydown Enter→preventDefault()+blur()（註解「Enter 提交＝blur」）、title.onblur→commitTitle()，且 commitTitle()（280 行起）實作完整 F9 規則。(2) iOS 程式碼確無此功能：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅為骨架占位（StencilLabel + Nameplate，註明「於逐畫面實作階段依 p2-note.html 完整實作」），全 ios-app Swift 程式碼 grep 不到任何 TextField，HomeScreen.swift 也無新建命名入口；Localizable.xcstrings 無「名字/标题」相關字串。(3) 設計稿也沒畫：ios-app/design/p2-note.html、p1-home.html、shared.js、README.md 全部 grep「名字/命名/naming」零命中，p2-note.html 僅有頂欄銘板標題展示，無命名態 gate 與兩段文案。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "commitTitle 新規則：零塊空名保持空、維持命名態（不再無條件回填「未命名系统」）；有塊空名才回填；命名態下非空提交＝解鎖並重渲染",
+  "kind": "behavior_diff",
+  "webEvidence": "bdf26289:web/src/main.js commitTitle() 280-306行：!v 時分 zero / !zero 兩支；zero 分支把非空舊名改回 ''、設 this.naming=true；非空提交時 naming→false 並 renderContent()",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 沒有任何標題提交流程，repository 層也沒有空名/回填規則。",
+  "page": "P2 筆記頁（含 P1 首頁新建入口）— F9「名稱先行」命名態流程",
+  "verifyNote": "三方查證均成立。(1) Web 證據屬實：git show bdf26289:web/src/main.js 的 commitTitle() 確含所述邏輯——!v 時分 zero/!zero 兩支：!zero（有塊）回填「未命名系统」；zero（零塊）把非空舊名 update 成 ''、設 this.naming=true 並 renderContent()+syncNamingUI()（不再無條件回填）；非空提交時 if(this.naming){ this.naming=false; this.renderContent(); }＝解鎖並重渲染，註解明寫「F9 title blur 规则」。(2) iOS 程式碼確無：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全文僅 41 行，是明示的「骨架占位」靜態卡片，無標題輸入框、無 blur/提交流程；全部 26 個 .swift 檔 grep 不到 commitTitle/naming/未命名/命名態，NotesRepository.swift 與 NotesRepositoring.swift 只是 createNote(title:) 直傳與存取 entity.title，無任何空名判斷或回填規則。(3) 設計稿也沒畫：ios-app/design/ 全目錄 grep 'naming|命名|取个名|先随便|未命名' 零命中；p2-note.html 的 lockveil 是 AI 優化中的鎖定遮罩（.st-aibusy 狀態），與命名態無關。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "首頁卡片空名 fallback：title 為空時顯示「未命名系统」",
+  "kind": "missing_state",
+  "webEvidence": "bdf26289:web/src/main.js home() 第98行：<div class=\"sys-title\">${esc(s.title)||'未命名系统'}</div>",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "HomeScreen.swift SystemCardView 的 Nameplate 直接顯示 system.name，無空名 fallback（現行建立時強制給名所以暫不會空，但接上空名流程後會直接顯示空白）。設計稿 p1-home.html 卡片亦無此 fallback。",
+  "page": "P2 筆記頁（含 P1 首頁新建入口）— F9「名稱先行」命名態流程",
+  "verifyNote": "三方查證均成立。(1) web 證據真實：git show origin/claude/session-sh92z7:web/src/main.js 第98行確為 <div class=\"sys-title\">${esc(s.title)||'未命名系统'}</div>，且 main.js 另有多處（161、186、249、285-291行）支撐「未命名系统」是 F9 命名態流程的正式 fallback，非偶然字串。(2) iOS 程式碼確無：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 全部 .swift grep「未命名/Untitled」零命中；HomeScreen.swift 第159行 Nameplate(id: \"SYS\", name: system.name) 直接顯示 system.name，無空名 fallback（第145行建立時硬編「新系統」，故現行不會空，與聲稱說明一致）。(3) 設計稿確無：ios-app/design/ 全目錄 grep「未命名」零命中；p1-home.html 卡片 .mname 皆為靜態示例名稱（期末報告、SwiftUI 學習、健身紀錄），未畫空名 fallback。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "命名態「先随便取」快速命名鈕：一鍵生成「M/D 随手记」占位名秒解鎖",
+  "kind": "missing_button",
+  "webEvidence": "bdf26289:web/src/main.js renderTitleAux() 310-317行：quickname 按鈕，name=`${月}/${日} 随手记` 後 commitTitle(name)",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "屬 F9 同套流程的快速通道，iOS 程式與設計稿皆無。",
+  "page": "P2 筆記頁（含 P1 首頁新建入口）— F9「名稱先行」命名態流程",
+  "verifyNote": "1) Web 證據成立：git show bdf26289:web/src/main.js 與 origin/claude/session-sh92z7:web/src/main.js 的 renderTitleAux() 中確實存在「先随便取」quickname 按鈕，onclick 生成 `${月}/${日} 随手记` 占位名後呼叫 commitTitle(name)（註解「快速倒垃圾通道：一键占位名秒解锁」），與聲稱證據行完全吻合。2) iOS 程式碼確實沒有：grep ios-app/ 全目錄找不到 quickname/随手记/先随便取/隨手記/快速命名/占位名等任何對應實作；/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅為「P2 骨架占位」畫面，整個 F9 命名態流程都尚未實作，遑論快速命名鈕。3) 設計稿也沒畫：grep ios-app/design/（p1-home.html、p2-note.html、shared.js 等）找不到 quickname、命名態或占位名相關元素，p2-note.html 只有 <title> 標籤含「筆記頁」字樣。iosStatus 標記 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "F9 離開清理：離開筆記頁時空名且零塊→軟刪該系統（並 toast）；空名有塊→防禦性回填「未命名系统」",
+  "kind": "missing_feature",
+  "webEvidence": "bdf26289:web/src/main.js cleanupEmptyNote() 200-213行：zero && 空名 → services.systems.delete(c.id) 回 true；!zero && 空名 → update title:'未命名系统'",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "F9 流程的收尾配套（避免空殼堆積），iOS 完全沒有對應的離開清理邏輯。",
+  "page": "P2 筆記頁（含 P1 首頁新建入口）— F9「名稱先行」命名態流程",
+  "verifyNote": "差異真實成立。(1) Web 端證據確認：git show bdf26289:web/src/main.js 與 origin/claude/session-sh92z7 分支頂端皆有 cleanupEmptyNote()（遠端版約 199-212 行）：zero && 空名 → services.systems.delete(c.id) 回 true；!zero && 空名 → services.systems.update(c.id,{title:'未命名系统'}) 防禦回填；且 143 行 #back.onclick 呼叫 cleanupEmptyNote() 後依回傳 toast('空笔记已丢弃')，行為與描述完全吻合。(2) iOS 程式碼確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 整個是 41 行的骨架占位（自述「骨架占位…於畫面實作階段完成」），無任何命名態或離開清理邏輯；全 repo grep 無 cleanup/未命名/空筆記相關邏輯，NotesRepository.deleteSystem 只是通用 CRUD 原語，無人在離開筆記頁時呼叫它做清理。(3) 設計稿確認沒畫：ios-app/design/p2-note.html、p1-home.html、README.md grep「命名/空名/未命名/丟棄/F9」皆無離開清理相關內容（p1 的左滑刪除是使用者手動刪卡，p2 的 toast 是 AI busytoast，均非此功能）。iosStatus = not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "命名態下標題正下方缺「先随便取」一鍵佔位名按鈕（快速倒垃圾通道）",
+  "kind": "missing_button",
+  "webEvidence": "origin/claude/session-sh92z7 web/src/main.js renderTitleAux() 307-318 行：naming 態時渲染 #quickname 按鈕「先随便取」，onclick 以當天日期組出 `M/D 随手记` 佔位名填入 #title 並 commitTitle(name) 立即解鎖命名態（bdf26289 同段亦存在）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "web 端行為：筆記處於命名態（naming）時，標題正下方的 titleaux 區放一顆「先随便取」按鈕，點擊後自動生成 `${月}/${日} 随手记` 佔位標題、寫回 title 輸入框並呼叫 commitTitle 提交，讓用戶不用想名字就能秒解鎖編輯（快速倒垃圾通道）。iOS 端完全沒有：NoteScreen.swift 僅 41 行骨架占位（整個編輯器、標題列、命名態都未實作），全 ios-app/ 程式碼 grep quickname/随手记/先随便取 零命中；設計稿 p2-note.html 及其他 design/*.html、shared.js 也沒有任何命名態或快速命名按鈕的描述。此差異依附於「命名態」機制，iOS 實作 P2 編輯器時需連同命名態一起補上。",
+  "page": "P2 筆記頁（NoteScreen / p2-note）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 的 renderTitleAux() 確實在 naming 態渲染 `<button class=\"quickname\" id=\"quickname\">先随便取</button>`，onclick 以 `${d.getMonth()+1}/${d.getDate()} 随手记` 生成佔位名寫回 #title 並 await this.commitTitle(name)，註解明寫「快速倒垃圾通道：一键占位名秒解锁」，與描述完全一致。(2) iOS 確實沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行、明確標註「骨架占位」，無標題列/命名態/任何編輯器邏輯；全 ios-app/（含 design/）grep quickname、随手记、先随便取、先隨便取、命名态/命名態 全部零命中。(3) 設計稿 ios-app/design/p2-note.html 亦無命名態或快速命名按鈕的任何描述（僅有無關的「加小標題」AI 選項與頂欄銘板說明）。聲稱的 iosStatus=not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "離開筆記頁時沒有空殼清理：返回鍵應檢查「空名且零塊」→ 軟刪該筆記並 toast「空笔记已丢弃」，避免清單留空殼",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js:142-143（#back onclick 掛 cleanupEmptyNote，刪除成功才 toast）＋ 199-212（cleanupEmptyNote：讀 #title 輸入框現值＋c.title 雙重判空、blocks 零塊 → services.systems.delete 後回 true；try/catch 包住失敗不阻擋返回）。已在 bdf26289 與最新 origin/claude/session-sh92z7 兩版確認，行號一致",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端 NoteScreen.swift 整頁仍是骨架占位（只有 Nameplate 說明卡，無返回鍵邏輯、無任何 cleanup/刪除/toast 程式碼，repo 全域 grep「空笔记/丢弃/cleanup」零命中）；設計稿 p2-note.html 的返回鍵只是靜態「‹」字元（:153 .tb-back），整個 design/ 目錄也沒有描述離開清理行為。iOS 實作時需掛在 NavigationStack 返回（含手勢滑返）路徑上，等價於 web 的 #back handler",
+  "page": "P2 筆記頁（NoteScreen）",
+  "verifyNote": "差異真實成立，無法推翻。Web 端證據確認：git show origin/claude/session-sh92z7:web/src/main.js 中 #back onclick 確實存在（行 142-143：`$('#back').onclick=async()=>{ const d=await this.cleanupEmptyNote(); this.home(); if(d) this.toast('空笔记已丢弃'); }`），cleanupEmptyNote()（約行 198-212）也確實有：讀 #title 輸入框現值與 c.title 雙重判空 + blocks 零塊 → services.systems.delete 後回 true，try/catch 包住、失敗不阻擋返回，另有空名有塊回填「未命名系統」的防御分支。iOS 端確認：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 41 行，是純骨架占位（StencilLabel + Nameplate 說明卡，註解自述「骨架占位……於畫面實作階段完成」），無任何返回鍵攔截、刪除、toast 邏輯；全 ios-app/ grep「空笔记|丢弃|cleanup|emptyNote」零命中（exit 1）。設計稿確認：ios-app/design/p2-note.html 行 153 的 .tb-back 只是靜態 `<div class=\"tb-back\">‹</div>` 字元，無任何離開清理行為描述。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "空名但有內容塊時的防御回填缺失：離開時應把空標題回填成「未命名系统」保留筆記，而不是刪除",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js:207-209（cleanupEmptyNote 防御分支：!zero && 空名 → services.systems.update(c.id,{title:'未命名系统'})，註明「理论不可达的防御分支」；搭配 isNamingGate（185-188 行附近）只在零塊時鎖命名態）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "這是同一 cleanup 流程的第二分支：有內容的筆記永不因空名被刪，只回填預設標題。iOS 程式與設計稿均無對應；實作上一併放進離開清理函式即可，但語意上是獨立規則（刪 vs 保留），故單列以免實作時只做刪除分支",
+  "page": "P2 筆記頁（NoteScreen）",
+  "verifyNote": "查證成立。(1) Web 證據確認存在：git show origin/claude/session-sh92z7:web/src/main.js 第 199-211 行的 cleanupEmptyNote 中，第 207-209 行確有防御分支 `if(!zero && !tval && !String(c.title||'').trim()) await services.systems.update(c.id,{title:'未命名系统'}); // 理论不可达的防御分支`，即「有內容塊但空名 → 回填『未命名系统』保留筆記」，與零塊時的軟刪分支（204-206 行）明確分流；isNamingGate 在 184-187 行，僅零塊時鎖命名態，且第 143 行 #back 離開時呼叫 cleanupEmptyNote，整條流程吻合差異描述（聲稱的 207-209 行號與實際完全一致）。(2) iOS 側確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全文僅 41 行，是明寫「骨架占位」的 placeholder view，無任何標題編輯、onDisappear 清理、刪除或回填邏輯；全 ios-app/（含 Data/Domain 各層）grep「未命名/Untitled/cleanup」零命中。(3) 設計稿亦無：ios-app/design/ 全目錄 grep「未命名/命名/清理/回填/cleanup/naming gate」零命中，p2-note.html 與 README 均未描繪空名回填行為（僅有無關的 empty-state UI 槽位）。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "笔记取名后标题下方没有「⚡ 让 AI 教练看看这个点子」助攻胶囊",
+  "kind": "missing_feature",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/main.js renderTitleAux() 319-325 行：swOn && nudge.state==='pending' && 标题非空时渲染 #nudgecap（nudgego 按钮触发 startKickoff() 341-348 行的 AI 教练开场串流）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 全无 nudge 概念：ios-app/BrainStrom/**/*.swift（NoteScreen.swift 仅 41 行骨架）和 ios-app/design/ 全部页面 grep nudge/教练/助攻/点子/⚡ 零命中。web 端这是取名完成后浮现的入口胶囊，点击进入 kickoff 教练点评流程。",
+  "page": "笔记页（Note / p2-note）标题区",
+  "verifyNote": "查證成立。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 的 renderTitleAux() 中確實存在 `if(swOn && nudge.state==='pending' && String(this.cur.title||'').trim())` 條件下渲染 #nudgecap，含「⚡ 让 AI 教练看看这个点子」按鈕（#nudgego）綁定 startKickoff()，startKickoff() 將 nudge.state 轉 opened 並啟動 runKickoffChat() 教练开场串流；另有 #nudgex 永久 dismiss 邏輯，與聲稱完全一致。(2) iOS 確實沒有：grep -rniE 'nudge|教练|助攻|点子|kickoff|⚡|coach' 對 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/（含全部 .swift、design/ 全部 html 及 v3-explore/）零命中；NoteScreen.swift（/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift）僅 41 行，內容明寫「骨架占位」，無任何標題助攻胶囊或 kickoff 邏輯；設計稿 p2-note.html 也未畫此元素。(3) iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "助攻胶囊缺 ✕「不再显示」按钮及其 dismissed 流程（淡出动画＋写入 nudge.state='dismissed'＋toast）",
+  "kind": "missing_button",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/main.js 324、326-332 行：#nudgex onclick → cap.classList.add('fade') → systems.update(...,{nudge:{state:'dismissed'}}) → 250ms 后 remove → toast('不再为这则笔记显示（设定页可关闭）')",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "dismissed 是笔记级永久状态（该笔记胶囊永不再自动出现），iOS 的 Domain/Data 层也没有任何 nudge 字段或状态机（pending/opened/dismissed）。",
+  "page": "笔记页（Note / p2-note）标题区",
+  "verifyNote": "查證成立。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 在 renderTitleAux() 內確有 #nudgex ✕ 按鈕（aria-label=\"不再显示\"），onclick 流程完整對應描述：cap.classList.add('fade') → services.systems.update(id,{nudge:{...,state:'dismissed'}}) → setTimeout 250ms remove → toast('不再为这则笔记显示（设定页可关闭）')，且為筆記級永久狀態（state 機含 pending/opened/dismissed）。(2) iOS 確實全無：對 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 全目錄（26 個 Swift 檔，含 Features/Note/NoteScreen.swift、Domain/Models/DomainModels.swift、Data/Persistence/PersistentModels.swift）grep \"nudge|dismiss|助攻|胶囊|教练|kickoff|⚡\" 零命中，Domain/Data 層無任何 nudge 欄位或狀態機。(3) 設計稿 ios-app/design/（含 p2-note.html）同樣零命中。iosStatus 標 not_in_code_not_in_design 正確，無需修正。唯一可註記：iOS 缺的不只 ✕ 按鈕，整個助攻膠囊（含 ⚡ kickoff）都不存在，此條 missing_button 是更大缺口的子集，但本條差異本身真實成立。"
+ },
+ {
+  "title": "设定页缺「点子助攻」用户级总开关（prefs.ideaNudge），胶囊浮现受其控制",
+  "kind": "missing_feature",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/main.js 320 行（swOn=prefs.ideaNudge!==false 闸门）＋ 767-790 行：设定页 #nudgesw 开关，onclick → auth.updatePrefs({ideaNudge:!nudgeOn}) → toast 已开启/已关闭点子助攻",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "此条落在设定页（SettingsScreen.swift 118 行内无任何 prefs/ideaNudge/toggle 相关实现；design/p3-settings.html 亦无）。胶囊的 toast 文案「设定页可关闭」直接指向这个开关，两者需一起补。",
+  "page": "笔记页（Note / p2-note）标题区",
+  "verifyNote": "查證成立，無法推翻。(1) Web 端證據確認存在：git show origin/claude/session-sh92z7:web/src/main.js 在笔记页标题区有 `const swOn=services.auth.user?.prefs?.ideaNudge!==false; // 总开关（用户级）` 闸门（约 320 行），swOn 为 false 时胶囊不渲染；设定页 settings() 内有「AI」区块的「点子助攻」#nudgesw 开关（约 767-790 行），onclick → `services.auth.updatePrefs({ideaNudge:!nudgeOn})` → toast「已开启/已关闭点子助攻」，与差异描述完全一致。(2) iOS 端确认全缺：grep 整个 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app 找不到任何 ideaNudge/nudge/助攻/点子/prefs 相关实现；SettingsScreen.swift（/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Settings/SettingsScreen.swift，118 行）只有「外觀·機殼」色票与「帳號·登出」两个区块，无任何 AI 区或开关。(3) 设计稿亦无：design/p3-settings.html 内仅有的 .toggles 是设计稿预览框架顶栏的 THEME/STATE 切换按钮（非手机画面内容），手机画面内无点子助攻开关；p2-note.html 同样无 nudge 胶囊相关元素。iosStatus=not_in_code_not_in_design 标注正确，无需修正。"
+ },
+ {
+  "title": "system 上的 nudge 狀態機欄位（state: pending/opened/dismissed、hash、opening 重播快照、at）iOS 資料模型完全沒有",
+  "kind": "missing_feature",
+  "webEvidence": "git bdf26289 web/src/api/mockClient.js:287 createSystem 初始化 nudge:{state:'pending',hash:null,opening:null,at:null}；:308 updateSystem 透傳 patch.nudge；web/src/main.js:319-343 胶囊 pending→opened/dismissed 轉換、:376 完成後寫 nudge.opening={text(開場白), proposals(按鈕列快照)}",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS SwiftData 模型 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/Persistence/PersistentModels.swift 只有 SystemEntity(id/name/createdAt/updatedAt/notes)、NoteEntity(title/docStateRaw/blocksData/updatedAt/revisionNumber)、CardEntity、RevisionEntity——grep 整個 ios-app/BrainStrom/ 對 nudge 零命中。沒有這組欄位，「點子助攻」胶囊的一次性顯示（dismissed 永不再出現）與面板 ⚡ 零成本重播（注入 opening 快照）在 iOS 上無法持久化。",
+  "page": "P2 筆記頁／資料層（SwiftData PersistentModels）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 側證據逐行核實：git show origin/claude/session-sh92z7:web/src/api/mockClient.js 的 createSystem 確實初始化 `nudge:{ state:'pending', hash:null, opening:null, at:null }`（註解「点子助攻状态机（F9）」），updateSystem 有 `if(patch.nudge!==undefined) s.nudge=patch.nudge` 透傳；web/src/main.js 的 renderTitleAux 依 nudge.state==='pending' 顯示胶囊、✕ 寫入 state:'dismissed'（永不再現）、startKickoff 寫 state:'opened'+hash+at、runKickoffChat 完成後寫 `nudge.opening={text:acc, proposals:props||[]}` 重播快照、sparkReplay 以 nu.hash===hash 判斷零成本注入 opening——四個欄位（state/hash/opening/at）全部實際使用。(2) iOS 側：grep -ri \"nudge\" 整個 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 零命中（grep exit 1）；PersistentModels.swift 的 SystemEntity 僅 id/name/createdAt/updatedAt/notes，NoteEntity 僅 title/docStateRaw/blocksData/updatedAt/revisionNumber，無任何 nudge 狀態機欄位。(3) 設計稿：ios-app/design/ 以 助攻/胶囊/kickoff/开场/教练/⚡/nudge 等關鍵字搜尋，僅兩處誤命中（p2-note.html:286「我=橘膠囊」指聊天泡造型；shared.css:152「開場 stagger 進場」指動畫），p2-note.html 與 v3-explore 均未畫點子助攻胶囊或重播功能。聲稱的 iosStatus=not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "nudgeHash 指紋函式（標題＋僅文字/標題塊全文的 FNV 指紋，助攻重播 gate）iOS 沒有對應實作",
+  "kind": "missing_feature",
+  "webEvidence": "git bdf26289 web/src/services/index.js:52-58 nudgeHash(title, blocks)：blocks 按 position 排序、filter DIFF_TYPES、normalizeText 串接後 fnvHash(title+'\\n\\n'+body)；main.js:341、:388 用它做 opened 寫入與 ⚡ 重播判定（指紋同→注入 opening 零網路零成本；不同→重新 kickoff）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "口徑特殊：模組卡增刪不算「點子變了」（只取 DIFF_TYPES 文字/標題塊），且與 lastAiHash 無關。ios-app/BrainStrom/ 內無任何 nudge 指紋或等價 hash gate 程式碼；iOS 若日後做助攻功能，沒有這個指紋就會每次都重新叫 AI，違反 web 端的省錢鐵律設計。",
+  "page": "P2 筆記頁／資料層（SwiftData PersistentModels）",
+  "verifyNote": "差異真實成立。(1) web 端證據逐行核實：git show origin/claude/session-sh92z7:web/src/services/index.js 確有 nudgeHash(title, blocks)（約 :50-57，「Step 3.6 助攻指纹（F9）」註解），實作與聲稱一致——blocks 按 position 排序、filter DIFF_TYPES、normalizeText 串接、fnvHash(title+'\\n\\n'+body)，且註解明寫「模组卡增删不算『点子变了』；与 lastAiHash 无关」；main.js 的 startKickoff()（約 :341，按下 ⚡ 即計 nudgeHash 寫入 nudge.hash/state:'opened'）與 sparkReplay()（約 :388-400，指紋同→注入 nudge.opening 零網路零成本、不同→重新 kickoff）兩處呼叫皆存在。(2) iOS 端反證搜索失敗：grep 整個 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/（含 Data/Persistence/PersistentModels.swift、Domain/Models/DomainModels.swift 及全部 Swift 檔）對 nudge/fnv/aiHash/lastAiHash/kickoff/助攻/重播/指紋/⚡ 零命中（僅 Swift 協定 Hashable 假陽性）；設計稿 ios-app/design/（p2-note.html、shared.js 等）同樣零命中。iOS 既無 nudgeHash 等價實作，也沒有任何 hash gate 占位。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "migrateV3 冪等遷移（舊 system 補 nudge 默認值、舊 user 補 prefs:{ideaNudge:true}）iOS 持久層沒有任何 schema 遷移對應",
+  "kind": "missing_feature",
+  "webEvidence": "git bdf26289 web/src/api/mockClient.js:137-145 migrateV3：schemaVersion<3 時對所有 systems 補 nudge:{state:'pending',hash:null,opening:null,at:null}、所有 users 補 prefs:{ideaNudge:true}，然後 schemaVersion=3；:250 signInWithApple 新 user 也帶 prefs；:257-261 updatePrefs merge 寫回",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端 PersistentModels.swift 既無 nudge/prefs 欄位也無 schemaVersion 式遷移機制（grep ideaNudge/prefs 零命中）；設計稿 ios-app/design/（p0-p3、v3-explore）也完全沒有助攻胶囊、⚡ 重播鈕或設定頁「點子助攻」總開關（p2-note.html 唯一的「膠囊」命中是聊天氣泡樣式描述，與 nudge 無關）。整條 F9 助攻鏈（資料欄位＋指紋＋遷移＋UI）在 iOS 線是全缺。",
+  "page": "P2 筆記頁／資料層（SwiftData PersistentModels）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) web 證據確認：git show bdf26289:web/src/api/mockClient.js 第 137-144 行確有 migrateV3——schemaVersion<3 時對所有 systems 補 nudge:{state:'pending',hash:null,opening:null,at:null}、所有 users 補 prefs:{ideaNudge:true}，再設 schemaVersion=3；遠端最新版 origin/claude/session-sh92z7 同樣存在（:62 init 呼叫 migrateV3、:138-144 定義、:250 signInWithApple 新 user 帶 prefs:{ideaNudge:true}、:255-260 updatePrefs merge 寫回），非已被移除的舊功能。(2) iOS 確認全缺：grep -ri 'nudge|ideaNudge|prefs|schemaVersion|migrat|助攻|重播' 整個 ios-app/（含 design/）零命中。PersistentModels.swift 只有 SystemEntity/NoteEntity/CardEntity/RevisionEntity 四個 @Model，SystemEntity 無 nudge 欄位、無任何 user/prefs 模型；PersistenceSchema 只是 models 陣列，無 VersionedSchema/SchemaMigrationPlan 等任何遷移機制。(3) 設計稿確認沒畫：p0-p3、v3-explore 中「膠囊」唯一命中在 p2-note.html:286，是聊天氣泡樣式描述（我=橘膠囊），與 nudge 無關；無助攻膠囊、⚡ 重播鈕或設定頁總開關。iosStatus 標 not_in_code_not_in_design 正確，無需修正。唯一可挑剔處僅是行號微差（migrateV3 實際在 :138-144 而非 :137-145），不影響結論。"
+ },
+ {
+  "title": "按膠囊觸發的 kickoff 教練開場串流整條流程（startKickoff → 自動展開聊天面板 → runKickoffChat）完全沒有",
+  "kind": "missing_feature",
+  "webEvidence": "git show bdf26289:web/src/main.js 行 339-383：startKickoff() 先把 nudge 轉 opened 收膠囊、toggleChat(true) 自動展開面板，runKickoffChat() 跑串流",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式碼整個 ios-app/BrainStrom/ grep 不到 kickoff/nudge/教練；NoteScreen.swift 仍是骨架佔位。設計稿 p2-note.html 雖有聊天面板（.chatpanel、CONSOLE）但沒有任何 kickoff/教練開場的設計。",
+  "page": "筆記頁（p2-note / NoteScreen）聊天面板 — kickoff 教練開場",
+  "verifyNote": "對抗式查證未能推翻此差異，三項證據均成立。(1) Web 端確認存在：git show origin/claude/session-sh92z7:web/src/main.js 在「Step 3.6 点子助攻：kickoff 教练开场」段落有完整流程——nudgecap 膠囊按鈕 onclick 觸發 startKickoff()，startKickoff() 將 nudge.state 轉 'opened' 收膠囊、呼叫 this.toggleChat(true) 自動展開聊天面板、再 await this.runKickoffChat() 跑 services.ai.chatNote(..., { kickoff:true }) 串流（含 onDelta 逐字、onProposal、寫回 nudge.opening 快照與 sparkReplay 重播）。(2) iOS 程式碼確認沒有：grep -rniE 'kickoff|nudge|教練|教练|coach' 整個 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 的 .swift 檔零命中；/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行，明寫「骨架占位」純佔位畫面，無任何聊天/kickoff 邏輯。(3) 設計稿確認沒畫：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 雖有 .chatpanel（CONSOLE「跟這份筆記對話」54% 面板），但 grep 不到 kickoff/nudge/教練/膠囊等任何教練開場相關設計。聲稱的 iosStatus=not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "「教练看稿中…」等待佔位 + 開場白逐字進 AI 氣泡並寫入同一份聊天歷史",
+  "kind": "missing_state",
+  "webEvidence": "git show bdf26289:web/src/main.js 行 352-373：textEl.innerHTML='<span class=\"faint\">教练看稿中…</span>'；onDelta 逐字累加；完成後 this.chatMsgs.push({role:'ai',content:acc}) 進同一份歷史",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 聊天 UI 尚未實作（NoteScreen 佔位），設計稿聊天面板也只畫了一般對話泡，沒有「看稿中」等待態與開場白入歷史的規格。",
+  "page": "筆記頁（p2-note / NoteScreen）聊天面板 — kickoff 教練開場",
+  "verifyNote": "三方查證後無法推翻，差異真實成立。(1) Web 端證據屬實：git show bdf26289:web/src/main.js 與最新的 origin/claude/session-sh92z7:web/src/main.js 皆含 runKickoffChat()：textEl.innerHTML='<span class=\"faint\">教练看稿中…</span>' 等待佔位、onDelta 逐字累加 acc 進 AI 氣泡、finally 中 if(acc) this.chatMsgs.push({role:'ai',content:acc}) 寫入與手動 💬 同一份聊天歷史（註解明寫「开场白进同一份聊天历史」）。(2) iOS 程式碼確實沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行骨架占位（自述「骨架占位——活文件編輯器…AI 確認／進行中／聊天／版本，於畫面實作階段完成」）；全 ios-app Swift 檔 grep 不到 kickoff/看稿/教练/chatMsgs，連 Data/AI/AIServiceLive.swift 與 Domain/Services/AIServicing.swift 也無 chatNote/kickoff/nudge/opening 任何介面。(3) 設計稿也沒畫此規格：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 的 .chatpanel 只畫了一般 me/ai 對話泡（含串流 caret 與 TOKENS/REF 印刷），無「看稿中」等待態，也無 kickoff 開場白入歷史的任何標註；全 design/ 目錄 grep 看稿/kickoff/开场 僅命中一條無關的 stagger 進場註解。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "AI chat 介面缺 kickoff 模式（第四參數 {kickoff:true}、messages 允許空、回開場白＋proposal 按鈕列）",
+  "kind": "behavior_diff",
+  "webEvidence": "git show bdf26289:web/src/main.js 行 358-363：services.ai.chatNote(id, [], {...}, ac.signal, { kickoff:true })；git show bdf26289:web/src/api/mockClient.js 行 208-241：payload?.kickoff 分支允許空 messages、回開場白並在 done 前 emit proposal",
+  "iosStatus": "partial_in_code",
+  "detail": "iOS 已有 AIServicing.chat(messages:context:) 串流協議（/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Domain/Services/AIServicing.swift 行 88），但簽名沒有 kickoff 旗標，AIServiceStub/AIServiceLive 也沒有對應分支；要支援 kickoff 需擴協議。",
+  "page": "筆記頁（p2-note / NoteScreen）聊天面板 — kickoff 教練開場",
+  "verifyNote": "差異真實成立，無法推翻。(1) Web 側證據屬實：origin/claude/session-sh92z7 的 web/src/main.js 有 runKickoffChat()，呼叫 services.ai.chatNote(this.cur.id, [], {...onDelta/onUsage/onProposal...}, ac.signal, { kickoff:true })（messages 傳空陣列、第五參數帶 kickoff 旗標）；web/src/api/mockClient.js aiStream 有 payload?.kickoff 分支：跳過 buildChatAnswer、允許空 messages、產生教練開場白，並在 done 之前 emit {type:'proposal', items:kickoffItems}（edit_text/structure/find_github 三顆按鈕）。(2) iOS 側確實缺：grep 全 ios-app/（含 .swift 與所有檔案）對 kickoff/开场/教练/proposal 零命中（僅 design/shared.css 一行無關的「開場 stagger 進場」動畫註解）。AIServicing.swift 的 chat(messages:[ChatMessage], context:NotePayload?) 簽名無 kickoff 參數；AIEvent enum（delta/done/error/usage/cardStart/cardDone/cardRemoved/progress/hitList）連 proposal 事件 case 都沒有，AIServiceStub/AIServiceLive 也無對應分支。設計稿 design/p2-note.html 亦未畫 kickoff 開場/proposal 按鈕列。iosStatus=partial_in_code 標得合理：聊天串流協議骨架已在（chat + AsyncThrowingStream<AIEvent>），但 kickoff 模式與 proposal 事件完全缺，需擴協議——實情甚至比聲稱略缺更多（連 proposal 事件型別都沒有）。"
+ },
+ {
+  "title": "完成後把開場白＋proposals 寫回 nudge.opening 快照（指紋同則零成本重播 sparkReplay）",
+  "kind": "missing_feature",
+  "webEvidence": "git show bdf26289:web/src/main.js 行 369-379 寫回 nudge:{state:'opened', opening:{text, proposals}}；行 384 起 sparkReplay() 指紋同直接注入快照",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 資料模型（Domain/Models/DomainModels.swift、Data/Persistence/PersistentModels.swift）完全沒有 nudge / opening 欄位，設計稿也沒有 ⚡ 重播的設計。",
+  "page": "筆記頁（p2-note / NoteScreen）聊天面板 — kickoff 教練開場",
+  "verifyNote": "無法推翻，差異真實成立。Web 端（origin/claude/session-sh92z7 的 web/src/main.js）行 369-379 runKickoffChat 完成後確實呼叫 services.systems.update 寫回 nudge:{state:'opened', opening:{text:acc, proposals:props||[]}}；行 384-398 sparkReplay() 確實在 nudgeHash 指紋相同時直接注入 nu.opening 快照（顯示「上次的教练点评（内容没变，未消耗 AI）」、零網路零成本），指紋不同才重跑 kickoff 並更新 hash/opening。iOS 端：grep nudge/opening/spark/replay/kickoff/重播 於 ios-app/BrainStrom/**/*.swift 全部零命中；Domain/Models/DomainModels.swift 的 Note/NoteSystem 結構無任何 nudge 或 opening 欄位（Note 只有 id/systemID/title/docState/blocks/updatedAt/revisionNumber）；設計稿 ios-app/design/p2-note.html 有聊天面板（CONSOLE）但完全沒有 ⚡ 重播鍵或開場快照的設計。iosStatus=not_in_code_not_in_design 標註正確。"
+ },
+ {
+  "title": "防連點四層閘（按下即轉 opened 收膠囊 / chatBusy 防抖 / 面板 ⚡ 受 nudge.hash gate / server 60 次/分限流）",
+  "kind": "behavior_diff",
+  "webEvidence": "git show bdf26289:web/src/main.js 行 338 註解列出四層閘；行 340、351 if(this.chatBusy) return；行 342 nudgeHash gate",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端連聊天流程都未實作，四層閘（含 busy 鎖與內容指紋 hash）自然全缺；實作 kickoff 時需一併搬這套防重入規則。",
+  "page": "筆記頁（p2-note / NoteScreen）聊天面板 — kickoff 教練開場",
+  "verifyNote": "查證成立。1) Web 端證據確認：origin/claude/session-sh92z7 的 web/src/main.js 行 338 確有「防连点四层闸：①按下即转 opened 收胶囊 ②chatBusy 防抖 ③面板 ⚡ 受 nudge.hash gate ④server 60/分限流」註解；行 340/351 各有 if(this.chatBusy) return；行 341/388 有 nudgeHash(this.cur.title, this.cur.blocks) 指紋 gate；行 342 寫入 nudge.state='opened'+hash。bdf26289 與最新分支內容一致。2) iOS 端確認全缺：ios-app/BrainStrom/Features/Note/NoteScreen.swift 完全沒有 chat/kickoff/nudge/busy 任何引用（grep 零命中）；全 ios-app Swift 程式碼中 grep chatBusy/nudgeHash/kickoff 零命中——僅有 Data/AI/AIServiceLive.swift:52 與 AIServiceStub.swift:54 的 chat(messages:context:) 服務層介面（ai/chat SSE 串流殼），無任何 UI 流程或防重入閘。3) 設計稿 ios-app/design/p2-note.html 雖畫了聊天面板（chatpanel、54% CONSOLE、停止鍵），但 grep nudge/kickoff/教練/開場/⚡/助攻 在整個 design/ 目錄零命中（僅 shared.css 一處無關的「開場 stagger」動畫註解）——即 kickoff 教練開場與四層閘行為在設計稿也沒畫。故此 behavior_diff 真實成立，iosStatus=not_in_code_not_in_design 標註正確（唯一細微補充：iOS 已有 chat 服務層介面殼與設計稿的泛用聊天面板版型，但 kickoff/四層閘行為本身確實 code 與 design 雙缺）。"
+ },
+ {
+  "title": "聊天面板頭部缺 ⚡ sparkbtn——常駐「重看教練點評」入口（nudge.state 存在且 !=='pending' 才顯示）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js@bdf26289（與 origin/claude/session-sh92z7 相同）：L132 #chatspark ⚡ 鈕、L151 綁 sparkReplay()、L193-197 syncSpark() 依 nudge.state 切換顯示",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 設計稿 ios-app/design/p2-note.html L232-244 的 chatpanel 頭部（chead）只有 CONSOLE／跟這份筆記對話／引用 3 卡，沒有任何 ⚡ 或教練點評入口；iOS 程式碼 NoteScreen.swift 僅 41 行骨架占位，聊天面板本身都未實作，全 iOS 程式碼 grep spark/nudge/教練/点评 零命中。",
+  "page": "P2 筆記頁 · 聊天面板（chatpanel）",
+  "verifyNote": "差異真實成立。1) Web 證據親驗為真：git show origin/claude/session-sh92z7:web/src/main.js 在 chathead 內確有 <button class=\"sparkbtn hidden\" id=\"chatspark\" ... aria-label=\"教练点评\">⚡</button>，並有 $('#chatspark').onclick=()=>this.sparkReplay()，以及 syncSpark() 以 b.classList.toggle('hidden', !st || st==='pending') 依 this.cur?.nudge?.state 控制顯示（nudge.state 存在且 !=='pending' 才顯示），與差異描述完全一致。2) iOS 程式碼親驗確缺：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 確為 41 行骨架；對整個 ios-app/ grep spark|nudge|chatpanel|教練|教练|點評|点评|重看 全部零命中。3) 設計稿親驗未畫：ios-app/design/p2-note.html 的 chatpanel 頭部（chead）僅含 CONSOLE／跟這份筆記對話／引用 3 卡，無 ⚡ 鈕；對 design/*.html grep ⚡ 亦零命中。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "缺指紋比對重播機制：內容沒變 → 零網路零成本注入上次點評快照並標「上次的教练点评（内容没变，未消耗 AI）」；內容變了 → 更新 nudge.hash 後重新 kickoff 並回存新 opening",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js@bdf26289：L384-407 sparkReplay()——nudgeHash(title, blocks) 與 nu.hash 比對，相同則注入 nu.opening.text/proposals 並插 cmeta 標註且推入 chatMsgs；不同則 services.systems.update 寫入 {state:'opened', hash, at} 後 runKickoffChat()；L373-380 kickoff 完成後存 opening 快照供下次重播",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "此機制依賴 nudge 資料模型（state/hash/opening{text,proposals}/at）與本地指紋計算 nudgeHash；iOS 程式碼（Domain/Models/DomainModels.swift 等）與設計稿均無 nudge 相關欄位、快照重播 UI 或「未消耗 AI」標註的對應設計。",
+  "page": "P2 筆記頁 · 聊天面板（chatpanel）",
+  "verifyNote": "查證成立。(1) Web 端確認存在：git show origin/claude/session-sh92z7:web/src/main.js 中 L385-407 sparkReplay() 確實以 nudgeHash(this.cur.title, this.cur.blocks) 與 nu.hash 比對，相同則插入 cmeta「上次的教练点评（内容没变，未消耗 AI）」並注入 nu.opening.text / nu.opening.proposals、推入 chatMsgs（零網路）；不同則 services.systems.update 寫入 {state:'opened', hash, at} 後 runKickoffChat()。L373-380 kickoff 完成後也確實回存 opening 快照 {nudge:{state:'opened', opening:{text, proposals}}}。另有 L132 的 ⚡ chatspark 按鈕與 L151 綁定 sparkReplay。(2) iOS 端確認缺失：grep 整個 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/（含 Domain/Models、Services）對 nudge/sparkReplay/opening/未消耗/内容没变/missing_feature 全部零命中；唯一的「快照」出現在 NotesRepositoring.swift L4/L32，但那是「AI 操作前自動快照（防丟字）」的不同機制，與指紋比對重播無關。(3) 設計稿 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/（含 p2-note.html、p2b-cards.html、shared.js、v3-explore）同樣零命中，無 ⚡ 重播鈕或「未消耗 AI」標註的設計。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "SSE 'proposal' 事件在 iOS 完全沒有對應：SSEParser 不認識、AIEvent enum 沒有 case，事件會被靜默丟掉",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js:311（bdf26289）case 'proposal': h.onProposal?.(ev.items)，在 done 之前分發；main.js:363 onProposal:items=>{ props=items; }",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/AI/SSEParser.swift 只有 delta/done/error/usage/card_start/card_done/card_removed/progress/hit_list 九種 case，無 'proposal'；/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Domain/Services/AIServicing.swift 的 AIEvent enum（9-18 行）同樣沒有 proposal case。全 ios-app/ grep 'proposal' 零命中。",
+  "page": "P2 筆記頁 · 聊天面板（Step 3.5 提議按鈕列）",
+  "verifyNote": "差異真實成立，無法推翻。(1) Web 端證實存在：origin/claude/session-sh92z7 的 web/src/services/index.js AIService._stream dispatch 中確有 `case 'proposal': h.onProposal?.(ev.items); break; // Step 3.5：对话式编辑提议按钮`，且 main.js runKickoffChat 中確有 `onProposal:items=>{ props=items; }`，完成後呼叫 this.renderProposals(bubble, props) 渲染提議按鈕列。(2) iOS 端證實缺失：全 ios-app/（含 design/）grep 'proposal'（不分大小寫）零命中；/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/AI/SSEParser.swift 只有 delta/done/error/usage/card_start/card_done/card_removed/progress/hit_list 九種 case，未知事件類型會被靜默丟掉；/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/Domain/Services/AIServicing.swift 的 AIEvent enum（第 9-19 行）同樣只有對應九個 case，無 proposal。(3) 設計稿也沒有：對 ios-app/design/（含 p2-note.html）grep '提议/提議/采纳/採納/onProposal/Step 3.5' 全部零命中。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "AI 氣泡下方的提議按鈕列 UI（橫排最多 4 顆、點過整列禁用防重複）iOS 程式與設計稿都沒有",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js:409-427（bdf26289）renderProposals()：items.slice(0,4) 建 .proprow 橫排；點擊後 row.querySelectorAll('.propbtn').forEach(b=>b.disabled=true) 整列禁用",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 的 AI 氣泡（.bub.ai）只有純文字＋打字 caret，氣泡下方沒有任何提議鈕／chip 元件；grep proprow/propbtn/find_github/structure 等關鍵字在 design/ 全部零命中。",
+  "page": "P2 筆記頁 · 聊天面板（Step 3.5 提議按鈕列）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 端證據確認：git show origin/claude/session-sh92z7:web/src/main.js 中確實存在 renderProposals(bubble, items)，註解即為「Step 3.5 提议按钮列：AI 气泡下方横排小钮；点过整列禁用（防重复）」，程式碼含 items.slice(0,4) 建 .proprow 橫排、按鈕 class .propbtn、點擊後 row.querySelectorAll('.propbtn').forEach(b=>b.disabled=true) 整列禁用，且鎖定項 (find_github/find_youtube/find_info) 顯示「即将推出」不鎖整列——與聲稱證據完全相符。(2) iOS 程式碼確認缺失：grep proprow/propbtn/proposal/提議/chip 等關鍵字掃遍 ios-app/BrainStrom 全部 26 個 Swift 檔（含 Features/Note/NoteScreen.swift、Domain/Models/DomainModels.swift、Data/AI/*）零命中，無任何提議按鈕列實作或占位。(3) 設計稿確認沒畫：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 的 .bub.ai 氣泡（line 236）只有純文字＋<span class=\"caret\">打字游標，氣泡內外皆無按鈕/chip 元件；proprow/propbtn/find_github 等關鍵字在整個 design/ 目錄零命中。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "鎖定項行為缺失：find_github/find_youtube/find_info 顯示「🔒」前綴、點擊 toast「即将推出」且不鎖整列",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js:411-419（bdf26289）const LOCKED=['find_github','find_youtube','find_info']；locked 時 btn 加 '🔒 ' 前綴與 .locked class，onclick 直接 this.toast('即将推出') return（不 disable 整列）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 無 proposal 概念，自然也沒有 locked 子狀態；design/ 與程式碼皆無「即将推出」「🔒」對應元素。",
+  "page": "P2 筆記頁 · 聊天面板（Step 3.5 提議按鈕列）",
+  "verifyNote": "已對抗式查證但無法推翻。(1) Web 證據真實：git show origin/claude/session-sh92z7:web/src/main.js 第 408-419 行確有 renderProposals()，含 const LOCKED=['find_github','find_youtube','find_info']、locked 時 btn 加 '🔒 ' 前綴與 .locked class、onclick 中 if(locked){ this.toast('即将推出'); return; } 且註解明寫「锁定项不锁整列」——僅非鎖定項才會 disable 整列。(2) iOS 程式碼確無：grep 全 ios-app/ 找不到 proposal/propbtn/find_github/find_youtube/find_info/即将推出/🔒；NoteScreen.swift（/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift，僅 41 行）是骨架占位，連聊天面板都未實作，更無 proposal 與 locked 子狀態。(3) 設計稿：ios-app/design/p2-note.html 的聊天主控台（chatpanel）只有對話氣泡與輸入列，無提議按鈕列、無 🔒/即将推出。唯一接近的是側邊模組直條 rail 中「⌥ GITHUB」鍵帶 PRO 鎖定徽章（p2-note.html:214），但那是模組插入鍵的鎖定概念，不是 Step 3.5 聊天提議按鈕列，不構成對應設計。故 iosStatus=not_in_code_not_in_design 標註正確，差異真實成立。"
+ },
+ {
+  "title": "提議動作的執行分支缺失：structure 提議點選即收合聊天面板並跑結構化；edit_text 提議走 ai.applyEdit（含編輯器鎖定與 ↶ 還原 toast）",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js:421-423（bdf26289）if(it.action==='structure'){ this.toggleChat(false); await this.runStructure(); } else if(it.action==='edit_text') await this.runApplyEdit(...)；runApplyEdit 在 429-448 行（aiLock/chatLock、完成 toast「已帮你补上，可按 ↶ 还原」）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 沒有從聊天提議直接觸發 structure / applyEdit 的任何入口；連帶 web 的「nudge.opening.proposals 重播也會重畫提議列」（main.js:395）行為在 iOS 也不存在。",
+  "page": "P2 筆記頁 · 聊天面板（Step 3.5 提議按鈕列）",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：git show origin/claude/session-sh92z7:web/src/main.js 的 renderProposals（Step 3.5 提议按钮列）中確有 `if(it.action==='structure'){ this.toggleChat(false); await this.runStructure(); } else if(it.action==='edit_text') await this.runApplyEdit(it.args?.instruction || it.label || '')`；runApplyEdit 確實含 aiLock(true,'AI 帮你补内容中…')、chatLock(true)、呼叫 services.ai.applyEdit，完成 toast「已帮你补上，可按 ↶ 还原」；sparkReplay 中 `if(nu.opening.proposals?.length) this.renderProposals(...)` 的 nudge.opening 重播重畫提議列也存在。(2) iOS 程式碼確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行骨架占位（明寫「於畫面實作階段完成」），無聊天面板實作；全 ios-app 程式碼 grep 無 proposal/edit_text/applyEdit 任何痕跡——AIServicing.swift 只有 structure() 與 chat() 協定方法（服務層管線），完全沒有 applyEdit 端點，更無從提議按鈕觸發 structure/applyEdit 的入口。(3) 設計稿確認未畫：design/p2-note.html 的 chatpanel 只有對話泡（TOKENS/REF 印刷、■ 停止鍵）與輸入列，無提議按鈕列；proprow/propbtn/提議/applyEdit 在 design/（含 v3-explore、README）全無命中。iosStatus=not_in_code_not_in_design 標註正確。"
+ },
+ {
+  "title": "對話式編輯全流程（ai.applyEdit）整條缺失：點聊天提議 edit_text 後直接按使用者意圖改筆記",
+  "kind": "missing_feature",
+  "webEvidence": "git bdf26289: web/src/services/index.js:403 applyEdit()（POST /ai/optimize 帶 instruction、跳過 hash gate、touch 範圍＝全部未釘選文字/標題塊、套用前快照可 Undo、F9 instruction 模式安全閥）；web/src/main.js:428-449 runApplyEdit()；web/src/touchpoints.js 第 33 條觸點",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 的 AIServicing.swift 協定只有 health/optimize/structure/chat/search 五個方法，OptimizeOptions 只有 splitTopics/addHeadings/proofread 三開關、完全沒有 instruction 參數；觸點表 swift 欄位標的 AIService.applyEdit() 不存在。設計稿 p2-note.html 與 v3-explore 也都沒畫這條流程。",
+  "page": "筆記頁（NoteScreen / p2-note 聊天面板）",
+  "verifyNote": "查證成立，無法推翻。Web 端：commit bdf26289 與 origin/claude/session-sh92z7 的 web/src/services/index.js:403 確有 `async applyEdit(systemId, { instruction = '' }...)`，註解明寫「Step 3.5 对话式编辑」，行為與聲稱一致（跳過 hash gate、POST /ai/optimize 帶 instruction（截 2000 字）、touch 範圍＝全部未釘選 text/heading 塊（DIFF_TYPES 且 !pinned 標 changed:true）、套用前 Mock.saveVersion(systemId,'optimize') 快照可 Undo、applyOptimizePatch(...,'instruction') 安全閥、setLamp('dialog_edit')）；web/src/main.js 約 428-449 行有 runApplyEdit()，且 renderProposals() 中 edit_text 提議按鈕點擊即呼叫 runApplyEdit；web/src/touchpoints.js 第 33 條觸點存在且 swift 欄標 'AIService.applyEdit()'。iOS 端：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Domain/Services/AIServicing.swift 的協定確實只有 health/optimize/structure/chat/search 五個方法，OptimizeOptions 只有 splitTopics/addHeadings/proofread 三開關、無 instruction 參數；全 ios-app/（含 Data 層實作與 Stub）grep 'applyEdit|edit_text|instruction|dialog_edit' 零命中。設計稿端：ios-app/design/（p2-note.html、v3-explore、shared.js 等）grep '提议|proposal|propbtn|instruction|帮你补' 零命中，沒畫聊天提議按鈕與對話式編輯流程。iosStatus = not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "AI 聊天氣泡下方的提議按鈕列（edit_text 入口）缺失：點選後鎖整列防重複、鎖定項顯示「即将推出」",
+  "kind": "missing_button",
+  "webEvidence": "git bdf26289: web/src/main.js renderProposals()（runApplyEdit 上方，約 409-427 行）：proprow/propbtn、edit_text 走 runApplyEdit(it.args.instruction)、structure 走 runStructure、find_* 鎖定",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿 p2-note.html 有聊天面板（chatpanel/clog/cin）但氣泡裡沒有任何提議按鈕列；iOS 程式碼也搜不到 proposal/提議相關實作。這是 applyEdit 的唯一 UI 入口，沒有它整條流程無法觸發。",
+  "page": "筆記頁（NoteScreen / p2-note 聊天面板）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。Web 端：git bdf26289 與 origin/claude/session-sh92z7 的 web/src/main.js 第 409-427 行確有 renderProposals()——建立 .proprow/.propbtn 按鈕列附在 AI 氣泡下方；點選非鎖定鈕後 row.querySelectorAll('.propbtn').forEach(b=>b.disabled=true) 鎖整列防重複；edit_text 走 runApplyEdit(it.args?.instruction)、structure 走 runStructure、find_github/find_youtube/find_info 鎖定並 toast「即将推出」。runApplyEdit() 是 services.ai.applyEdit 的唯一 UI 觸發點。iOS 端：grep 整個 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 對 proposal|proprow|propbtn|applyEdit|edit_text|提議|即将推出 零命中；NoteScreen.swift 與 AIServicing.swift 連 applyEdit API 都沒有定義。設計稿 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 有 chatpanel/clog/cin 聊天面板，但氣泡（.bub.ai 只有 bmeta）內沒有任何提議按鈕列。iosStatus=not_in_code_not_in_design 標註正確，無需修正。唯一細微出入：web 中鎖定項點擊只 toast 不鎖整列（註解明寫「锁定项不锁整列」），但這不影響差異本身成立。"
+ },
+ {
+  "title": "applyEdit 執行中/完成/無修改三個狀態文案缺失：鎖定編輯器「AI 帮你补内容中…」、完成 toast＋聊天氣泡「已帮你补上，可按 ↶ 还原」、無修改「AI 没有提出任何修改」",
+  "kind": "missing_state",
+  "webEvidence": "git bdf26289: web/src/main.js:431 aiLock(true,'AI 帮你补内容中…')、:442-446 toast＋chatMsgs push「已帮你补上，可按 ↶ 还原」；web/src/services/index.js applyEdit 內 onProgress(1,1,'AI 没有提出任何修改')",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿 p2-note.html 只有通用 aibusy 鎖定態（busychase 跑馬燈＋lockveil＋busytoast），文案是優化流程用的，沒有 applyEdit 專屬的三個狀態；iOS 程式碼無對應流程故狀態也全缺。",
+  "page": "筆記頁（NoteScreen / p2-note 聊天面板）",
+  "verifyNote": "查證成立。(1) web 端確認存在：origin/claude/session-sh92z7 的 web/src/main.js runApplyEdit() 內有 this.aiLock(true,'AI 帮你补内容中…')、完成時 this.toast('已帮你补上，可按 ↶ 还原') 並 chatMsgs.push 同文案氣泡、skip 分支 toast「AI 没提出任何修改」；web/src/services/index.js:437 applyEdit 內 h.onProgress?.(1,1,'AI 没有提出任何修改')，三個狀態文案全部實際存在。(2) iOS 端確認全缺：grep 整個 ios-app/ 對 applyEdit／帮你补／没有提出任何修改 零命中；NoteScreen.swift 僅 41 行骨架占位（自註明「AI 確認／進行中／聊天／版本於畫面實作階段完成」），AIServicing/AIServiceLive/AIServiceStub 皆無 applyEdit 對應方法。(3) 設計稿 ios-app/design/p2-note.html 只有通用 aibusy 態（busychase＋lockveil＋busytoast，文案「AI 優化中 · 內容已鎖定保護」，是優化流程用），無 applyEdit 專屬三文案；稿內「還原」字樣屬版本磁帶（TAPE restore）功能，非 applyEdit 完成提示。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "驗收燈 dialog_edit（驗收頁第 14 盞「对话式编辑」）在 iOS 無對應驗收/完成標記",
+  "kind": "missing_feature",
+  "webEvidence": "git bdf26289: web/acceptance.html 第 55 行 {k:'dialog_edit',n:'对话式编辑',d:'聊天提议→点选套用（Step 3.5）'}；web/src/services/index.js applyEdit 成功後 Mock.setLamp('dialog_edit')",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端沒有驗收頁概念也沒有 dialog_edit 對應燈；此項偏驗收基礎設施，優先級可低於前三項，但列出供對齊觸點表時參考。",
+  "page": "筆記頁（NoteScreen / p2-note 聊天面板）",
+  "verifyNote": "查證成立。(1) web 證據屬實：git show origin/claude/session-sh92z7:web/acceptance.html 確有 {k:'dialog_edit',n:'对话式编辑',d:'聊天提议→点选套用（Step 3.5）'}（為驗收燈清單第 6 項，含骨架燈共列）；web/src/services/index.js 第 403 行 applyEdit(...) 成功路徑第 445 行確有 await Mock.setLamp('dialog_edit') // 验收灯（Step 3.5）。(2) iOS 確無：grep 整個 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 找不到 dialog_edit、setLamp、acceptance/驗收燈等任何對應；Swift 程式碼（App/Data/Domain/DesignSystem 等）無驗收頁或燈概念，僅 design/README.md、design/index.html 提到「設計稿驗收」流程字眼，與驗收燈機制無關。(3) 設計稿也沒畫：design/p2-note.html 只有手動編輯塊（橘色通電框、MANUAL badge），無「聊天提議→點選套用」的對話式編輯燈/驗收標記。iosStatus 標 not_in_code_not_in_design 正確，無需修正。附註：此項屬 web 端驗收基礎設施（Mock.setLamp），iOS 本來就無驗收頁架構，差異真實但性質偏 infra 對齊參考，與原說明一致。"
+ },
+ {
+  "title": "設定頁缺「AI」區塊：點子助攻開關（switch + 副標 + toast，走 auth.updatePrefs → PATCH /api/me/prefs）",
+  "kind": "missing_feature",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/main.js 777-792 行（settings()：`<div class=\"sect\">AI</div>` 下放 #nudgesw，role=switch、aria-label=点子助攻、副標「取名后浮现『⚡ 让 AI 教练看看』胶囊」，onclick 呼叫 services.auth.updatePrefs({ideaNudge:!nudgeOn}) 並 toast『已开启/已关闭点子助攻』，狀態讀 auth.user.prefs.ideaNudge!==false）；web/src/touchpoints.js 第 34 行登記 auth.updatePrefs(patch) → PATCH /api/me/prefs，搬遷目標標為 AuthService.updatePrefs()",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式碼 ios-app/BrainStrom/Features/Settings/SettingsScreen.swift 只有「外觀·機殼」與「帳號（登出）」兩張卡，無 AI 區塊、無 Toggle、整個 ios-app/BrainStrom/ 找不到 updatePrefs/ideaNudge/me/prefs 任何引用（AuthService 也沒有 updatePrefs()）。設計稿 ios-app/design/p3-settings.html 同樣只有機殼、帳號/登出、刪除帳號（HAZARD）三段，沒有 AI 區塊或點子助攻開關。即此功能在 iOS 端設計稿與程式碼都完全缺席：缺 UI（區塊＋switch＋副標＋toast）也缺服務層觸點 AuthService.updatePrefs()（PATCH /api/me/prefs）。",
+  "page": "設定頁（Settings）",
+  "verifyNote": "差異真實成立。web 端（origin/claude/session-sh92z7:web/src/main.js settings()，約 777-792 行）確有「AI」區塊：#nudgesw role=switch、aria-label=点子助攻、副標「取名后浮现『⚡ 让 AI 教练看看』胶囊」，onclick 走 services.auth.updatePrefs({ideaNudge:!nudgeOn}) 並 toast 已开启/已关闭点子助攻，狀態讀 auth.user?.prefs?.ideaNudge!==false；touchpoints.js 亦登記 auth.updatePrefs(patch) → PATCH /api/me/prefs（swift 目標 AuthService.updatePrefs()）。iOS 端整個 ios-app/ 以 updatePrefs|ideaNudge|me/prefs|nudge 不分大小寫 grep 零命中；SettingsScreen.swift 只有帳號/外觀/登出相關內容，無 AI 區塊與 Toggle，Swift 程式碼完全沒有 prefs 字樣（AuthServiceStub 無 updatePrefs）。設計稿 ios-app/design/p3-settings.html 只有 ACC（帳號）/SKIN（外觀·機殼）/INFO/HAZARD（刪除帳號）四個面板，無 AI 區塊或點子助攻開關。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "使用者資料模型缺少 prefs（ideaNudge 偏好）欄位",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/api/mockClient.js: migrateV3() 行138-143 幂等補 prefs={ideaNudge:true}；signIn 行250 建帳號即帶 prefs；me() 行254 回傳含 prefs 的 user",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "ios-app/BrainStrom/Domain/Services/AuthServicing.swift 的 UserAccount 只有 userID 與 email 兩欄，沒有 prefs；設計稿與程式皆無任何 prefs/ideaNudge 概念（全 repo grep 零命中）。",
+  "page": "P3 設定（含 P2 筆記頁的點子助攻觸發）",
+  "verifyNote": "差異真實成立。(1) Web 端證據逐行核實：git show origin/claude/session-sh92z7:web/src/api/mockClient.js 中 migrateV3()（行138-145 區段）確實對所有 users 幂等補 `u.prefs={ ideaNudge:true }` 並把 schemaVersion 升到 3；signInWithApple()（行250）建新帳號時直接帶 `prefs:{ ideaNudge:true }`；me()（行254）回傳含 prefs 的 user 並有註解「回传含 prefs（migrateV3 保证存在）」；另外還有 updatePrefs(patch) API 可 merge 更新 prefs——web 功能比聲稱的還完整。(2) iOS 端：grep -riE 'prefs|ideaNudge|nudge' ios-app/ 全部零命中；/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Domain/Services/AuthServicing.swift 的 UserAccount（行8-11）確實只有 userID 與 email 兩欄。(3) 設計稿 ios-app/design/（含 p3-settings.html、p2-note.html、v3-explore）也無任何 prefs/ideaNudge/點子助攻概念；grep 命中的 .toggles 只是原型外框的日夜主題切換 chrome、p2 的「開關」是待辦撥動開關與 AI 整理選項，與 ideaNudge 偏好無關。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "帳號服務缺 updatePrefs API（merge 偏好並回傳新 prefs）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/api/mockClient.js: updatePrefs(patch) 行256-260 merge 進 user.prefs 並回傳新 prefs；web/src/services/index.js 行261-265 auth.updatePrefs 觸點同步更新 this.user 並廣播 changed({type:'prefs'})",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "AuthServicing 協議只有 restoreSession/signInWithApple/signOut/deleteAccount 四個方法；AuthServiceStub.swift 也只實作這四個，沒有任何偏好讀寫入口。",
+  "page": "P3 設定（含 P2 筆記頁的點子助攻觸發）",
+  "verifyNote": "三方查證後無法推翻，差異真實成立。(1) Web 確有此功能：git show origin/claude/session-sh92z7:web/src/api/mockClient.js 確認 updatePrefs(patch) 存在（註解「Step 3.6：使用者偏好」，user.prefs={...(user.prefs||{ideaNudge:true}),...patch} 後 save 並回傳 {...user.prefs}）；web/src/services/index.js 的 AuthService.updatePrefs 也存在，同步更新 this.user 並 this.changed({type:'prefs',prefs})，註解明寫「點子助攻」總開關吃 prefs.ideaNudge。(2) iOS 程式碼確實沒有：grep 全 ios-app/ 對 updatePrefs/ideaNudge/prefs/preference 零命中（exit=1）；/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Domain/Services/AuthServicing.swift 的協議只有 restoreSession/signInWithApple/signOut/deleteAccount 四個方法，UserAccount 只有 userID+email 連 prefs 欄位都沒有；AuthServiceStub.swift 是唯一實作。(3) 設計稿也沒畫：ios-app/design/p3-settings.html 只有帳號（Apple ID/登出）、外觀機殼色票、危險區三組面板，全 design/ 目錄 grep nudge/助攻/ideaNudge 零命中，沒有任何偏好開關 UI。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "設定頁缺「點子助攻」開關（AI 區塊整段不存在）",
+  "kind": "missing_button",
+  "webEvidence": "web/src/main.js: settings() 行767-792 — nudgeOn 讀 services.auth.user?.prefs?.ideaNudge!==false，渲染 AI 區塊的 #nudgesw switch，點擊呼叫 auth.updatePrefs({ideaNudge:!nudgeOn}) 並 toast",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "ios-app/design/p3-settings.html 只有帳號（ACC）、外觀機殼（SKIN）、危險區三組面板，沒有 AI 偏好開關；iOS 程式碼亦無對應畫面。",
+  "page": "P3 設定（含 P2 筆記頁的點子助攻觸發）",
+  "verifyNote": "三方查證均成立，無法推翻。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 的 settings()（約行765-792）確有 nudgeOn=services.auth.user?.prefs?.ideaNudge!==false、「AI」區塊標題、「点子助攻」列與 #nudgesw switch（role=switch、aria-checked），點擊呼叫 auth.updatePrefs({ideaNudge:!nudgeOn}) 並 toast「已开启/已关闭点子助攻」。(2) iOS 程式碼確無：grep 整個 ios-app/（含全部 Swift 與 Localizable.xcstrings）找不到 ideaNudge/nudge/助攻/教練任何蹤跡；/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Settings/SettingsScreen.swift 僅有 SKIN（外觀機殼）與 ACC（帳號/登出）兩面板，無任何 AI 偏好 Toggle，註解亦自稱骨架版。(3) 設計稿確無：ios-app/design/p3-settings.html 實際有四組面板 ACC/SKIN/INFO/HAZARD（原描述漏列 INFO，屬細節小誤但不影響結論），完全沒有 AI 區塊或點子助攻開關；design/ 整目錄 grep ideaNudge/nudge/助攻 皆無結果。iosStatus=not_in_code_not_in_design 標註正確，差異真實成立。"
+ },
+ {
+  "title": "筆記頁「⚡ 讓 AI 教練看看」膠囊的使用者級總開關行為缺失",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js 行319-321 — 膠囊顯示條件 swOn = services.auth.user?.prefs?.ideaNudge!==false 且 nudge.state==='pending' 且有標題；關閉偏好即全域不再浮現",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 沒有 prefs 模型，連帶無法實作「使用者級關閉點子助攻」的 gating 行為；此條依賴前兩條的資料模型與 API 先補上。",
+  "page": "P3 設定（含 P2 筆記頁的點子助攻觸發）",
+  "verifyNote": "Web 證據屬實：origin/claude/session-sh92z7 的 web/src/main.js renderTitleAux() 確有 swOn=services.auth.user?.prefs?.ideaNudge!==false 作為使用者級總開關，膠囊僅在 swOn && nudge.state==='pending' && 有標題時浮現（✕ dismiss 的 toast 亦寫「設定頁可關閉」）。iOS 端：grep 全部 ios-app/BrainStrom Swift 檔（含 NoteScreen.swift、SettingsScreen.swift、DomainModels.swift）對 nudge/ideaNudge/prefs/教練/助攻 零命中，無 prefs 模型亦無任何占位；設計稿 ios-app/design/p2-note.html、p3-settings.html、shared.js、v3-explore/ 同樣無此膠囊或開關（p2 的「開關」是待辦撥動開關，p3 設定頁僅帳號/序號列）。iosStatus 標註 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "AI 優化套用後的 docState 狀態轉移（→ 'optimized'，含「已 carded 不降級」規則）iOS 完全沒有實作",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/services/index.js applyOptimizePatch（bdf26289 與 origin/claude/session-sh92z7 同）L181：docState: sys.docState === 'carded' ? 'carded' : 'optimized' // 已卡片化不降级（卡片页签不回灰）；applyStructureCards L208：docState: 'carded'",
+  "iosStatus": "partial_in_code",
+  "detail": "iOS DocState enum 已有 .optimized case（DomainModels.swift:8-13，註解 raw → optimized → carded），持久化也能存（PersistentModels.swift:31、NotesRepository.swift:71/200），但全 codebase 沒有任何地方把 docState 寫成 .optimized 或 .carded——AI 層（AIServiceLive/AIServicing）只有串流 optimize/structure，沒有 applyOptimizePatch/applyStructureCards 等套用寫回層，「已 carded 不降級」規則因此不存在。設計稿 ios-app/design/ 也 grep 不到 optimized/docState。",
+  "page": "筆記頁（P2）／Domain-Data 層（AI 套用寫回）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 端：git show origin/claude/session-sh92z7:web/src/services/index.js 確認 applyOptimizePatch 內確有 `docState: sys.docState === 'carded' ? 'carded' : 'optimized' // 已卡片化不降级（卡片页签不回灰）`，applyStructureCards 內確有 `docState: 'carded'`，套用寫回層（updateBlock/deleteBlock/addBlock/reorderBlocks 後 updateSystem）完整存在。(2) iOS 端：grep 全 ios-app 確認 .optimized/.carded 僅出現在 DomainModels.swift:9-12 的 DocState enum 定義；唯一的 docState 賦值在 DomainModels.swift:76/81（init 預設 .raw），PersistentModels.swift:31 / NotesRepository.swift:71/88/200 只是 rawValue 持久化往返。Data/AI/ 下 AIServiceLive.swift 與 AIServiceStub.swift 只有 optimize/structure/chat/search 串流函式，無任何 applyOptimizePatch/applyStructureCards 對應的套用寫回邏輯，「已 carded 不降級」規則完全不存在。(3) 設計稿 ios-app/design/ grep optimized/docState/carded 零命中。聲稱的 iosStatus=partial_in_code 標註正確（型別與持久化通道已備，行為未實作），無需修正。"
+ },
+ {
+  "title": "AI 寫回元欄位 ai_restructure_count / structuredAt / structureGen / aiHash / lastAiHash 在 iOS 模型完全缺席",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js L182-183（ai_restructure_count +1、structuredAt ISO 時間戳）、L143/147（structureGen 世代遞增、塊級 aiHash=fnvHash）、L177/207（系統級 lastAiHash=fullHash）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 的 NoteSystem/Note/Block（DomainModels.swift）與 PersistentModels.swift 都沒有這五個欄位，設計稿也沒提。這些欄位是 web 端 hash gate 的依據（services/index.js L462-463：docState==='carded' 時用 lastAiHash 判斷 shouldSkipAi 跳過重複 AI 呼叫），iOS 缺了等於連帶缺整個「內容沒變就不重打 AI」的省 token 行為。",
+  "page": "筆記頁（P2）／Domain-Data 層（AI 套用寫回）",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：git show origin/claude/session-sh92z7:web/src/services/index.js 中，applyOptimizePatch 與 applyStructureCards 收尾都呼叫 Mock.updateSystem 寫入 lastAiHash: fullHash(fresh.blocks)、ai_restructure_count: (sys.ai_restructure_count||0)+1、structuredAt: new Date().toISOString()；computeStructuredBlocks 計算 structureGen 世代遞增（gen = max(structureGen)+1）並對每個新塊寫 aiHash: fnvHash(content)；updates/adds 也逐塊寫 aiHash。structure() 中確有 hash gate：sys.docState==='carded' && shouldSkipAi(sys, blocks) 時回 {ok:true, skipped:true} 並提示「内容没变，未消耗 AI」（約 L462-464，與聲稱行號相符）。(2) iOS 確認缺席：grep -riE 'ai_restructure_count|structuredAt|structureGen|aiHash|lastAiHash|restructure' 對 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 全目錄零命中。DomainModels.swift 的 Note 只有 id/systemID/title/docState/blocks/updatedAt/revisionNumber，Block 只有 id/kind/text/isDone/moduleKind/modulePayload/orderIndex；PersistentModels.swift 的 NoteEntity/CardEntity 同樣沒有任何 hash/世代/重構計數欄位（revisionNumber 屬版本快照機制，非 AI hash gate 等價物）。(3) 設計稿 ios-app/design/（含 p2-note.html）grep hash gate/aiHash/內容沒變等關鍵詞零命中。故 iosStatus=not_in_code_not_in_design 標註正確，連帶缺失「內容沒變就跳過 AI 呼叫」省 token 行為的推論也成立。"
+ },
+ {
+  "title": "優化的第二道省錢閘缺失：塊級 diff 後沒有變動段落時，應直接跳過並提示「沒有可優化的變動段落，未消耗 AI」，iOS 完全沒有這道閘",
+  "kind": "missing_feature",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/services/index.js:358-362（runOptimize ② 塊級 diff：const { changed } = diffBlocks(blocks); if(!changed.length){ h.onProgress?.(1,1,'没有可优化的变动段落，未消耗 AI'); h.onDone?.(); return }），diffBlocks 定義在同檔 60-67 行（依 aiHash 比對 FNV hash 判定 changed/unchanged）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "web 在 hash gate（整篇內容沒變 → '内容没变，未消耗 AI'，index.js:351）之後還有第二道閘：對每個 text/heading 且未釘選的塊比對 aiHash，若 changed 為空就不打 API、顯示專屬文案'没有可优化的变动段落，未消耗 AI'。兩種 skip 文案不同，原清單只記到第一種。iOS 端：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/AI/AIServiceLive.swift 的 optimize 直接 POST ai/optimize，沒有任何前置 gate；全 ios-app 程式碼搜不到 aiHash/diffBlocks/未消耗等字樣（連第一道 hash gate 也沒有，塊級 aiHash 欄位在 DomainModels/PersistentModels 都不存在，只有 pinned 概念）；設計稿 ios-app/design/ 整包也搜不到任何 skip 提示文案。實作此閘需要先補塊級 aiHash 持久化欄位與 diff 邏輯。",
+  "page": "p2-note（筆記頁 · AI 優化流程）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 端證據屬實：git show origin/claude/session-sh92z7:web/src/services/index.js 確認 runOptimize 在第一道 hash gate（shouldSkipAi → '内容没变，未消耗 AI'）之後確有第二道塊級閘：const { changed } = diffBlocks(blocks); if(!changed.length){ h.onProgress?.(1,1,'没有可优化的变动段落，未消耗 AI'); h.onDone?.(); return { ok:true, skipped:true } }，且 diffBlocks 確以 FNV hash 比對 aiHash、只算文字/標題且未釘選的塊（changed/unchanged），兩道閘文案確實不同。(2) iOS 端確認缺失：ios-app/BrainStrom/Data/AI/AIServiceLive.swift 的 optimize 直接 stream POST ai/optimize、無任何前置判斷；全 ios-app 的 Swift 程式碼 grep 不到 aiHash/diffBlocks/fnv/lastAiHash/未消耗/可优化/变动段落 等字樣（Hashable 為唯一 hash 命中，無關）；AIServicing.swift 的 NotePayload 只有 pinned 欄位、無 changed/aiHash；除 AI service 層外無其他 optimize 呼叫點，故 ViewModel 層也無 gate。(3) 設計稿 ios-app/design/（含 p2-note.html、shared.js、README.md）grep 不到任何 skip/diff/hash/未消耗提示文案。iosStatus = not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "優化 patch 安全閥 touch_ratio（修訂版：分母為「本次變動塊數」，修首次優化全部塊皆 changed 被誤殺的問題）",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js（bdf26289 與 origin/claude/session-sh92z7 皆有）checkOptimizePatch L78-90：`if((updates.length + removes.length) > touchSet.size)` 拒絕，註解明寫「分母应是『本次变动块数』而非未钉选总数的一半——否则首次优化（全部块皆 changed）会被误杀」",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 連前置條件都沒有：AIServicing.swift 的 AIEvent 只有 delta/done/error/card 事件，沒有塊級 patch（adds/updates/removes）協議，AIServiceLive.optimize 只是純文字串流，Features/Note/NoteScreen.swift 甚至還沒接 optimize。設計稿 p2-note.html 只有優化按鈕與流程 UI，無任何 patch 驗證規則。",
+  "page": "p2-note 筆記頁（AI 優化 / 對話式編輯的客戶端安全閥）",
+  "verifyNote": "對抗式查證無法推翻，差異真實成立。(1) Web 證據確認：git show origin/claude/session-sh92z7:web/src/services/index.js 中 checkOptimizePatch 確實存在，含修訂版 touch_ratio 安全閥 `if((updates.length + removes.length) > touchSet.size)` 整批拒絕，且註解原文「分母应是『本次变动块数』而非未钉选总数的一半——否则首次优化（全部块皆 changed）会被误杀」逐字存在；touchSet 在 optimize 模式即 changedIdSet（本次變動塊集合），與聲稱完全相符。(2) iOS 確認缺失：grep 整個 ios-app/BrainStrom 的 *.swift 對 touch_ratio/checkOptimizePatch/adds/removes/patch 零命中。ios-app/BrainStrom/Domain/Services/AIServicing.swift 的 AIEvent 只有 delta/done/error/usage/cardStart/cardDone/cardRemoved/progress/hitList 等串流事件，無任何塊級 patch（adds/updates/removes）協議；ios-app/BrainStrom/Data/AI/AIServiceLive.swift 的 optimize 只是打 ai/optimize 的 SSE 純文字串流，無 patch 驗證；Features/ 目錄下 grep optimize 零命中（NoteScreen 未接 optimize）。(3) 設計稿 ios-app/design/p2-note.html 對 touch_ratio/patch/安全閥 零命中。iosStatus=not_in_code_not_in_design 標註正確。唯一小出入：原說明稱 AIEvent「只有 delta/done/error/card」，實際還有 usage/progress/hitList，但這不影響結論——確實沒有塊級 patch 協議這個前置條件。"
+ },
+ {
+  "title": "touch_forbidden：update/remove 碰到釘選塊、模組塊、或本次沒變的塊 → 整個 patch 整批拒絕",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js checkOptimizePatch L91-95（update）與 L100-104（remove）：`if(b.pinned || isModuleBlock(b) || !touchSet.has(b.id)) return { ok:false, reason:'touch_forbidden…' }`；註解明寫「AI 乱动没变的块」由這條 100% 攔截",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿 p2-note.html L278 有「釘選＝橘斜紋警示銘板（AI 勿動）」的視覺概念，且 NotePayload 有帶 pinned 欄位給後端，但客戶端「程式判定、不信 AI」的整批拒絕檢查完全不存在於 iOS 程式或設計稿。",
+  "page": "p2-note 筆記頁（AI 優化 / 對話式編輯的客戶端安全閥）",
+  "verifyNote": "Web 證據逐行核實為真：origin/claude/session-sh92z7 的 web/src/services/index.js checkOptimizePatch 中 update 與 remove 迴圈各有 `if(b.pinned || isModuleBlock(b) || !touchSet.has(b.id)) return { ok:false, reason:'touch_forbidden…' }`，註解明寫「AI 乱动没变的块」由此 100% 攔截，且 instruction 模式不放寬釘選/模組拒絕。iOS 端 grep 全部 Swift 檔零命中任何 patch 檢查（無 checkOptimizePatch/applyEdit/adds/updates/removes/touch/forbidden）；optimize 介面只是 SSE delta 文字流，連 patch 資料結構都不存在。pinned 僅見於 DomainModels.swift 枚舉註解「AI 永不改動」與 AIServicing.swift NotePayload 欄位（責任交給後端），非客戶端安全閥。設計稿 p2-note.html L173/L278 只有「PINNED 橘斜紋警示銘板」視覺概念，無客戶端整批拒絕的描述。iosStatus=not_in_code_not_in_design 標註正確。"
+ },
+ {
+  "title": "illegal_remove 合併合法性：被刪塊內容歸一化（去空白標點）後，須有 ≥50% 長度的連續片段出現在某個 update 內，否則拒刪",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js checkOptimizePatch L105-113：`const need = Math.ceil(rc.length * 0.5)` ＋滑動視窗 `uc.includes(rc.slice(i, i+need))`，失敗回 'illegal_remove：被删块内容仍在，不是合并场景'；stripAll 定義在 L71 附近",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "這是防 AI 偷刪內容的核心規則（只允許合併場景刪塊），iOS 端零對應，設計稿也未提及。",
+  "page": "p2-note 筆記頁（AI 優化 / 對話式編輯的客戶端安全閥）",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：git show origin/claude/session-sh92z7:web/src/services/index.js 中 checkOptimizePatch 的 removes 迴圈內確實存在「const rc = stripAll(blockContent(b)); const need = Math.ceil(rc.length * 0.5);」加滑動視窗「for(let i=0; i+need<=rc.length; i++) if(uc.includes(rc.slice(i,i+need)))」，失敗回 'illegal_remove：被删块内容仍在，不是合并场景'；stripAll 定義為去空白與 \\p{P}\\p{S} 標點符號（行號約 L71/L105-113，與聲稱一致）。(2) iOS 程式碼確認缺失：grep 整個 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 無 illegal_remove/stripAll/checkOptimizePatch/刪除合法性等任何對應；初次 grep 命中的檔案全是誤中（Tokens.swift 的字級 10.5、Indicators.swift 的 opacity(0.5)、CompositionRoot 的啟動自檢 .checking、SSEParser 的 card_removed 事件——後者是結構化卡片合併事件，非 patch 刪除安全閥）。iOS 端目前根本沒有任何 optimize patch 模型或驗證層（Domain/Data 層只有 AIServicing/SSEParser 的串流卡片事件）。(3) 設計稿確認未提及：ios-app/design/p2-note.html 對 50%/合併/删除 的命中僅為 CSS 定位（left:50%、top:50%），README 與 shared.js 亦無此規則。故 iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "bad_add：AI 新增塊的 type 只能是 text/heading，且內容 trim 後不可為空",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js checkOptimizePatch L114-117：`if(!DIFF_TYPES.includes(a?.type))` 與 `if(!String(a?.content || '').trim())` 各自整批拒絕",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 沒有 patch adds 概念，自然也沒有此驗證；設計稿無提及。",
+  "page": "p2-note 筆記頁（AI 優化 / 對話式編輯的客戶端安全閥）",
+  "verifyNote": "差異真實成立。(1) Web 證據確認：origin/claude/session-sh92z7 的 web/src/services/index.js 中 checkOptimizePatch（L78 起）確實對 adds 做兩道整批拒絕檢查——L116 `if(!DIFF_TYPES.includes(a?.type)) return {ok:false, reason:'bad_add：新增块 type 只能是 text/heading'}`、L117 `if(!String(a?.content||'').trim()) return {ok:false, reason:'bad_add：新增块内容不可为空'}`（DIFF_TYPES=['text','heading'] 定義於 L16），且 checkOptimizePatch 在 L161 被優化/applyEdit 流程實際呼叫，非死碼。唯一小出入：證據行實際在 L116-117，原報告寫 L114-117 略有偏移，但內容無誤。(2) iOS 確認缺：grep ios-app/ 全目錄無 patch、adds、checkOptimize、bad_add 任何蹤跡；AIServicing.swift 的 AIEvent 只有 delta/done/error/usage/card*/progress/hitList 等流式事件，optimize() 回傳純文字 delta 串流，根本沒有 patch adds/updates/removes 結構，自然無此驗證。(3) 設計稿 ios-app/design/（含 p2-note.html 及全部檔案）grep 不到 bad_add、安全閥、新增塊類型限制等任何相關描述。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "instruction 模式（F9 對話式編輯 applyEdit）另一套 touch 範圍：放寬為「全部未釘選文字/標題塊」、change_ratio 放寬至 ±200%，但釘選/模組整批拒絕、空內容 adds、刪除合法性照舊不放寬",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js L75-83（mode='instruction' 時 touchSet 改為全部未釘選 DIFF_TYPES 塊、ratioCap=2.0）、L156-161 applyOptimizePatch(mode)、L403-444 applyEdit（聊天提議按鈕 → /ai/optimize 帶 instruction → instruction 模式安全閥套用，trigger='optimize' 可 Undo）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式碼搜不到 instruction/applyEdit/提議的任何痕跡（chat 只是純對話串流），設計稿 ios-app/design/ 也完全沒有「聊天提議套用改筆記」這個功能與其安全閥變體——整條對話式編輯線在 iOS 端是設計稿和程式都沒有。",
+  "page": "p2-note 筆記頁（AI 優化 / 對話式編輯的客戶端安全閥）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 端證據逐行確認：origin/claude/session-sh92z7 的 web/src/services/index.js L79-83 checkOptimizePatch 確有 mode==='instruction' 分支——touchSet 放寬為全部未釘選 DIFF_TYPES（文字/標題）塊、ratioCap=2.0（±200%）；同函式內釘選/模組塊 touch_forbidden 整批拒絕、adds 空內容拒絕（bad_add）、刪除合法性（illegal_remove，≥50% 連續片段）均不分模式照舊執行，與聲稱完全一致。L157 applyOptimizePatch(systemId, patch, mode) 帶 mode 參數；L403-444 applyEdit 存在：帶 instruction POST /ai/optimize（全部未釘選文字/標題塊標 changed:true）、套用前 Mock.saveVersion(systemId,'optimize') 快照可 Undo、L442 以 'instruction' 模式過安全閥。(2) iOS 程式碼：grep -rliE 'instruction' ios-app/ 零命中（exit 1）；無 applyEdit/提議/dialog_edit。AIServicing.swift 的 OptimizeOptions 只有 splitTopics/addHeadings/proofread 三開關、chat(messages:context:) 只是純對話串流（AIServiceLive.swift L47-52 打 ai/chat），沒有任何「聊天提議→改筆記」路徑或 instruction 安全閥變體。(3) 設計稿 ios-app/design/p2-note.html：聊天面板（CONSOLE）只有對話泡（我=橘膠囊、AI=面板泡+TOKENS/REF）與紅色停止鍵，AI 回覆中的「建議」只是純文字內容，無可點選提議按鈕、無套用改筆記的任何 UI；設計說明明列聊天=ai.chat 純對話，其他設計頁（p2b-cards 等）亦無此功能。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "落版本步時的去重規則：新快照與末位快照內容相同時不重複落步，只把指針移到末位",
+  "kind": "missing_feature",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/api/mockClient.js pushVersion() 第 74-86 行——第 78-80 行 `if(arr.length && arr[arr.length-1].blocksJson===json){ db.versionPtr[systemId]=arr.length-1; return … }`",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 的 NotesRepository.snapshot()（NotesRepository.swift 第 148-163 行）每次呼叫都無條件 insert 一筆 RevisionEntity 並 revisionNumber+1，沒有任何內容比對；設計稿也未提此規則。沒有去重，連續觸發會灌爆版本鏈且讓 undo 一步步踩在重複快照上。",
+  "page": "P2 筆記頁（文章視圖）— 版本安全網 F7「指針法」",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) Web 證據確認：git show origin/claude/session-sh92z7:web/src/api/mockClient.js 的 pushVersion() 中確有去重邏輯 `if(arr.length && arr[arr.length-1].blocksJson===json){ db.versionPtr[systemId]=arr.length-1; return arr[arr.length-1]; }`，且上方註解明寫「与末位快照内容相同时去重（不重复落步）」，與聲稱的行號範圍一致。(2) iOS 確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/Persistence/NotesRepository.swift 第 148-163 行的 snapshot() 每次無條件 insert RevisionEntity 並 note.revisionNumber += 1，完全沒有內容比對或去重；全 ios-app 目錄 grep「去重/dedup/blocksJson/相同/identical」皆無命中，snapshot() 甚至沒有任何呼叫端做前置內容比對（除 protocol 宣告外無 caller）。(3) 設計稿 ios-app/design/ 各檔（p2-note.html、README.md、shared.js 等）grep「F7/指针/指針/versionPtr/去重」零命中，未畫此規則。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "落新步前先砍掉指針之後的所有版本（清空 Redo 鏈）——undo 後再編輯，未來分支必須作廢",
+  "kind": "missing_feature",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/api/mockClient.js pushVersion() 第 74-77 行 `arr.length = Math.max(ptr+1, 0)`，配合 db.versionPtr 指針",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 完全沒有版本指針（versionPtr）概念：RevisionEntity 是純 append 的流水帳，NoteEntity 只有遞增的 revisionNumber。沒有指針就沒有 undo/redo 分支語義，搬移時這條是 redo 正確性的前提。",
+  "page": "P2 筆記頁（文章視圖）— 版本安全網 F7「指針法」",
+  "verifyNote": "差異真實成立。1) Web 證據確認：git show origin/claude/session-sh92z7:web/src/api/mockClient.js 中 pushVersion() 確有「const ptr = db.versionPtr[systemId] ?? arr.length-1; arr.length = Math.max(ptr+1, 0);」——落新步前砍掉指針之後的版本（清 Redo 鏈），並在 init() 維護 db.versionPtr、applySnapshot() 配合還原，註解明寫「附录 F7 指针法」。2) iOS 程式碼確認缺失：grep 全 ios-app/*.swift 無任何 versionPtr/pointer/undo/redo 概念。/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/Persistence/NotesRepository.swift 的 snapshot()（148-163 行）是純 append：插入 RevisionEntity 後 note.revisionNumber += 1，無截斷、無指針；且 RevisionEntity 只存 kindRaw/charDelta/cardCount 等中繼資料，連快照內容都沒有，也沒有任何 restore 實作（僅 DomainModels.swift 有 RevisionKind.restore 枚舉占位）。3) 設計稿：ios-app/design/p2-note.html 有版本歷史 TAPE 面板與「還原」鍵，且「還原到 REV 8 [RESTORE]」是以新增一條 REV 記錄呈現（append 式還原日誌），並印有「UNDO ∞」；但完全沒有畫出指針/清空 Redo 鏈的分支作廢語義。指針法機制本身 code 與 design 皆無，iosStatus=not_in_code_not_in_design 標註正確。附帶提醒（不影響成立）：設計稿的「還原=追加一條 RESTORE 記錄」是 append-only 模型，搬移時可選擇沿用 web 指針法或改為 restore-as-new-version，兩者都能解 redo 正確性，但目前 iOS 兩者皆未實作。"
+ },
+ {
+  "title": "儲存超過軟上限時的版本鏈修剪：永遠保第 1 版＋最近 50 版、修正指針、寫 meta.versionsTrimmed 標記",
+  "kind": "missing_feature",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/api/mockClient.js 第 7 行 `DB_SOFT_LIMIT = 4*1024*1024` ＋ save() 第 41-56 行：`trimmed=[arr[0], ...arr.slice(-50)]`、重算 db.versionPtr、`(db.meta ||= {}).versionsTrimmed=true`",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端 SwiftData 沒有任何容量上限或修剪邏輯，RevisionEntity 無限增長。「第 1 版＝最早原稿永遠找得回」（mockClient.js 第 132 行 migrate 時 pushVersion 落第 1 版）這個產品承諾在 iOS 同樣不存在。",
+  "page": "P2 筆記頁（文章視圖）— 版本安全網 F7「指針法」",
+  "verifyNote": "查證成立。(1) Web 證據屬實：origin/claude/session-sh92z7:web/src/api/mockClient.js 第 7 行確有 `const DB_SOFT_LIMIT = 4*1024*1024`，save()（約第 40-56 行）確有 F7 修剪邏輯——`json.length>DB_SOFT_LIMIT` 時對每個 system 的版本陣列做 `trimmed=[arr[0], ...arr.slice(-50)]`（永遠保第 1 版＋最近 50 版）、用 `trimmed.findIndex(v=>v.version===pointed)` 重算 db.versionPtr、寫 `(db.meta ||= {}).versionsTrimmed=true`；且 migrateV2 末尾確有 `pushVersion(db, s.id, 'migrate')` 並註明「每系统第 1 版快照＝最早原稿，永远找得回」。(2) iOS 確實沒有：grep 整個 ios-app/ 的 Swift 檔案，無任何 trim/prune/容量上限/versionsTrimmed/50 版相關邏輯；ios-app/BrainStrom/Data/Persistence/NotesRepository.swift 的 snapshot()（第 148-163 行）只是無條件 insert RevisionEntity 並 revisionNumber += 1，RevisionEntity 無限增長，無「保第 1 版」保證。(3) 設計稿 ios-app/design/p2-note.html 的版本面板只畫了版本清單與 RESTORE 標記，無修剪/上限/最早原稿承諾的任何呈現。iosStatus 標 not_in_code_not_in_design 正確。附註：iOS 用 SwiftData 沒有 localStorage 5MB 硬限制，故 4MB 軟上限的「動機」在 iOS 較弱，但「版本鏈修剪＋第 1 版永久保留」這個行為/產品承諾在 iOS 確實完全缺失，差異本身真實。"
+ },
+ {
+  "title": "applySnapshot 整批還原規則：快照內的塊以原 block id 覆寫回去、現存但快照沒有的塊改軟刪（deletedAt）——這是「undo 能復活已刪塊」的機制前提",
+  "kind": "missing_feature",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/api/mockClient.js applySnapshot() 第 87-95 行：不在 keep 集合者 `b.deletedAt=now()`，快照內者 `db.blocks[b.id]={ ...b, deletedAt:null }`；被 undoVersion/redoVersion/restoreVersion（第 361/377/402 行）共用",
+  "iosStatus": "partial_in_code",
+  "detail": "線索說「iOS 連版本表都沒有」需修正：iOS 其實有 RevisionEntity 版本表（PersistentModels.swift 第 80-96 行）與 snapshot()/revisions() API，但表中只存 metadata（kindRaw/charDelta/cardCount），完全沒有快照內容欄位（無 blocksJson 對應物），所以還原在資料層根本做不到；且 iOS 全面硬刪（deleteNote 直接 context.delete、saveCards 整批刪舊重建、Block/CardEntity 無 deletedAt 欄位），id 穩定覆寫與軟刪復活皆無。Features 層也零呼叫 snapshot/revisions。設計稿 p2-note.html（第 246-268、287 行）已畫出版本歷史 TAPE 面板、每列「還原」按鈕與 doc.restoreVersion 契約、機身印刷「UNDO ∞」——UI 承諾有了，引擎機制整組缺。",
+  "page": "P2 筆記頁（文章視圖）— 版本安全網 F7「指針法」",
+  "verifyNote": "對抗式查證未能推翻，差異真實成立。(1) Web 證據確認：origin/claude/session-sh92z7:web/src/api/mockClient.js 的 applySnapshot()（約第 87-95 行）確實實作「id 穩定整批還原」：不在 keep 集合的現存塊 b.deletedAt=now() 軟刪、快照內的塊以原 id 覆寫 db.blocks[b.id]={...b, deletedAt:null}（軟刪復活）；並被 undoVersion/redoVersion/restoreVersion 三處共用，pushVersion 落整份 blocksJson 快照。(2) iOS 確認缺失：grep 全 ios-app/*.swift 對 applySnapshot/restoreVersion/undoVersion/redoVersion/deletedAt 零命中；PersistentModels.swift 第 80-96 行 RevisionEntity 只有 id/kindRaw/createdAt/charDelta/cardCount，無任何快照內容欄位（無 blocksJson 對應物），故資料層根本無法還原；NotesRepository.swift 第 96-100 行 deleteNote 直接 context.delete 硬刪、第 122-144 行 saveCards 整批 delete 舊卡再重建（連 id 穩定覆寫都不是同一機制），Card/NoteEntity 皆無 deletedAt。snapshot()/revisions() 只被 Data/Domain 兩檔自身引用，Features 層零呼叫。(3) 設計稿確認有承諾：ios-app/design/p2-note.html 第 246-270 行畫出 TAPE 版本歷史面板與每列「還原」鍵、第 287 行標註 doc.restoreVersion 契約、第 197/280 行「UNDO ∞ 永不丟字的可見承諾」。iosStatus 標 partial_in_code 合理：版本表骨架（RevisionEntity + snapshot/revisions API）存在但僅 metadata，還原引擎（內容快照、id 覆寫、軟刪復活）整組缺。關鍵檔案：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/Persistence/PersistentModels.swift、NotesRepository.swift、ios-app/design/p2-note.html。"
+ },
+ {
+  "title": "card_done 事件的整個 card 載荷（action/title/content/position）被 iOS 解析器丟掉，優化 patch 與結構化填卡都載不動",
+  "kind": "missing_feature",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/services/index.js — AIService._stream：case 'card_done' → h.onCard?.(ev.index, ev.card)（整個 card 物件下傳）；optimize()/applyEdit() 的 realStream 回調用 ev.card.action==='add'|'update' 配 c.content/c.position/c.id 組三件式 patch（adds/updates/removes）再過 applyOptimizePatch 安全閥；structure() 收 cards.push(ev.card) 後 applyStructureCards 用 c.title/c.content/c.absorbed 建卡塊",
+  "iosStatus": "partial_in_code",
+  "detail": "iOS SSEParser.swift:68-70 對 card_done 只 guard 出 id 就回傳 .cardDone(id:)；AIEvent（Domain/Services/AIServicing.swift:15）的 cardDone case 根本沒有欄位可放 card 物件，title/content/action/position 全數丟失。設計稿 p2b-cards.html:206 已畫出 card_start/card_done 串流長卡視覺（橘框＋掃描線逐字長出），但現有事件形狀填不了卡內容；接上真後端後 ✦ 優化收不到 patch 素材、▦ 結構化收不到卡片內容，兩條主管線都會空轉。差異清單只列了 'proposal' 事件缺失，這條沒列。",
+  "page": "筆記頁 AI 串流資料層（✦ 優化／▦ 結構化／聊天徽章共用的 SSEParser + AIEvent）",
+  "verifyNote": "逐行查證雙邊屬實。Web（origin/claude/session-sh92z7:web/src/services/index.js）：line 309 case 'card_done' → h.onCard?.(ev.index, ev.card) 整個 card 下傳；optimize/applyEdit（374-377、425-428）用 c.action==='add'|'update' 配 c.content/c.position/c.id 組 adds/updates/removes patch 過 applyOptimizePatch（157）；structure（479）cards.push(ev.card) 後 applyStructureCards（189）用 c.title/c.content/c.absorbed 建卡。iOS：SSEParser.swift:68-70 對 card_done 只 guard 出 id 即回傳 .cardDone(id:)，AIServicing.swift:15 的 cardDone case 僅 (id: String) 無任何欄位可放 card 載荷，action/title/content/position 在解析層被靜默丟棄；全 repo 只有 SSEParser/AIServiceStub/AIServicing 三處用到 cardDone，Stub 的 structure() 也只發 id（連 delta 都沒發），卡片內容無任何替代通道。設計稿 ios-app/design/p2b-cards.html:206 確有畫 card_start/card_done 串流長卡視覺。接真後端後 ✦ 優化收不到 patch 素材、▦ 結構化收不到卡內容，差異真實成立。iosStatus=partial_in_code 標註合理（事件存在、能解析 id 與 cardStart title，但載荷缺失），無需修正。"
+ },
+ {
+  "title": "progress 事件只取 0–1 數值、message 字串（與 current/total）被丟，聊天「引用到 N 张卡」徽章和各種 skip 文案無資料可顯示",
+  "kind": "missing_feature",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/services/index.js — _stream：case 'progress' → h.onProgress?.(ev.current, ev.total, ev.message)；optimize()/structure()/applyEdit() 的 hash-gate skip 文案（'内容没变，未消耗 AI'、'没有可优化的变动段落…'、'AI 没有提出任何修改'）全走 onProgress 第三參數；web/src/main.js:436/647/679 用 msg 當 skip 提示、main.js:732 onProgress:(c,tot,msg)=>meta('cbadge', msg||'引用到卡') 渲染「引用到 N 张卡」徽章",
+  "iosStatus": "partial_in_code",
+  "detail": "iOS SSEParser.swift:76-78 只讀 object[\"value\"] as? Double 並夾到 0–1，AIEvent.progress(Double) 無處放 message；且 web 真後端的 progress 載荷是 {current, total, message} 整數對而非 value 0–1，iOS 連數值欄位名都對不上（value 缺席時會 fallback 成 0），是雙重形狀不符。設計稿 p2-note.html:233 聊天 console 已畫「引用 3 卡」徽章，但事件形狀載不動該字串；skip 文案則設計稿與程式皆無對應呈現。差異清單同樣沒列這條。",
+  "page": "筆記頁 AI 串流資料層（✦ 優化／▦ 結構化／聊天徽章共用的 SSEParser + AIEvent）",
+  "verifyNote": "差異真實成立。Web 端證據全數驗證：origin/claude/session-sh92z7:web/src/services/index.js:307 的 _stream dispatch 確有 case 'progress' → h.onProgress?.(ev.current, ev.total, ev.message)（applyEdit/optimize 等其他分支在 380/431/481 行同形）；hash-gate skip 文案確實全走 onProgress 第三參數——351 行「内容没变，未消耗 AI」、361 行「没有可优化的变动段落，未消耗 AI」、437 行「AI 没有提出任何修改」、464 行再一次「内容没变，未消耗 AI」。web/src/main.js 消費端也驗證：runApplyEdit/runOptimize/runStructure 皆以 onProgress:(c,t,msg)=>{ if(msg) skip=msg; } 收 skip 文案後 toast；聊天面板 onProgress:(c,tot,msg)=>meta('cbadge', msg||'引用到卡') 渲染引用徽章（行號與聲稱略有出入但內容完全一致）。iOS 端確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/AI/SSEParser.swift:76-78 只讀 object?[\"value\"] as? Double（fallback Double(message.data) 再 fallback 0）並 clamp 到 0–1，欄位名 value 與 web 契約的 current/total/message 完全對不上，雙重形狀不符屬實；AIServicing.swift:17 的 AIEvent 定義為 case progress(Double)，無任何欄位可載 message/current/total；全 ios-app Swift 程式碼 grep「引用」零命中，skip 文案亦無對應。設計稿 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html:233 確有 <span class=\"ref\">引用 3 卡</span> 徽章，但現有事件形狀載不動該字串。iosStatus 標 partial_in_code 合理——SSEParser 確有 progress case 與 AIEvent.progress 類型（stub 也會 yield），只是僅剩 0–1 數值殼，message/current/total 整條資料通道缺席，無需修正。"
+ },
+ {
+  "title": "一般聊天送出後，AI 氣泡要先顯示「思考中…」佔位，且串流一個字都沒吐（出錯/秒停）時要把佔位清空，不留空氣泡",
+  "kind": "missing_state",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/main.js sendChat()（約 715–743 行）：textEl.innerHTML='<span class=\"faint\">思考中…</span>'；finally 裡 if(!acc) textEl.textContent=''（註解「没吐半个字（出错/秒停）清掉『思考中…』」）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式端 /ios-app/BrainStrom/Features/Note/NoteScreen.swift 整頁仍是骨架占位（明寫「聊天…於畫面實作階段完成」），完全沒有聊天 UI；服務層 AIServiceLive.swift:47 雖有 chat() 串流 API 但無人呼叫。設計稿 /ios-app/design/p2-note.html 的 .chatpanel（約 231–244 行）只畫了一則完成中的 AI 氣泡帶 .caret 游標，沒有「思考中…」佔位狀態，也沒有零輸出時清空佔位的行為說明。注意：kickoff 的「教练看稿中…」是另一條已列差異，本條是一般聊天的佔位微狀態。",
+  "page": "P2 筆記頁 · 單筆記聊天面板（CONSOLE）",
+  "verifyNote": "差異真實成立。1) Web 證據逐字核實：origin/claude/session-sh92z7:web/src/main.js 的 sendChat()（約 715–743 行）確有 textEl.innerHTML='<span class=\"faint\">思考中…</span>' 佔位，且 finally 區塊有 if(!acc) textEl.textContent='' 並帶註解「没吐半个字（出错/秒停）清掉『思考中…』」，與聲稱完全一致（實際呼叫的是 services.ai.chatNote 串流，onDelta 逐字覆寫佔位）。2) iOS 程式碼：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 41 行，第 19 行明寫「骨架占位——…AI 確認／進行中／聊天…於畫面實作階段完成」，無任何聊天 UI；全 ios-app 內 chat() 僅存在於 AIServicing.swift:88 協定與 AIServiceLive.swift:47 / AIServiceStub.swift:54 實作，grep 不到任何呼叫端。3) 設計稿：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 的 .chatpanel（約 232–245 行）只畫一則帶 .caret 游標的串流中 AI 氣泡與 TOKENS/REF 小字，沒有「思考中…」佔位，也無零輸出清空行為；整個 ios-app/ grep「思考中」零命中。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "聊天列表空態（還沒有任何訊息時）要顯示引導文案「问我这则笔记的内容，例如『这则在讲什么？』」",
+  "kind": "missing_state",
+  "webEvidence": "origin/claude/session-sh92z7:web/src/main.js renderChat()（約 698–703 行）：chatMsgs 為空時 innerHTML 塞入 faint 引導文案「问我这则笔记的内容，例如「这则在讲什么？」」",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式端 NoteScreen.swift 無聊天面板實作，自然沒有空態。設計稿 p2-note.html 的 .clog 直接放了兩則示範訊息（me/ai 氣泡），輸入槽 placeholder 只有「問點什麼…」，未定義訊息列表為空時的引導空態畫面。",
+  "page": "P2 筆記頁 · 單筆記聊天面板（CONSOLE）",
+  "verifyNote": "三方查證均成立。(1) Web 端：git show origin/claude/session-sh92z7:web/src/main.js 的 renderChat() 確實存在「list.innerHTML = this.chatMsgs.length ? '' : `<div class=\"faint\" ...>问我这则笔记的内容，例如「这则在讲什么？」</div>`」——chatMsgs 為空時顯示引導空態，證據行屬實。(2) iOS 程式端：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 42 行骨架占位（文案明寫「骨架占位——…聊天…於畫面實作階段完成」），無任何聊天面板 UI；Data/AI 層雖有 chat(messages:) 服務介面與 SSE 解析，但無 UI 呼叫端、更無空態文案，grep 全 ios-app *.swift 找不到「问我/問我/这则在讲」。(3) 設計稿：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 的 .clog（約 234–240 行）直接放兩則示範氣泡（me「幫我看河堤路線…」、ai 回覆），輸入槽 .slot 只有「問點什麼…」，aside 註記也只描述氣泡樣式與停止鍵，未定義訊息為空時的引導空態。iosStatus=not_in_code_not_in_design 標註正確，差異真實成立。"
+ },
+ {
+  "title": "首頁系統清單缺游標分頁：web 已定 { items, nextCursor, hasMore } 契約並登記 GET /api/systems?cursor，iOS 取清單完全沒有分頁/游標概念",
+  "kind": "behavior_diff",
+  "webEvidence": "origin/claude/session-sh92z7 的 web/src/api/mockClient.js listSystems()（約 271–280 行，回傳 `return { items, nextCursor:null, hasMore:false }`，mock 雖固定 nextCursor:null 但回傳形狀即契約）＋ web/src/touchpoints.js 第 9 行觸點表第 5 條：`systems.list()` → api:'GET /api/systems?cursor'、swift:'SystemsService.list()'",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/Persistence/NotesRepository.swift 的 systems()（19–31 行）用 FetchDescriptor 一次撈全部 SystemEntity，回傳 [NoteSystem]，無 cursor/limit/hasMore；全 ios-app/BrainStrom/ grep 不到任何 cursor/pagination/分頁字樣，也沒有觸點表預期的 SystemsService.list() 網路層（唯一網路服務是 Data/AI/AIServiceLive.swift）。設計稿 ios-app/design/p1-home.html 及整個 design/ 目錄同樣沒有分頁、載入更多或無限捲動的規格（grep 命中僅 CSS cursor:pointer/animation infinite）。影響：之後接上 Supabase/真 API 時，回傳形狀（包一層 items + nextCursor/hasMore）與目前 iOS 回傳裸陣列的介面不相容，清單超過一頁時會漏資料；建議在 SystemsService.list() 介面先以 Page<NoteSystem>（items + nextCursor + hasMore）建模，本地 SwiftData 實作可先回單頁 nextCursor:nil。",
+  "page": "P1 首頁清單（Home / systems.list 觸點）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。1) Web 證據屬實：origin/claude/session-sh92z7 的 web/src/api/mockClient.js listSystems() 確實回傳 `return { items, nextCursor:null, hasMore:false }`（契約形狀存在；mock 固定單頁但形狀即契約），且 web/src/touchpoints.js 第 9 行確有 `{ method:'systems.list()', ui:'首页清单', api:'GET /api/systems?cursor', swift:'SystemsService.list()' }`，明確登記游標參數與 iOS 對應服務。2) iOS 證據屬實：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Data/Persistence/NotesRepository.swift 的 systems()（19–31 行）用 FetchDescriptor 一次撈全部 SystemEntity 回傳裸 [NoteSystem]，無 cursor/nextCursor/hasMore/limit（檔內僅有的 fetchLimit=1 在 185/191 行，是單筆查找非分頁）；全 ios-app/ grep cursor|pagination|hasMore|nextCursor|loadMore|分頁 僅命中 design/ 的 CSS cursor:pointer 與 animation:…infinite，無任何 Swift 命中；全 repo 的 ios-app 下找不到 SystemsService（Data/ 只有 AI、Auth stub、Persistence 三組，唯一網路服務是 AIServiceLive.swift）。3) 設計稿：ios-app/design/p1-home.html 與整個 design/ 目錄無分頁、載入更多、無限捲動規格（p1-home 的 infinite 命中只是 skeleton shimmer 動畫）。聲稱的 iosStatus=not_in_code_not_in_design 正確，無需修正。唯一可挑剔處：web mock 本身也未實作真實翻頁行為（永遠單頁），但差異主張的是「契約形狀＋API 登記 vs iOS 完全無此概念」，原文已如實註明，不影響成立。"
+ },
+ {
+  "title": "系統 title 上限 256 字的截斷規則 iOS 完全沒有：建立或改名筆記時標題原樣存入，超長不會被截",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/api/mockClient.js:284 createSystem 的 String(title).slice(0,256)；mockClient.js:300 updateSystem 的 patch.title.slice(0,256)",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端 NotesRepository.swift:63 createNote(in:title:) 與 :87 entity.title = note.title 都原樣寫入，整個 ios-app/ 程式碼 grep 不到任何 prefix()/256/maxLength 截斷；設計稿（p1-home.html、p2-note.html 等）的標題輸入也沒有 maxlength。未來接真後端時 iOS 可能送出超長 title，與 web/後端 256 字契約不一致。",
+  "page": "全域欄位長度契約（系統 title／AI instruction）",
+  "verifyNote": "Web 證據屬實：git show origin/claude/session-sh92z7:web/src/api/mockClient.js 中 createSystem 有 (title==null?'未命名系统':String(title)).slice(0,256)，updateSystem 有 patch.title.slice(0,256)，256 字截斷契約確實存在。iOS 端確實缺失：ios-app/BrainStrom/Data/Persistence/NotesRepository.swift 的 createNote(in:title:) 以 Note(systemID:title:) 原樣建立、saveNote 中 entity.title = note.title 原樣寫入，無任何截斷；全 ios-app/*.swift grep prefix(/256/maxLength 僅命中 AIServiceStub.swift:101 的無關 token 數字（outputTokens: 256）；Domain 模型與 NoteScreen 也無長度限制。設計稿 ios-app/design/（p1-home.html、p2-note.html、shared.js 等）grep 不到 maxlength/slice/substring/prefix，未畫出長度限制。iosStatus = not_in_code_not_in_design 標註正確，差異真實成立。"
+ },
+ {
+  "title": "applyEdit 的 instruction 送後端前截斷 2000 字的契約 iOS 沒有對應——連 instruction 參數本身都還不存在",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/services/index.js:403 applyEdit（對話式編輯）→ :423 POST /ai/optimize 時 instruction: String(instruction).slice(0, 2000)",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 的 AIServicing.swift OptimizeOptions 只有 splitTopics/addHeadings/proofread 三顆開關，AIServiceLive.swift:32 的 ai/optimize body 沒有 instruction 欄位——web 的 applyEdit（聊天提議直接改筆記的 instruction 模式）整條路徑 iOS 程式與設計稿都沒做，2000 字截斷驗證自然也缺。實作該功能時需把這條長度契約一併列入。",
+  "page": "全域欄位長度契約（系統 title／AI instruction）",
+  "verifyNote": "差異真實成立，無法推翻。Web 側：origin/claude/session-sh92z7 的 web/src/services/index.js:403 確有 applyEdit(systemId, { instruction = '' } ...)，:423 確有 realStream('/ai/optimize', { note, groupTopics:false, instruction: String(instruction).slice(0, 2000) })——證據行與行號完全吻合，2000 字截斷契約存在。iOS 側：grep 整個 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/ 對 \"instruction\"（不分大小寫）與 \"applyEdit\" 零命中；AIServicing.swift:29 的 OptimizeOptions 只有 splitTopics/addHeadings/proofread 三個布林；AIServiceLive.swift:25-37 的 ai/optimize Body 僅含 note + 三顆開關，無 instruction 欄位；設計稿 ios-app/design/（含 v3-explore）grep instruction/applyEdit/對話式編輯/聊天提議 亦零命中。iosStatus = not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "文章視圖空 heading 塊缺「（空标题，点击编辑）」faint 佔位文案",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js（origin/claude/session-sh92z7）blockHTML() 約 460 行：b.type==='heading' 時 esc(content)||'<span class=\"faint\">（空标题，点击编辑）</span>'",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 端 NoteScreen.swift（/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift）整頁是骨架占位殼，無任何塊渲染；設計稿 ios-app/design/p2-note.html 及 v3-explore/ 全文搜尋皆無「空标题/點擊編輯」類佔位文案，等到實作 P2 文章視圖時容易漏掉空塊可點擊編輯的提示。",
+  "page": "P2 筆記頁（文章視圖）",
+  "verifyNote": "三方查證皆成立，無法推翻。(1) web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 第 460 行 blockHTML() 確有 b.type==='heading' 分支，內容為 `${esc(b.payload.content||'')||'<span class=\"faint\">（空标题，点击编辑）</span>'}`，即空 heading 塊會顯示 faint 佔位文案（唯一小出入：證據寫 esc(content)，實際是 esc(b.payload.content||'')，不影響結論）。(2) iOS 程式碼確無：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔 41 行僅為骨架占位殼（StencilLabel + Nameplate + 說明文字），無任何塊渲染；對 ios-app/ 全域 grep「空标题/空標題/点击编辑/點擊編輯」零命中。(3) 設計稿也沒畫：對 ios-app/design/（含 v3-explore/ 遞迴）grep 同樣零命中；p2-note.html 連 heading 空狀態都未呈現（檔內 \"heading\" 出現 0 次）。iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "文章視圖空 text 塊缺「（空白段落，点击编辑）」faint 佔位文案",
+  "kind": "missing_state",
+  "webEvidence": "web/src/main.js（origin/claude/session-sh92z7）blockHTML() 約 461 行：b.type==='text' 時 esc(content)||'<span class=\"faint\">（空白段落，点击编辑）</span>'",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "與空 heading 同源：iOS NoteScreen 是占位殼，設計稿 p2-note.html 也沒有畫出空段落的 faint 佔位狀態（只有「編輯中的塊＝橘色通電框」的標註）。注意這兩條是文章視圖專屬文案，與卡片視圖已列的「（空白，点击编辑）」字串不同，需各自實作。",
+  "page": "P2 筆記頁（文章視圖）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。(1) web 證據確認：origin/claude/session-sh92z7 的 web/src/main.js 第 461 行 blockHTML() 中，b.type==='text' 時確有 `${esc(b.payload.content||'')||'<span class=\"faint\">（空白段落，点击编辑）</span>'}`，即文章視圖空 text 塊會顯示 faint 佔位文案；且確與卡片視圖第 567 行的「（空白，点击编辑）」是不同字串、不同渲染路徑（renderCards vs blockHTML），需各自實作的說法成立。(2) iOS 程式碼確認缺失：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 全檔僅 42 行，是明示的「骨架占位」殼（只有 Nameplate + 說明文字，無任何 block 渲染邏輯）；全 ios-app/ grep「空白段落 / 空标题 / 点击编辑 / placeholder」零命中（僅 README.md 提到無關的「空白新笔记」）。(3) 設計稿確認沒畫：ios-app/design/p2-note.html 及整個 design/ 目錄 grep「空白段落 / 空白 / faint」皆零命中，未畫出空段落佔位狀態。故 iosStatus=not_in_code_not_in_design 標註正確，無需修正。"
+ },
+ {
+  "title": "↶↷ 點擊後的四種結果回饋 toast（「已撤销一步」「没有可撤销的步骤」「已重做一步」「没有可重做的步骤」），且 toast 後會 reload 整頁內容",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js（origin/claude/session-sh92z7）:172-175 — $('#undo').onclick={ const r=await services.systems.undo(id); this.toast(r?'已撤销一步':'没有可撤销的步骤'); await this.reload(); }；$('#redo').onclick 同理吐 '已重做一步'/'没有可重做的步骤'。即按鈕可按時仍依後端回傳結果吐不同 toast 再 reload",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿 ios-app/design/p2-note.html:159-160 只有 ↶↷ 兩顆迷你鍵帽（↷ 標 .dis 示範 disabled 態），規格清單只提到鍵帽外觀與 disabled，完全沒列這組點擊回饋 toast 文案，也沒有對應的成功/失敗 toast 元件（頁內 busytoast 是 AI 優化中專用）。iOS 程式碼 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/ 全目錄 grep undo/redo/toast/撤销/重做 零命中——連 ↶↷ 按鈕本身都尚未實作，回饋 toast 自然也沒有",
+  "page": "P2 笔记页（NoteScreen）",
+  "verifyNote": "三方查證均成立。(1) Web 端確認：git show origin/claude/session-sh92z7:web/src/main.js 第 172-175 行確實存在 $('#undo').onclick / $('#redo').onclick，依 services.systems.undo/redo(id) 回傳值分別 toast '已撤销一步'/'没有可撤销的步骤'、'已重做一步'/'没有可重做的步骤'，且兩者都接 await this.reload()，與差異描述逐字相符。(2) iOS 程式碼確認缺失：grep -rniE 'undo|redo|toast|撤销|重做' 及 ↶/↷ 字元掃 /Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/ 全部零命中；/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行，無任何 undo/redo/toast/reload 相關碼，連 ↶↷ 按鈕都未實作。(3) 設計稿確認：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 第 159-160 行只有 ↶ 與 ↷(.dis) 兩顆迷你鍵帽外觀，規格清單（第 277、280 行）只提鍵帽外觀與 'UNDO ∞' 機身印刷文案；頁內唯一 toast 是 busytoast（第 62-66、203 行），明確是 'AI 優化中 · 內容已鎖定保護' 專用，無撤销/重做四種結果回饋 toast 文案或元件。差異標的（點擊回饋 toast + reload）確實 web 有、iOS 程式碼與設計稿皆無，iosStatus not_in_code_not_in_design 標註正確（設計稿雖畫了按鈕本體，但本條差異針對的回饋 toast 行為確實不在設計中）。"
+ },
+ {
+  "title": "插入模組成功後的完成回饋 toast「已插入「○○」」",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js insertModule() 第 761 行：this.toast('已插入「'+m.name+'」'); this.refreshHistoryBtns();（origin/claude/session-sh92z7）",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式 NoteScreen.swift 僅 41 行骨架占位（「骨架占位——活文件編輯器、模組直條…」），無任何插入流程；設計稿 p2-note.html 有模組直條（鍵帽側板）與 busytoast（AI 優化中），但完全沒有「已插入」這類插入成功回饋的 toast 或 haptic 規格。",
+  "page": "筆記頁（P2 · 活文件編輯器 / 模組插入）",
+  "verifyNote": "三方查證均成立。(1) Web 證據屬實：git show origin/claude/session-sh92z7:web/src/main.js 第 761 行確為 this.toast('已插入「'+m.name+'」'); this.refreshHistoryBtns();，位於 insertModule(i) 內，是模組插入成功後的完成回饋。(2) iOS 程式碼確實沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行骨架占位（自述「骨架占位——活文件編輯器、模組直條、AI 確認／進行中／聊天／版本」），全 ios-app/ grep「已插入」零命中；NotesRepository.swift 的 context.insert 是 SwiftData 持久化呼叫，與插入回饋 UI 無關。(3) 設計稿確實沒畫：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 有模組直條側板（鍵帽、PRO 角標）與 busytoast（「AI 優化中 · 內容已鎖定保護」＋STOP），haptic 規格只出現在待辦撥動開關（.selection）與 AI 完成（.notification(.success)），通篇沒有「已插入」插入成功 toast 或對應 haptic 規格。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ },
+ {
+  "title": "插入模組前先 saveVersion 落一步，且 trigger 依塊型區分（text/todo/heading 用 cardEdit、非文字模組用 addModule）",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js insertModule() 第 754-757 行：const textual=['text','todo','heading'].includes(m.id); await services.systems.saveVersion(this.cur.id, textual?'cardEdit':'addModule'); // 加块前落一步",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式碼 grep 不到 saveVersion/cardEdit/addModule 任何蹤跡；設計稿也未提及「插入前落版本步」的行為，更沒有依塊型分流 trigger 的規則。少了這步，插入模組後 ↶ 撤銷會跨步污染歷史。",
+  "page": "筆記頁（P2 · 活文件編輯器 / 模組插入）",
+  "verifyNote": "Web 證據屬實：origin/claude/session-sh92z7 的 web/src/main.js insertModule() 確有「const textual=['text','todo','heading'].includes(m.id); await services.systems.saveVersion(this.cur.id, textual?'cardEdit':'addModule'); // 加块前落一步」，即插入模組前先落版本步且 trigger 依塊型分流。iOS 側：全 ios-app/ grep saveVersion/cardEdit/addModule 僅命中 README 提到尚不存在的 AddModuleSheet.swift；NoteScreen.swift 是明示「骨架占位」，無任何編輯器/插入/版本邏輯。設計稿 p2-note.html 雖有版本歷史面板（TAPE、UNDO ∞、LED 類型橘優化/綠結構化/灰手改/紅還原），但完全沒有「插入前落版本步」行為，也沒有依塊型分流 trigger 的規則（LED 類型中亦無 addModule 對應項）；p2b-cards.html 無版本相關內容。iosStatus=not_in_code_not_in_design 對此特定行為而言標註正確（一般版本歷史 UI 有畫，但本條差異的具體行為未在設計稿出現），差異成立。"
+ },
+ {
+  "title": "版本 trigger 分類學整套（cardEdit / delete / addModule / structure / optimize）＋版本表與指針式 undo/redo",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/api/mockClient.js 第 353-360 行 saveVersion(systemId, trigger='cardEdit') 含 db.versions/versionPtr 指針法；trigger 全枚舉散見 main.js（'cardEdit' 271/475/482/509/525/598、'delete' 501/579、'addModule' 757）與 services/index.js（'optimize' 386/441、'structure' 487）",
+  "iosStatus": "in_design_not_in_code",
+  "detail": "iOS 程式完全沒有版本表：PersistentModels.swift / DomainModels.swift grep 'version' 零命中，NoteScreen 是占位。設計稿 p2-note.html 有「版本歷史磁帶（TAPE）」面板且 LED 色標類型（橘優化/綠結構化/灰手改/紅還原，第 287 行），但其分類學與 web 的 cardEdit/delete/addModule/structure/optimize 枚舉不一致——設計只覆蓋約一半類型，且未定義 addModule 與 delete 的區分；落地時需先對齊枚舉再建 SwiftData 版本模型。",
+  "page": "筆記頁（P2 · 活文件編輯器 / 模組插入）",
+  "verifyNote": "對抗式查證後無法推翻，差異真實成立。Web 端：git show origin/claude/session-sh92z7 確認 web/src/api/mockClient.js 確有 saveVersion(systemId, trigger='cardEdit')，並以 db.versions[systemId] 陣列＋db.versionPtr 指針實作 undoVersion/redoVersion（指針法，含「指針在末位且有未存檔變更先入快照保證 redo」邏輯）；trigger 枚舉全部命中：main.js 'cardEdit'（271/475/482/509/525/598）、'delete'（501/579）、'addModule'（757，textual?'cardEdit':'addModule'）；services/index.js 'optimize'（386，applyEdit 路徑亦同）與 'structure'（487）。iOS 端：grep -rli \"version|undo|redo\" ios-app/BrainStrom/**/*.swift 零命中（PersistentModels.swift、DomainModels.swift 皆無版本模型）；NoteScreen.swift 全檔 42 行純骨架占位，自述「版本…於畫面實作階段完成」。設計稿 ios-app/design/p2-note.html 確有版本歷史 TAPE 面板（101 行起、246-268 行實體面板、287 行 LED 色標：橘優化/綠結構化/灰手改/紅還原）。故 iosStatus=in_design_not_in_code 標註正確。附帶說明亦準確：設計稿類型學（OPTIMIZE/CARDS/手改/RESTORE）與 web 的五元枚舉不一致——未區分 addModule 與 delete，且多出 web 沒有的 RESTORE 類型，落地需先對齊枚舉。"
+ },
+ {
+  "title": "編輯中按釘選不能搶焦點：點 📌 不觸發失焦、不收鍵盤、不打斷輸入，編輯態只換按鈕視覺、讀取態才整塊重畫——這組防 blur 互動契約 iOS 完全沒有記載",
+  "kind": "missing_feature",
+  "webEvidence": "git show origin/claude/session-sh92z7:web/src/main.js 的 wireTools()（約 492-499 行）：pin.onpointerdown + ev.preventDefault()，註解「不抢焦点（编辑态按钉选不触发 blur）」；有 textarea 時只 pin.classList.toggle('on') 換視覺，無 textarea 才 redrawBlock 整塊重畫",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式碼 NoteScreen.swift 仍是 41 行骨架占位，沒有任何區塊工具列或釘選按鈕；設計稿 p2-note.html 雖畫了編輯態工具鍵和釘選銘板，但全設計稿（含 README、notes 區）找不到任何「按釘選不收鍵盤／保持焦點」的互動規格。SwiftUI 實作時若用一般 Button 預設行為，很容易就把 TextEditor 的 @FocusState 打斷，等於踩中 web 已經修掉的坑——這條契約必須明文補進規格",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "對抗式查證無法推翻，差異成立。1) Web 證據逐行屬實：origin/claude/session-sh92z7:web/src/main.js 的 wireTools() 確有 `pin.onpointerdown=async ev=>{ ev.preventDefault(); // 不抢焦点（编辑态按钉选不触发 blur）`，且分支邏輯完全如聲稱——`if(!node.querySelector('textarea')) this.redrawBlock(node,b)`（讀取態整塊重畫），else 只 `pin.classList.toggle('on',np)` 換按鈕視覺並註明「编辑态：只换按钮状态，不打断输入」。2) iOS 程式碼確實沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 為 41 行骨架占位（自述「骨架占位——活文件編輯器…於畫面實作階段完成」），無任何區塊工具列、釘選按鈕或 @FocusState；全 ios-app Swift 檔 grep pin/focus 只有資料層 isPinned 欄位與釘選斜紋視覺元件，無互動邏輯。3) 設計稿 p2-note.html 只畫了釘選銘板（L35-39、L172-173）與「編輯中的塊＝橘色通電框＋迷你工具鍵（📌▲▼✕）」（L279）的視覺；全設計目錄（含 README.md、shared.js）grep pointerdown/preventDefault/失焦/收鍵盤/keyboard/FocusState 一律無命中——「按釘選不收鍵盤、不打斷輸入」的互動契約完全未記載。iosStatus「not_in_code_not_in_design」就此互動契約而言標註正確（設計稿有畫按鈕視覺但無此行為規格，與聲稱說明一致），無需修正。"
+ },
+ {
+  "title": "編輯態工具列應縮減為只剩 📌（隱藏 ▲▼ 和刪除），iOS 設計稿卻畫成編輯中顯示完整四顆鍵 📌▲▼✕，與 web 行為矛盾",
+  "kind": "behavior_diff",
+  "webEvidence": "git show origin/claude/session-sh92z7:web/src/main.js 的 toolsHTML(b, edit)（約 466-471 行）：if(edit) return `<div class=\"btools\">${pin}</div>`——edit=true 只回傳釘選鍵；editBlock()（約 514 行）進編輯態時以 toolsHTML(b,true) 重繪",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿 p2-note.html 第 189 行編輯中區塊（.editing .tools）畫了 📌▲▼✕ 四顆迷你鍵，第 279 行 notes 也寫「編輯中的塊 = 橘色通電框＋上方迷你工具鍵（📌▲▼✕）」，與 web 的縮減邏輯（編輯中只留釘選，避免移動/刪除打斷輸入與焦點）相反；iOS 程式碼則完全未實作。需要先拍板設計稿要不要跟上 web 的縮減行為，再進實作",
+  "page": "P2 筆記頁（活文件編輯器）",
+  "verifyNote": "三方查證全部成立。(1) Web 證據屬實：origin/claude/session-sh92z7:web/src/main.js 的 toolsHTML(b, edit=false) 確有「if(edit) return `<div class=\"btools\">${pin}</div>`」——edit=true 只回傳釘選鍵，非編輯態才有 📌▲▼＋刪除四鍵；editBlock() 進編輯態時以 `${this.toolsHTML(b,true)}` 重繪，且 wireTools 對 pin 用 onpointerdown+preventDefault 避免搶焦點，可見「編輯中只留釘選、避免移動/刪除打斷輸入」是刻意設計。(2) iOS 程式碼確實未實作：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行占位，grep 不到任何 📌/▲/▼/工具列/editBlock UI，全 repo 只有 isPinned 資料模型欄位（PersistentModels/DomainModels/AIServicing），無編輯態工具列邏輯。(3) 設計稿確實畫成相反行為：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 第 ~188-190 行 .editing 區塊內 .tools 畫了 📌▲▼✕ 四顆 .key，第 279 行 notes 明寫「編輯中的塊 = 橘色通電框＋上方迷你工具鍵（📌▲▼✕）」，與 web 編輯態縮減為只剩 📌 的行為直接矛盾。iosStatus=not_in_code_not_in_design 標註正確：web 的縮減行為既不在 iOS 程式碼、也不在設計稿（設計稿畫的是相反版本），無需修正。"
+ },
+ {
+  "title": "聊天輸入框 Enter 送出、Shift+Enter 換行的鍵盤微行為沒有對應規格與實作",
+  "kind": "behavior_diff",
+  "webEvidence": "web/src/main.js（origin/claude/session-sh92z7）note() 內第 156 行：ci.onkeydown=e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); this.sendChat(); } } — Enter 直接送出，Shift+Enter 不攔截、落回 textarea 原生換行",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "iOS 程式碼整個聊天 UI 都還沒寫（/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/ 只有 Data 層 AIService.chat()，NoteScreen.swift 僅 41 行、無任何 TextField/TextEditor）；設計稿 ios-app/design/p2-note.html 的 .cin 輸入區只是靜態 div.slot「問點什麼…」（固定高 42px），側欄註記只寫了聊天面板樣式與停止鍵，完全沒提送出鍵行為或多行換行。iOS 對應做法：軟鍵盤上「換行＋獨立送出鈕」、外接鍵盤可用 .onSubmit/Shift+Return 區分，這些都需明確列入清單，否則實作時只會照「Enter 送出」做成單行輸入。",
+  "page": "p2-note（筆記頁聊天面板 CONSOLE）",
+  "verifyNote": "三路查證後無法推翻，差異成立。(1) Web 證據屬實：origin/claude/session-sh92z7 的 web/src/main.js 第 156 行確為 ci.onkeydown=e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); this.sendChat(); } }，位於 note() 的聊天面板綁定區（#chatin / #chatsend / #chatstop 同段），Enter 送出、Shift+Enter 不攔截而落回 textarea 原生換行，行為描述與行號皆正確。(2) iOS 程式碼確無：全 ios-app 共 2450 行 Swift，grep TextField|TextEditor|onSubmit|submitLabel|sendChat 零命中（僅 multilineTextAlignment(.center) 等無關樣式命中）；NoteScreen.swift 僅 41 行，無任何文字輸入元件，聊天 UI 整個不存在，只有 Data 層 AIService。(3) 設計稿確無：ios-app/design/p2-note.html 的 .cin 僅為靜態 <div class=\"slot\">問點什麼…</div>（CSS 固定 height:42px 單行）加一顆 stopk 停止鍵，連送出鍵都沒畫；對 design/ 全目錄與 ios-app/*.md grep enter|shift|换行|換行|回车|submit（排除 center 等誤命中）零結果，無任何鍵盤送出/換行行為註記。聲稱的 iosStatus=not_in_code_not_in_design 無需修正。"
+ },
+ {
+  "title": "聊天輸入框隨內容自動長高（autoraf）沒有對應規格與實作",
+  "kind": "missing_feature",
+  "webEvidence": "web/src/main.js（origin/claude/session-sh92z7）第 155 行 ci.oninput=()=>autoraf(ci)；第 802 行 function autoraf(ta){ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; } — textarea 隨輸入內容自動增高",
+  "iosStatus": "not_in_code_not_in_design",
+  "detail": "設計稿 p2-note.html 把輸入槽寫死為單行固定高度（.cin .slot { height:42px }），沒有任何多行/自動增高的視覺或註記；iOS 程式碼則完全沒有聊天輸入元件。SwiftUI 對應做法是 TextField(axis: .vertical) + lineLimit(1...N) 自動長高，需補進差異清單與設計稿，否則 iOS 會做成固定單行輸入，多行貼文或長問題體驗會跟 web 不一致。",
+  "page": "p2-note（筆記頁聊天面板 CONSOLE）",
+  "verifyNote": "三方證據都親自核實，差異成立。(1) Web 端確認存在：git show origin/claude/session-sh92z7:web/src/main.js 中第 155 行附近有 `const ci=$('#chatin'); ci.oninput=()=>autoraf(ci);`，檔尾 helpers 區有 `function autoraf(ta){ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; }`，即聊天輸入框隨內容自動長高。(2) iOS 程式碼確認沒有：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/BrainStrom/Features/Note/NoteScreen.swift 僅 41 行，註解明寫「骨架占位」，無任何聊天輸入元件；grep 整個 ios-app/BrainStrom/ 找不到任何 TextField/TextEditor/lineLimit/axis: .vertical。(3) 設計稿確認沒畫：/Users/kent/Desktop/BRAINSTORM/BrainStrom/ios-app/design/p2-note.html 第 97 行 `.chatpanel .cin .slot { flex:1; height:42px; display:flex; align-items:center; ... }` 為固定 42px 單行槽，且第 241 行輸入槽只是靜態 div（「問點什麼…」），全檔無 textarea、無多行/自動增高的視覺或註記。iosStatus 標 not_in_code_not_in_design 正確，無需修正。"
+ }
+]

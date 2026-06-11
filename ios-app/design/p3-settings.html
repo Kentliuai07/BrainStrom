@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P3 設定 — BrainStrom 設計稿 v2</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+.topbar { height:52px; flex:none; display:flex; align-items:center; padding:0 16px; gap:8px; border-bottom:1px solid var(--line); }
+.tb-back { font-size:20px; color:var(--print2); width:28px; }
+.tb-mid { flex:1; text-align:center; }
+.tb-mid .model { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.3em; color:var(--print3); display:block; margin-bottom:1px; }
+.tb-mid .name { font-size:14px; font-weight:700; }
+.tb-sp { width:28px; }
+
+.stage { flex:1; overflow:hidden; padding:18px var(--page-x) 0; display:flex; flex-direction:column; gap:18px; }
+
+/* 設定群組面板 */
+.gp { padding:0; overflow:hidden; }
+.gp .ghead { display:flex; align-items:center; gap:9px; padding:11px 15px 9px; border-bottom:1px solid var(--line); }
+.gp .ghead .mid { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.28em; color:var(--print3); }
+.gp .ghead .gname { font-size:12px; font-weight:800; letter-spacing:.08em; }
+.row { display:flex; align-items:center; gap:11px; padding:13px 15px; border-top:1px solid var(--line); font-size:15px; }
+.row:first-of-type { border-top:none; }
+.row .rl { flex:1; }
+.row .rv { font-family:var(--font-mono); font-size:11px; color:var(--print2); letter-spacing:.04em; }
+.row .chev { color:var(--print3); font-size:14px; }
+.row .key { width:72px; height:34px; font-size:13px; border-radius:8px; --key-travel:2px; }
+
+/* 外觀：機殼色票 */
+.themes { display:flex; gap:10px; padding:13px 15px; }
+.tswatch { flex:1; cursor:pointer; border-radius:10px; border:1.5px solid var(--line-strong); overflow:hidden; position:relative; }
+.tswatch.sel { border-color:var(--orange); box-shadow:0 0 0 1px var(--orange); }
+.tswatch .tv { height:56px; display:flex; flex-direction:column; gap:4px; padding:8px; }
+.tswatch .tv .l1 { height:7px; border-radius:2px; width:70%; }
+.tswatch .tv .l2 { height:5px; border-radius:2px; width:46%; opacity:.55; }
+.tswatch .tv .dotr { display:flex; gap:3px; margin-top:auto; }
+.tswatch .tv .dotr i { width:6px; height:6px; border-radius:2px; }
+.tswatch .tn { display:block; text-align:center; font-family:var(--font-mono); font-size:8px; letter-spacing:.18em; padding:6px 0 7px; color:var(--print2); border-top:1px solid var(--line); }
+.tswatch.sel .tn { color:var(--orange); }
+/* 色票內容用真色票 */
+.sw-night .tv { background:#1A1A18; }
+.sw-night .l1 { background:#E8E4D8; } .sw-night .l2 { background:#8E8B80; }
+.sw-night .dotr i { background:#FF4D00; } .sw-night .dotr i:last-child { background:#54D62C; }
+.sw-day .tv { background:#E6E4DE; }
+.sw-day .l1 { background:#262521; } .sw-day .l2 { background:#6E6C63; }
+.sw-day .dotr i { background:#E84200; } .sw-day .dotr i:last-child { background:#2FA414; }
+.sw-auto .tv { background:linear-gradient(105deg, #1A1A18 50%, #E6E4DE 50%); }
+.sw-auto .l1 { background:linear-gradient(105deg, #E8E4D8 58%, #262521 58%); }
+.sw-auto .l2 { background:linear-gradient(105deg, #8E8B80 64%, #6E6C63 64%); }
+.sw-auto .dotr i { background:#FF4D00; } .sw-auto .dotr i:last-child { background:#54D62C; }
+
+/* 危險區 */
+.gp.danger { border-color:var(--led-r); }
+.gp.danger .ghead { position:relative; padding-left:24px; }
+.gp.danger .ghead::before { content:""; position:absolute; left:0; top:0; bottom:0; width:9px; background:repeating-linear-gradient(45deg, var(--led-r) 0 5px, transparent 5px 10px); opacity:.85; }
+.gp.danger .ghead .gname, .gp.danger .ghead .mid { color:var(--led-r); }
+.gp.danger .row .rl { color:var(--danger); font-weight:600; }
+
+/* 刪除確認銘板 */
+.delplate { display:none; top:50%; transform:translateY(-50%); border-color:var(--led-r); }
+.st-delconfirm .delplate { display:block; }
+.st-delconfirm .scrim { opacity:1; pointer-events:auto; }
+.delplate .mhead { margin-bottom:12px; }
+.delplate .mhead .mname { color:var(--led-r); letter-spacing:.06em; }
+.delplate .q { font-size:15.5px; line-height:1.75; margin-bottom:6px; }
+.delplate .warn { font-family:var(--font-mono); font-size:9.5px; letter-spacing:.12em; color:var(--led-r); margin-bottom:14px; display:flex; align-items:center; gap:7px; }
+.delplate .acts { display:flex; gap:10px; }
+.delplate .acts .key { flex:1; height:46px; flex-direction:row; gap:7px; font-size:15px; font-weight:600; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a href="index.html">‹ 總覽</a>
+  <h1>P3 · 設定<small>機器的背板——群組面板＋機殼色票＋危險區</small></h1>
+  <div class="toggles">
+    <span class="lab">THEME</span>
+    <button data-theme="night" class="on">霧面黑</button>
+    <button data-theme="day">暖灰機殼</button>
+    <span class="lab">STATE</span>
+    <button data-state="normal">正常</button>
+    <button data-state="delconfirm">刪除確認</button>
+  </div>
+</header>
+
+<main>
+<div class="phone" id="phone">
+  <div class="inner">
+    <div class="statusrow"><span>9:41</span><span class="r">●●● ⌁ ▮</span></div>
+
+    <div class="topbar">
+      <div class="tb-back">‹</div>
+      <div class="tb-mid"><span class="model">CONFIG</span><span class="name">設定</span></div>
+      <div class="tb-sp"></div>
+    </div>
+
+    <div class="stage">
+      <div class="hcard gp rise d1">
+        <div class="ghead"><span class="mid">ACC</span><span class="gname">帳號</span></div>
+        <div class="row"><span class="rl">Apple ID</span><span class="rv">kentliuai08@gmail.com</span></div>
+        <div class="row"><span class="rl">登出</span><div class="key">登出</div></div>
+      </div>
+
+      <div class="hcard gp rise d2">
+        <div class="ghead"><span class="mid">SKIN</span><span class="gname">外觀 · 機殼</span></div>
+        <div class="themes">
+          <div class="tswatch sw-night sel"><div class="tv"><div class="l1"></div><div class="l2"></div><div class="dotr"><i></i><i></i></div></div><span class="tn">霧面黑</span></div>
+          <div class="tswatch sw-day"><div class="tv"><div class="l1"></div><div class="l2"></div><div class="dotr"><i></i><i></i></div></div><span class="tn">暖灰機殼</span></div>
+          <div class="tswatch sw-auto"><div class="tv"><div class="l1"></div><div class="l2"></div><div class="dotr"><i></i><i></i></div></div><span class="tn">跟隨系統</span></div>
+        </div>
+      </div>
+
+      <div class="hcard gp rise d3">
+        <div class="ghead"><span class="mid">INFO</span><span class="gname">關於</span></div>
+        <div class="row"><span class="rl">版本</span><span class="rv">NOTE OS 1.0.0 (1)</span></div>
+        <div class="row"><span class="rl">隱私權政策</span><span class="chev">›</span></div>
+      </div>
+
+      <div class="hcard gp danger rise d4">
+        <div class="ghead"><span class="mid">HAZARD</span><span class="gname">危險區</span></div>
+        <div class="row"><span class="rl">刪除帳號與所有資料</span><span class="chev">›</span></div>
+      </div>
+    </div>
+
+    <div class="printfoot" style="padding-bottom:8px">BRAINSTROM INSTRUMENTS <i></i> SN 0000-0012</div>
+    <div class="home"><i></i></div>
+
+    <div class="scrim" id="scrim"></div>
+
+    <!-- 刪除確認銘板 -->
+    <div class="plate delplate">
+      <div class="mhead"><span class="mid">HAZARD</span><span class="mname">⌦ 刪除帳號</span><span class="mled"><i class="led r pulse"></i></span></div>
+      <p class="q">帳號、3 座系統、47 張卡片將<b>立即永久刪除</b>。</p>
+      <div class="warn">⚠ NO UNDO · 無法復原 · 不留備份</div>
+      <div class="acts">
+        <div class="key">取消</div>
+        <div class="key dangerk">驗證並刪除</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<aside class="notes">
+  <h2>// 佈局</h2>
+  <li>設定 = 機器的<b>背板</b>：四塊群組面板各帶銘板抬頭（<code>ACC / SKIN / INFO / HAZARD</code>）。</li>
+  <li>外觀 = <b>機殼色票</b>三選一（真色票迷你預覽：霧面黑/暖灰機殼/跟隨系統），選中橘框（<span class="hp">haptic .selection</span>，<span class="tm">全 App 換膚 0.3s</span>）。</li>
+  <li>底部機身印刷含 <code>SN</code> 序號——彩蛋級系統感。</li>
+  <h2>// 危險區三道閘（不變）</h2>
+  <li>① 紅斜紋 HAZARD 面板 → ② 確認銘板（紅 LED＋<code>NO UNDO</code> 印刷＋資料盤點「3 系統 47 卡」）→ ③「驗證並刪除」需 <b>Apple 重新驗證</b>後才執行。<span class="tp">auth.deleteAccount</span>，<span class="hp">.notification(.warning)</span></li>
+  <h2>// 無障礙</h2>
+  <li>刪除鍵 VoiceOver=「驗證並刪除，按鈕，警告：資料將立即永久刪除」；色票=「霧面黑，已選取」。</li>
+</aside>
+</main>
+<script src="shared.js"></script>
+<script>
+document.querySelectorAll('.tswatch').forEach(s => s.addEventListener('click', () => {
+  document.querySelectorAll('.tswatch').forEach(x => x.classList.toggle('sel', x === s));
+}));
+</script>
+</body>
+</html>

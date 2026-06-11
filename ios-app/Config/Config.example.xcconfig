@@ -1,0 +1,10 @@
+// ============================================================
+// 連線參數範本 —— 複製成 Config.xcconfig 後填入真值
+//   cp Config.example.xcconfig Config.xcconfig
+// 鐵律：Config.xcconfig 不進 git（已在 .gitignore）
+// 註：xcconfig 把 // 當註解，URL 要寫成 https:/$()/
+// ============================================================
+
+AI_BASE_URL = https:/$()/your-app.fly.dev
+AI_AUTH_TOKEN = REPLACE_ME
+AI_USE_STUB = YES

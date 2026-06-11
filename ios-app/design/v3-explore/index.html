@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BrainStrom iOS · v3 風格探索 — 開發者向三款樣張</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,"PingFang TC",sans-serif; background:#0B0D10; color:#CDD2D9; min-height:100vh; padding:56px 24px 90px; display:flex; flex-direction:column; align-items:center; }
+.wrap { width:100%; max-width:920px; }
+h1 { font-size:30px; font-weight:800; color:#fff; font-family:"SF Mono",ui-monospace,Menlo,monospace; letter-spacing:.02em; }
+.sub { font-size:14.5px; color:#828A95; margin:12px 0 36px; line-height:1.75; }
+.sub b { color:#CDD2D9; }
+
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:16px; margin-bottom:40px; }
+.card {
+  display:block; text-decoration:none; color:inherit; padding:24px 22px;
+  border-radius:14px; border:1px solid; position:relative; overflow:hidden;
+  clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  transition:transform .18s cubic-bezier(.3,1.25,.4,1);
+}
+.card:hover { transform:translateY(-3px); }
+.card .tag { font-family:"SF Mono",ui-monospace,monospace; font-size:10px; font-weight:700; letter-spacing:.22em; margin-bottom:10px; }
+.card h3 { font-size:19px; font-weight:800; margin-bottom:8px; }
+.card p { font-size:13px; line-height:1.62; opacity:.8; }
+.card .vibe { margin-top:14px; font-family:"SF Mono",ui-monospace,monospace; font-size:10.5px; letter-spacing:.08em; opacity:.65; }
+
+/* 卡片即迷你樣張 */
+.cd { background:#0D1117; border-color:#30363D; color:#E6EDF3; }
+.cd .tag { color:#3FB950; }
+.cd .vibe::before { content:"❯ "; color:#3FB950; }
+.ce { background:#1A1A18; border-color:#3A3A36; color:#E8E4D8; }
+.ce .tag { color:#FF4D00; }
+.ce .vibe::before { content:"⏻ "; color:#FF4D00; }
+.cf { background:#0A0F16; border-color:#2C405A; color:#DCE6F2;
+  background-image:linear-gradient(rgba(80,120,160,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(80,120,160,.07) 1px, transparent 1px);
+  background-size:24px 24px; }
+.cf .tag { color:#22D3EE; }
+.cf .vibe::before { content:"◆ "; color:#22D3EE; }
+
+.how { background:#13161B; border:1px solid #262B33; border-radius:14px; padding:24px 28px; margin-bottom:18px; }
+.how h2 { font-size:13px; font-weight:700; color:#fff; margin-bottom:12px; letter-spacing:.1em; font-family:"SF Mono",ui-monospace,monospace; }
+.how ol, .how ul { padding-left:20px; display:flex; flex-direction:column; gap:8px; font-size:13.5px; line-height:1.66; color:#ABB2BC; }
+.how b { color:#E3E8EE; }
+.foot { margin-top:26px; font-size:12px; color:#586068; line-height:1.8; }
+.foot code { background:#1A1E24; border-radius:5px; padding:1px 6px; font-size:11.5px; font-family:"SF Mono",ui-monospace,monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>v3 · DEV-GRADE STYLES</h1>
+  <p class="sub">
+    受眾重校：<b>喜歡科技與創作的開發者</b>——專業、有遊戲趣味、工業風、克制的賽博、處處系統感。<br>
+    同一頁 P2、同樣內容、同樣交互，三種世界觀。<b>深色為預設</b>，每款都附專屬淺色（不是反白，是同世界觀的日間版）。可單選可混搭。
+  </p>
+
+  <div class="grid">
+    <a class="card cd" href="style-d.html">
+      <div class="tag">STYLE D</div>
+      <h3>TERMINAL</h3>
+      <p>IDE／終端機美學：GitHub Dark 色系、檔案路徑頂欄、[x] 待辦、終端輸出模組卡、機械鍵帽直條、底部 status bar。</p>
+      <div class="vibe">專業度最高 · 開發者母語</div>
+    </a>
+    <a class="card ce" href="style-e.html">
+      <div class="tag">STYLE E</div>
+      <h3>工業硬體</h3>
+      <p>Teenage Engineering／Braun：霧面黑機殼＋奶油白印刷＋TE 橘、撥動開關待辦、螺絲＋LED 模組卡、實體鍵帽。</p>
+      <div class="vibe">遊戲趣味最重 · 一台筆記儀器</div>
+    </a>
+    <a class="card cf" href="style-f.html">
+      <div class="tag">STYLE F</div>
+      <h3>指揮艙 HUD</h3>
+      <p>克制賽博：深空網格底、青色遙測＋琥珀警示、角刻線框、斜切分段進度、側控台直條。淺色＝藍圖實驗室。</p>
+      <div class="vibe">系統感最強 · 艦橋而非霓虹街</div>
+    </a>
+  </div>
+
+  <div class="how">
+    <h2>// 怎麼比（每款 2 分鐘）</h2>
+    <ol>
+      <li>打開樣張 → 預設深色先看 → 右上切該款<b>專屬淺色</b>再看一次。</li>
+      <li>點手機右緣 <b>✦ 把手</b>看模組直條（D=鍵帽列／E=實體鍵帽側板／F=艦橋側控台）。</li>
+      <li>E 的<b>撥動開關</b>和 F 的<b>菱形核取</b>可以真的點，感受遊戲趣味。</li>
+      <li>盯四件事：<b>專業感、遊戲趣味、工業味、賽博的量</b>——哪款的配比最像你心裡那個 App。</li>
+    </ol>
+  </div>
+
+  <div class="how">
+    <h2>// 回饋格式（隨意講）</h2>
+    <ul>
+      <li>「就是 D」／「D 為主，模組卡換 F 的遙測面板」／「E 的鍵帽＋F 的配色」</li>
+      <li>英文標籤太多/太少、綠色換青色、網格太密、螺絲拿掉……任何細節都收。</li>
+    </ul>
+  </div>
+
+  <p class="foot">
+    選定後：<code>tokens.css</code> 改版成新配方 → 重做 P0~P3 全部五頁成<b>設計稿包 v2 正式版</b> → 驗收 → 工程骨架。<br>
+    互動架構（右緣直條、缺角簽名、觸點契約、SSE）三款<b>原封不動</b>。前一輪（紙感方向）已整批作廢移除。
+  </p>
+</div>
+</body>
+</html>

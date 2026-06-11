@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>樣張 F · 指揮艙 HUD — BrainStrom v3 探索</title>
+<style>
+/* ============ 舞台（不進 App） ============ */
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,"PingFang TC",sans-serif; background:#070B11; color:#C2CBD6; min-height:100vh; }
+.bar { display:flex; align-items:center; gap:18px; padding:14px 26px; border-bottom:1px solid #1A2330; position:sticky; top:0; background:#070B11EE; backdrop-filter:blur(10px); z-index:50; }
+.bar a { color:#7E8B9B; text-decoration:none; font-size:14px; }
+.bar h1 { font-size:16px; font-weight:700; color:#E4EBF3; font-family:"SF Mono",ui-monospace,Menlo,monospace; letter-spacing:.04em; }
+.bar h1 small { font-weight:400; color:#7E8B9B; margin-left:8px; font-size:12px; font-family:-apple-system,"PingFang TC",sans-serif; letter-spacing:0; }
+.toggles { margin-left:auto; display:flex; gap:8px; }
+.toggles button { font:inherit; font-size:13px; padding:7px 16px; border-radius:6px; border:1px solid #2A3A4D; background:transparent; color:#7E8B9B; cursor:pointer; }
+.toggles button.on { background:#0E7490; border-color:#22D3EE; color:#E8FCFF; font-weight:700; }
+main { display:flex; gap:48px; justify-content:center; align-items:flex-start; padding:48px 24px 90px; flex-wrap:wrap; }
+.notes { width:330px; font-size:13px; line-height:1.7; color:#A2ACB9; }
+.notes h2 { font-size:11.5px; letter-spacing:.2em; color:#22D3EE; margin:22px 0 8px; font-family:"SF Mono",ui-monospace,monospace; }
+.notes h2:first-child { margin-top:0; }
+.notes b { color:#E4EBF3; }
+.notes li { margin:0 0 7px 18px; }
+.notes code { background:#13202E; border-radius:5px; padding:1px 6px; font-size:12px; font-family:"SF Mono",ui-monospace,monospace; }
+
+/* ============ 手機殼 ============ */
+.phone {
+  /* —— 樣張 F 配方（克制賽博：艦橋遙測語言）—— */
+  --bg:#0A0F16;             /* 深藍黑太空 */
+  --bg2:#0F1722;            /* 面板 */
+  --grid:rgba(80,120,160,.07);
+  --line:#1E2C3D;
+  --line2:#2C405A;
+  --fg:#DCE6F2;
+  --fg2:#7E8B9B;
+  --fg3:#46556A;
+  --cyan:#22D3EE;           /* 主遙測色 */
+  --cyan-dim:rgba(34,211,238,.10);
+  --cyan-glow:rgba(34,211,238,.45);
+  --amber:#F5A623;          /* 警示琥珀 */
+  --green:#34D399;
+  --mono:"SF Mono",ui-monospace,Menlo,monospace;
+
+  width:390px; height:780px; border-radius:54px; position:relative; overflow:hidden;
+  background:var(--bg); color:var(--fg);
+  border:10px solid #02050A; box-shadow:0 28px 70px rgba(0,0,0,.75);
+  transition:background .3s,color .3s;
+}
+.phone.day {
+  /* 淺色＝藍圖實驗室：製圖紙＋青墨 */
+  --bg:#EEF2F5; --bg2:#F7F9FB;
+  --grid:rgba(60,110,160,.10);
+  --line:#CDD8E2; --line2:#A9BCCC;
+  --fg:#16222E; --fg2:#5B6B7B; --fg3:#93A4B4;
+  --cyan:#0E7490; --cyan-dim:rgba(14,116,144,.08); --cyan-glow:rgba(14,116,144,.3);
+  --amber:#B45309; --green:#047857;
+}
+/* 細網格底（製圖/雷達座標） */
+.phone::before {
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:1;
+  background-image:linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:26px 26px;
+}
+.inner { position:absolute; inset:0; z-index:2; display:flex; flex-direction:column; }
+
+.status { height:50px; display:flex; align-items:center; justify-content:space-between; padding:14px 30px 0; font-size:14px; font-weight:600; }
+.status .r { display:flex; gap:6px; font-size:12px; }
+
+/* 頂欄：遙測抬頭——左右角刻線＋系統代號 */
+.topbar { height:52px; display:flex; align-items:center; padding:0 18px; gap:10px; position:relative; }
+.topbar::before, .topbar::after {
+  content:""; position:absolute; bottom:0; width:30%; height:1px; background:linear-gradient(90deg, var(--cyan), transparent);
+  opacity:.6;
+}
+.topbar::before { left:18px; }
+.topbar::after { right:18px; transform:scaleX(-1); }
+.tb-back { font-size:20px; color:var(--fg2); width:30px; }
+.tb-mid { flex:1; text-align:center; }
+.tb-mid .sys { font-family:var(--mono); font-size:8.5px; letter-spacing:.3em; color:var(--cyan); display:block; margin-bottom:1px; }
+.tb-mid .name { font-size:14.5px; font-weight:700; }
+.tb-sig { width:30px; display:flex; justify-content:flex-end; }
+.tb-sig i { width:8px; height:8px; border:1.2px solid var(--cyan); border-radius:50%; position:relative; animation:radar 3s linear infinite; }
+.tb-sig i::after { content:""; position:absolute; inset:1.5px; border-radius:50%; background:var(--cyan); opacity:.7; }
+@keyframes radar { 0%,100%{box-shadow:0 0 0 0 var(--cyan-glow)} 50%{box-shadow:0 0 0 5px transparent} }
+
+/* ============ 內文 ============ */
+.content { flex:1; overflow:hidden; padding:18px 22px 0; position:relative; }
+.h1blk { font-size:28px; font-weight:800; line-height:1.3; margin-bottom:6px; }
+/* 遙測讀數列 */
+.meta { display:flex; gap:14px; font-family:var(--mono); font-size:10px; color:var(--fg2); letter-spacing:.08em; margin-bottom:20px; }
+.meta b { color:var(--cyan); font-weight:600; }
+.meta .div { color:var(--fg3); }
+
+.p { font-size:17px; line-height:1.78; margin-bottom:14px; }
+.p.dim { color:var(--fg2); }
+
+/* 釘選塊：角刻線框（HUD bracket）＋ ◆ 標 */
+.pinned { position:relative; margin:4px 0 18px; padding:13px 15px; background:var(--cyan-dim); font-size:16px; line-height:1.7; border-radius:6px; }
+.pinned::before, .pinned::after { content:""; position:absolute; width:13px; height:13px; border:1.5px solid var(--cyan); }
+.pinned::before { top:0; left:0; border-right:none; border-bottom:none; }
+.pinned::after { bottom:0; right:0; border-left:none; border-top:none; }
+.pinned .pin { display:block; font-family:var(--mono); font-size:9.5px; letter-spacing:.24em; color:var(--cyan); margin-bottom:5px; }
+.pinned .pin::before { content:"◆ "; font-size:8px; }
+
+/* 待辦：六角/菱形核取——任務清單感 */
+.todo { display:flex; gap:12px; align-items:flex-start; font-size:16.5px; line-height:1.65; margin-bottom:10px; }
+.todo .box { width:17px; height:17px; flex:none; margin-top:4px; border:1.4px solid var(--fg3); transform:rotate(45deg); border-radius:3px; position:relative; }
+.todo.done .box { border-color:var(--green); background:rgba(52,211,153,.12); }
+.todo.done .box::after { content:""; position:absolute; inset:3.5px; background:var(--green); border-radius:1.5px; box-shadow:0 0 6px rgba(52,211,153,.6); }
+.todo.done span { color:var(--fg2); text-decoration:line-through; text-decoration-color:var(--fg3); }
+
+/* ★ 內嵌模組卡 = 遙測面板：掃描角框＋分段進度＋數據讀出 */
+.modcard {
+  margin:8px 0 20px; background:var(--bg2); border:1px solid var(--line2); border-radius:8px;
+  clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  position:relative; overflow:hidden;
+  box-shadow:0 0 0 1px rgba(34,211,238,.06), 0 6px 22px rgba(2,8,16,.4), inset 0 0 30px rgba(34,211,238,.03);
+}
+.phone.day .modcard { box-shadow:0 4px 16px rgba(20,40,60,.10); }
+.modcard .mhead { display:flex; align-items:center; gap:9px; padding:10px 14px; border-bottom:1px solid var(--line); font-family:var(--mono); }
+.modcard .mhead .mid { font-size:8.5px; letter-spacing:.26em; color:var(--fg3); }
+.modcard .mhead .mname { font-size:11.5px; letter-spacing:.14em; color:var(--cyan); font-weight:700; }
+.modcard .mhead .live { margin-left:auto; font-size:9px; letter-spacing:.16em; color:var(--green); display:flex; align-items:center; gap:5px; }
+.modcard .mhead .live::before { content:""; width:5px; height:5px; border-radius:50%; background:var(--green); animation:pulse 2.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.mrow { display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid var(--line); }
+.mrow:last-child { border-bottom:none; }
+.mrow .rname { font-size:13px; width:90px; flex:none; }
+.mrow .seg { display:flex; gap:2.5px; flex:1; height:10px; }
+.mrow .seg i { flex:1; background:var(--line); transform:skewX(-18deg); border-radius:1px; }
+.mrow .seg i.on { background:var(--cyan); box-shadow:0 0 6px var(--cyan-glow); }
+.mrow .seg i.on.warn { background:var(--amber); box-shadow:0 0 6px rgba(245,166,35,.4); }
+.mrow .rnum { font-family:var(--mono); font-size:10px; color:var(--fg2); width:60px; text-align:right; flex:none; font-variant-numeric:tabular-nums; }
+.mrow .rnum b { color:var(--fg); font-weight:600; }
+
+.cont { font-size:15px; color:var(--fg2); opacity:.75; padding:0 0 8px; }
+.cont .caret { display:inline-block; width:2px; height:17px; background:var(--cyan); vertical-align:-3px; margin-left:3px; animation:caret 1.1s steps(1) infinite; box-shadow:0 0 5px var(--cyan-glow); }
+@keyframes caret { 50%{opacity:0} }
+
+/* 底部遙測行 */
+.foot { height:32px; display:flex; align-items:center; justify-content:center; gap:16px; font-family:var(--mono); font-size:8.5px; letter-spacing:.22em; color:var(--fg3); }
+.foot b { color:var(--cyan); font-weight:600; }
+.home { height:18px; display:flex; align-items:center; justify-content:center; }
+.home i { width:120px; height:4px; border-radius:4px; background:var(--fg3); opacity:.6; }
+
+/* ============ 模組直條：艦橋側控台 ============ */
+.handle {
+  position:absolute; right:0; top:44%; width:24px; height:96px; z-index:6; cursor:pointer;
+  background:var(--bg2); border:1px solid var(--line2); border-right:none;
+  clip-path:polygon(0 10px, 10px 0, 100% 0, 100% 100%, 10px 100%, 0 calc(100% - 10px)); /* 斜切把手 */
+  display:flex; align-items:center; justify-content:center;
+  color:var(--cyan); font-size:12px;
+}
+.handle i { font-style:normal; animation:hglow 4s ease-in-out infinite; }
+@keyframes hglow { 0%,100%{text-shadow:0 0 3px var(--cyan-glow)} 50%{text-shadow:0 0 12px var(--cyan)} }
+.handle::before { content:""; position:absolute; left:4px; top:18px; bottom:18px; width:1px; background:linear-gradient(180deg, transparent, var(--cyan), transparent); opacity:.5; }
+.scrim { position:absolute; inset:0; z-index:7; background:rgba(2,8,16,.5); backdrop-filter:blur(9px); opacity:0; pointer-events:none; transition:opacity .25s; }
+.rail {
+  position:absolute; right:0; top:0; bottom:0; width:76px; z-index:8;
+  background:var(--bg2); border-left:1px solid var(--line2);
+  clip-path:polygon(0 16px, 16px 0, 100% 0, 100% 100%, 0 100%);
+  display:flex; flex-direction:column; align-items:center; padding:60px 0 24px; gap:8px;
+  transform:translateX(110%); transition:transform .42s cubic-bezier(.30,1.22,.42,1);
+  box-shadow:-14px 0 40px rgba(2,8,16,.6), -1px 0 0 var(--cyan-glow);
+}
+.phone.rail-open .scrim { opacity:1; pointer-events:auto; }
+.phone.rail-open .rail { transform:translateX(0); }
+/* 控台鍵：斜切角按鈕＋通電描邊 */
+.rb {
+  width:54px; height:52px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  color:var(--fg); font-size:17px; cursor:pointer; position:relative;
+  background:var(--bg); border:1px solid var(--line2);
+  clip-path:polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%);
+}
+.rb small { font-family:var(--mono); font-size:7.5px; letter-spacing:.12em; color:var(--fg2); }
+.rb.ai { border-color:var(--cyan); color:var(--cyan); background:var(--cyan-dim); box-shadow:inset 0 0 12px rgba(34,211,238,.10), 0 0 8px rgba(34,211,238,.12); }
+.rb.ai small { color:var(--cyan); }
+.rb:active { background:var(--cyan-dim); }
+.rsep { width:36px; display:flex; align-items:center; gap:5px; margin:5px 0; }
+.rsep i { flex:1; height:1px; background:var(--line2); }
+.rsep b { width:4px; height:4px; background:var(--cyan); transform:rotate(45deg); opacity:.7; }
+.rb .lock { position:absolute; top:3px; right:5px; font-family:var(--mono); font-size:6.5px; color:var(--amber); letter-spacing:.06em; }
+.rb.close { margin-top:auto; height:36px; border:none; background:transparent; font-size:13px; color:var(--fg2); clip-path:none; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a href="index.html">‹ 返回比較</a>
+  <h1>F · 指揮艙 HUD<small>克制賽博——艦橋遙測，不是霓虹街</small></h1>
+  <div class="toggles">
+    <button id="t-night" class="on">深空（預設）</button>
+    <button id="t-day">藍圖實驗室</button>
+  </div>
+</header>
+
+<main>
+<div class="phone" id="phone">
+  <div class="inner">
+    <div class="status"><span>9:41</span><span class="r">●●● ⌁ ▮</span></div>
+    <div class="topbar">
+      <div class="tb-back">‹</div>
+      <div class="tb-mid">
+        <span class="sys">SYS / NOTE.012</span>
+        <span class="name">期末報告構想</span>
+      </div>
+      <div class="tb-sig"><i></i></div>
+    </div>
+    <div class="content">
+      <div class="h1blk">期末報告構想</div>
+      <div class="meta"><span>REV <b>12</b></span><span class="div">|</span><span>CHARS <b>1,248</b></span><span class="div">|</span><span>SYNC <b>OK</b></span><span class="div">|</span><span>AI <b>RDY</b></span></div>
+
+      <p class="p">這學期想做「城市裡的微氣候」。先從通學路線的溫差開始記錄，捷運站出口、騎樓下、公園樹蔭，每天同一時間量三次。</p>
+
+      <div class="pinned">
+        <span class="pin">PINNED — IMMUTABLE</span>
+        核心問題：為什麼同一條街，早上跟下午的體感差這麼多？資料要能回答這一句。
+      </div>
+
+      <div class="todo done"><div class="box"></div><span>借紅外線溫度計（已跟實驗室登記）</span></div>
+      <div class="todo"><div class="box"></div><span>畫出三條觀測路線的地圖</span></div>
+      <div class="todo"><div class="box"></div><span>找去年學長的報告當對照</span></div>
+
+      <div class="modcard">
+        <div class="mhead"><span class="mid">MOD-01</span><span class="mname">觀測進度</span><span class="live">LIVE</span></div>
+        <div class="mrow"><span class="rname">捷運—學校</span><span class="seg"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i></span><span class="rnum"><b>18</b>/30</span></div>
+        <div class="mrow"><span class="rname">河堤—公園</span><span class="seg"><i class="on warn"></i><i class="on warn"></i><i class="on warn"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="rnum"><b>9</b>/30</span></div>
+        <div class="mrow"><span class="rname">商圈騎樓</span><span class="seg"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="rnum"><b>0</b>/30</span></div>
+      </div>
+
+      <p class="p dim">下一段想寫：如果溫差跟綠覆率有關，那校門口那排被砍掉的樟樹</p>
+      <div class="cont">繼續寫，或叫 AI 幫你接<span class="caret"></span></div>
+    </div>
+
+    <div class="foot"><span>LINK <b>SECURE</b></span><span>LAT <b>0.4s</b></span><span>NOTE OS <b>1.0</b></span></div>
+    <div class="home"><i></i></div>
+
+    <div class="handle" id="handle"><i>✦</i></div>
+    <div class="scrim" id="scrim"></div>
+    <aside class="rail">
+      <div class="rb ai">✦<small>OPTIMIZE</small></div>
+      <div class="rb ai">▦<small>CARDS</small></div>
+      <div class="rsep"><i></i><b></b><i></i></div>
+      <div class="rb">⊞<small>TABLE</small></div>
+      <div class="rb">◷<small>PROG</small></div>
+      <div class="rb">⌥<small>GITHUB</small><span class="lock">PRO</span></div>
+      <div class="rb close">✕</div>
+    </aside>
+  </div>
+</div>
+
+<aside class="notes">
+  <h2>// 配方 F：指揮艙 HUD</h2>
+  <li><b>世界觀</b>：你的筆記系統是一座<b>艦橋</b>。深藍黑 #0A0F16＋細網格座標底＋青色遙測 #22D3EE＋琥珀警示——賽博的克制版：只發必要的光。</li>
+  <li><b>系統感</b>：頂欄 <code>SYS/NOTE.012</code>＋雷達訊號燈；標題下一排<b>遙測讀數</b>（REV/CHARS/SYNC/AI）；底部 LINK/LAT 狀態行——數據無處不在但都很小聲。</li>
+  <li><b>遊戲趣味</b>：◆ 菱形任務核取（完成發綠光）、<b>斜切分段進度條</b>（skew -18°，戰艦量表）、角刻線釘選框（IMMUTABLE）。</li>
+  <li><b>科技模組</b>：模組卡=遙測面板（MOD-01 編號＋LIVE 呼吸）；直條=<b>側控台</b>（斜切角按鈕＋通電青光描邊，把手是斜切艙門）。</li>
+  <li><b>缺角簽名</b>：在這款被放大成整個語言——所有按鈕都帶 45° 切角。</li>
+  <h2>// 藍圖實驗室（按右上切換）</h2>
+  <li>淺色不是反白，是<b>製圖紙＋青墨</b>：藍圖網格、青色降到 #0E7490——白天的工程實驗室。</li>
+  <h2>// 評分時看什麼</h2>
+  <li>賽博的「量」對不對（會不會還是太遊戲）？英文遙測標籤的密度？網格底會不會干擾閱讀？</li>
+</aside>
+</main>
+
+<script>
+const phone=document.getElementById('phone');
+document.getElementById('handle').onclick=()=>phone.classList.add('rail-open');
+document.getElementById('scrim').onclick=()=>phone.classList.remove('rail-open');
+document.querySelector('.rb.close').onclick=()=>phone.classList.remove('rail-open');
+const tn=document.getElementById('t-night'),td=document.getElementById('t-day');
+tn.onclick=()=>{phone.classList.remove('day');tn.classList.add('on');td.classList.remove('on');};
+td.onclick=()=>{phone.classList.add('day');td.classList.add('on');tn.classList.remove('on');};
+document.querySelectorAll('.todo .box').forEach(b=>b.onclick=()=>b.parentElement.classList.toggle('done'));
+</script>
+</body>
+</html>

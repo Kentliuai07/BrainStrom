@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P1 首頁 — BrainStrom 設計稿 v2</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* ============ P1 版面 ============ */
+.stage { flex:1; display:flex; flex-direction:column; padding:0 var(--page-x); overflow:hidden; position:relative; }
+
+/* 問候頂區 */
+.hello { margin-top:10px; }
+.hello .op { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.3em; color:var(--print3); display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+.hello .op .led { width:6px; height:6px; }
+.hello h1 { font-size:30px; font-weight:800; letter-spacing:.01em; }
+.hello .sub { font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; color:var(--print2); margin-top:5px; }
+.hello .sub b { color:var(--orange); font-weight:600; }
+
+/* AI 搜索槽：凹槽＋橘鍵 */
+.search { display:flex; gap:9px; margin:18px 0 22px; }
+.search .slot { flex:1; height:46px; display:flex; align-items:center; gap:9px; padding:0 14px; color:var(--print3); font-size:14.5px; }
+.search .slot .mic { margin-left:auto; font-size:15px; color:var(--print3); }
+.search .key { width:46px; height:46px; font-size:17px; }
+
+/* 系統卡列表 */
+.sect.syss { margin-bottom:12px; }
+.cards { display:flex; flex-direction:column; gap:12px; }
+.syscard { padding:15px 16px 13px; }
+.syscard .mhead .mname { font-size:15.5px; letter-spacing:.04em; }
+.syscard .crow { display:flex; align-items:center; gap:14px; margin-top:9px; font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; color:var(--print2); }
+.syscard .crow b { color:var(--print); font-weight:600; }
+.syscard .crow .upd { margin-left:auto; color:var(--print3); }
+
+/* 左滑刪除（swipe 態） */
+.swipewrap { position:relative; }
+.swipewrap .under {
+  position:absolute; inset:0; border-radius:var(--r-card); overflow:hidden;
+  background:var(--panel); border:1px solid var(--led-r); display:flex; align-items:center; justify-content:flex-end;
+}
+.swipewrap .under::before { content:""; position:absolute; left:0; top:0; bottom:0; width:9px; background:repeating-linear-gradient(45deg, var(--led-r) 0 5px, transparent 5px 10px); opacity:.85; }
+.swipewrap .under .del { width:84px; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--led-r); font-size:18px; }
+.swipewrap .under .del small { font-family:var(--font-mono); font-size:8px; letter-spacing:.2em; }
+.swipewrap .syscard { position:relative; transition:transform .2s; }
+.st-swipe .swipewrap.demo .syscard { transform:translateX(-96px); }
+
+/* FAB：橘色大鍵帽 */
+.fab { position:absolute; right:18px; bottom:24px; z-index:5; }
+.fab .key { width:58px; height:58px; border-radius:16px; font-size:24px; font-weight:300; }
+
+/* ---- 空狀態（empty 態）---- */
+.emptybox { display:none; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding-bottom:60px; }
+.st-empty .emptybox { display:flex; }
+.st-empty .cards, .st-empty .sect.syss { display:none; }
+.emptybox .slotart { width:150px; height:96px; border:1.5px dashed var(--line-strong); border-radius:var(--r-card); clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:var(--print3); }
+.emptybox .slotart span { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.26em; }
+.emptybox p { font-size:14px; color:var(--print2); text-align:center; line-height:1.7; }
+.emptybox .key { width:170px; height:46px; flex-direction:row; gap:8px; font-size:14.5px; font-weight:600; }
+
+/* ---- 載入（loading 態）：LED 自檢列 ---- */
+.loadbox { display:none; flex-direction:column; gap:12px; }
+.st-loading .loadbox { display:flex; }
+.st-loading .cards { display:none; }
+.skel { height:76px; border-radius:var(--r-card); background:var(--panel); border:1px solid var(--line); position:relative; overflow:hidden; clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%); }
+.skel::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(232,228,216,.05), transparent); animation:shimmer 1.4s linear infinite; }
+.phone.day .skel::after { background:linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent); }
+@keyframes shimmer { from{transform:translateX(-100%)} to{transform:translateX(100%)} }
+
+/* ---- 錯誤（error 態）---- */
+.errbox { display:none; flex-direction:column; align-items:center; gap:12px; padding:34px 0; }
+.st-error .errbox { display:flex; }
+.st-error .cards { display:none; }
+.errbox .et { font-family:var(--font-mono); font-size:9px; letter-spacing:.26em; color:var(--led-r); }
+.errbox p { font-size:14px; color:var(--print2); text-align:center; line-height:1.7; }
+.errbox .key { width:128px; height:42px; font-size:14px; flex-direction:row; }
+
+/* ---- 全屏搜索態 ---- */
+.searchlayer { display:none; position:absolute; inset:0; z-index:10; background:var(--bg); flex-direction:column; padding:60px var(--page-x) 0; }
+.st-search .searchlayer { display:flex; }
+.searchlayer .sl-top { display:flex; gap:9px; align-items:center; margin-bottom:18px; }
+.searchlayer .slot { flex:1; height:46px; display:flex; align-items:center; gap:9px; padding:0 14px; font-size:14.5px; color:var(--print); border-color:var(--orange); }
+.searchlayer .slot .q { color:var(--print); }
+.searchlayer .cancel { font-size:14px; color:var(--orange); flex:none; cursor:pointer; }
+/* AI 即答面板 */
+.aians { padding:14px 16px; margin-bottom:16px; }
+.aians .mhead { margin-bottom:9px; }
+.aians .mhead .mname { color:var(--orange); }
+.aians p { font-size:14.5px; line-height:1.75; }
+.aians p mark { background:var(--orange-dim); color:var(--orange); padding:0 3px; border-radius:3px; }
+.aians .src { display:flex; gap:8px; margin-top:11px; }
+.aians .src span { font-family:var(--font-mono); font-size:9px; letter-spacing:.1em; color:var(--print2); border:1px solid var(--line-strong); border-radius:5px; padding:3px 8px; }
+/* 命中清單 */
+.hits { display:flex; flex-direction:column; gap:9px; }
+.hit { padding:11px 14px; display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:10px; }
+.hit .hN { font-size:14px; font-weight:600; flex:1; }
+.hit .hM { font-family:var(--font-mono); font-size:9px; color:var(--print3); letter-spacing:.1em; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a href="index.html">‹ 總覽</a>
+  <h1>P1 · 首頁 我的系統<small>儀器機架——每個系統是一塊模組</small></h1>
+  <div class="toggles">
+    <span class="lab">THEME</span>
+    <button data-theme="night" class="on">霧面黑</button>
+    <button data-theme="day">暖灰機殼</button>
+    <span class="lab">STATE</span>
+    <button data-state="normal">正常</button>
+    <button data-state="search">AI 搜索</button>
+    <button data-state="swipe">左滑刪除</button>
+    <button data-state="loading">載入</button>
+    <button data-state="empty">空</button>
+    <button data-state="error">錯誤</button>
+  </div>
+</header>
+
+<main>
+<div class="phone" id="phone">
+  <div class="inner">
+    <div class="statusrow"><span>9:41</span><span class="r">●●● ⌁ ▮</span></div>
+
+    <div class="stage">
+      <div class="hello rise d1">
+        <div class="op"><i class="led g pulse"></i>OPERATOR · ONLINE</div>
+        <h1>早安，Kent</h1>
+        <div class="sub">6 月 11 日 週四 · 系統 <b>3</b> · 卡片 <b>47</b></div>
+      </div>
+
+      <div class="search rise d2">
+        <div class="slot">搜尋，或直接問 AI…<span class="mic">⌖</span></div>
+        <div class="key orange">✦<small>ASK</small></div>
+      </div>
+
+      <div class="sect syss rise d3">SYSTEMS · 3</div>
+
+      <div class="cards">
+        <div class="swipewrap demo rise d4">
+          <div class="under"><div class="del">⌦<small>DELETE</small></div></div>
+          <div class="hcard syscard">
+            <div class="mhead"><span class="mid">SYS-01</span><span class="mname">期末報告</span><span class="mled"><i class="led g pulse"></i></span></div>
+            <div class="crow"><span>筆記 <b>6</b></span><span>卡片 <b>21</b></span><span class="upd">14:32</span></div>
+          </div>
+        </div>
+        <div class="swipewrap rise d5">
+          <div class="under"><div class="del">⌦<small>DELETE</small></div></div>
+          <div class="hcard syscard">
+            <div class="mhead"><span class="mid">SYS-02</span><span class="mname">SwiftUI 學習</span><span class="mled"><i class="led a"></i></span></div>
+            <div class="crow"><span>筆記 <b>11</b></span><span>卡片 <b>18</b></span><span class="upd">昨天</span></div>
+          </div>
+        </div>
+        <div class="swipewrap rise d6">
+          <div class="under"><div class="del">⌦<small>DELETE</small></div></div>
+          <div class="hcard syscard">
+            <div class="mhead"><span class="mid">SYS-03</span><span class="mname">健身紀錄</span><span class="mled"><i class="led off"></i></span></div>
+            <div class="crow"><span>筆記 <b>3</b></span><span>卡片 <b>8</b></span><span class="upd">上週</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 空狀態 -->
+      <div class="emptybox">
+        <div class="slotart">▦<span>EMPTY SLOT</span></div>
+        <p>還沒有任何系統。<br>建一個，把腦中的風暴裝進去。</p>
+        <div class="key orange">✚ 新增系統</div>
+      </div>
+
+      <!-- 載入 -->
+      <div class="loadbox"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+
+      <!-- 錯誤 -->
+      <div class="errbox">
+        <span class="et">ERR · LOAD FAILED</span>
+        <p>資料讀取出了點問題。<br>你的筆記都還在本機，放心。</p>
+        <div class="key">↻ 重試</div>
+      </div>
+
+      <div class="fab"><div class="key orange">✚</div></div>
+    </div>
+
+    <div class="printfoot" style="padding-bottom:8px">BRAINSTROM <i></i> NOTE OS 1.0</div>
+    <div class="home"><i></i></div>
+
+    <!-- 全屏搜索態 -->
+    <div class="searchlayer">
+      <div class="sl-top">
+        <div class="slot"><span style="color:var(--orange)">✦</span><span class="q">上次量溫度的結論是什麼</span><span class="caret"></span></div>
+        <span class="cancel">取消</span>
+      </div>
+      <div class="hcard aians">
+        <div class="mhead"><span class="mid">AI</span><span class="mname">即答</span><span class="mled"><i class="led o pulse"></i></span></div>
+        <p>你在 6/9 的觀測裡記到：騎樓下比路面<mark>平均低 3.2°C</mark>，下午差距最大。結論寫在「期末報告構想」的釘選塊下方。</p>
+        <div class="src"><span>期末報告構想</span><span>觀測日誌 #4</span></div>
+      </div>
+      <div class="sect" style="margin-bottom:10px">MATCHES · 4</div>
+      <div class="hits">
+        <div class="hit"><i class="led g"></i><span class="hN">期末報告構想</span><span class="hM">SYS-01</span></div>
+        <div class="hit"><i class="led g"></i><span class="hN">觀測日誌 #4</span><span class="hM">SYS-01</span></div>
+        <div class="hit"><i class="led off"></i><span class="hN">溫度計借用須知</span><span class="hM">SYS-01</span></div>
+        <div class="hit"><i class="led off"></i><span class="hN">SwiftUI 圖表筆記</span><span class="hM">SYS-02</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<aside class="notes">
+  <h2>// 佈局</h2>
+  <li>問候頂區：<code>OPERATOR · ONLINE</code> 運行燈 ＋ 大字問候 ＋ 一行系統遙測（日期/系統數/卡片數）。</li>
+  <li>AI 搜索 = <b>凹槽 ＋ 橘色 ✦ ASK 鍵帽</b>：輸入是「插槽」、AI 是「按鍵」，硬體隱喻一致。</li>
+  <li>系統卡 = 機架上的模組：<code>SYS-01</code> 編號銘板 ＋ 名稱 ＋ 活躍 LED（綠=今天動過/琥珀=本週/滅=更久）＋ mono 計數行。</li>
+  <li>FAB = 58pt 橘色大鍵帽（<span class="hp">haptic .impact(.medium)</span>）。</li>
+  <h2>// 狀態</h2>
+  <li><b>AI 搜索</b>：點槽或 ✦ → 全屏層（<span class="tm">0.25s</span>）；AI 即答卡（橘 LED 串流中）＋ MATCHES 命中清單。<span class="tp">ai.search</span>（SSE：delta/hit_list/done）。</li>
+  <li><b>左滑刪除</b>：卡片左滑 96pt 露出紅斜紋刪除區（<span class="hp">haptic .impact(.light)</span>；確認 alert 再刪，<span class="tp">system.delete</span>）。</li>
+  <li><b>載入</b>=骨架 shimmer；<b>空</b>=EMPTY SLOT 虛線槽位＋CTA；<b>錯誤</b>=ERR 印刷＋重試鍵＋安撫句。</li>
+  <h2>// 進場</h2>
+  <li><span class="tm">stagger 40ms</span> 由上而下 rise（問候→搜索→卡片）。</li>
+  <h2>// 無障礙</h2>
+  <li>系統卡 VoiceOver=「期末報告，6 筆記 21 卡片，今天 14:32 更新」；LED 純裝飾 hidden。</li>
+</aside>
+</main>
+<script src="shared.js"></script>
+</body>
+</html>

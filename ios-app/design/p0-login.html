@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P0 登入 — BrainStrom 設計稿 v2</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* ============ P0 版面 ============ */
+.stage { flex:1; display:flex; flex-direction:column; padding:0 28px; }
+
+/* 通電 LED（右上） */
+.pwr { position:absolute; top:64px; right:30px; display:flex; align-items:center; gap:6px; z-index:3; }
+.pwr span { font-family:var(--font-mono); font-size:7.5px; letter-spacing:.26em; color:var(--print3); }
+
+/* 品牌銘板 */
+.brand { margin-top:148px; }
+.brand .mk { font-family:var(--font-mono); font-size:9px; letter-spacing:.34em; color:var(--print3); margin-bottom:14px; display:flex; align-items:center; gap:10px; }
+.brand .mk::after { content:""; width:46px; height:1px; background:var(--line-strong); }
+.brand h1 {
+  font-family:var(--font-display); font-size:44px; font-weight:700; letter-spacing:.06em;
+  line-height:1; color:var(--print); display:flex; align-items:flex-start; gap:6px;
+}
+.brand h1 .dot { width:12px; height:12px; margin-top:4px; background:var(--orange); clip-path:polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 0 100%); }
+.brand .tag { font-size:15px; color:var(--print2); margin-top:14px; line-height:1.7; }
+.brand .spec { margin-top:22px; display:flex; flex-direction:column; gap:6px; font-family:var(--font-mono); font-size:9px; letter-spacing:.2em; color:var(--print3); }
+.brand .spec b { color:var(--print2); font-weight:500; }
+
+/* 登入鍵：54pt 黑鍵帽 */
+.signin { margin-top:auto; margin-bottom:18px; }
+.signin .key { width:100%; height:54px; flex-direction:row; gap:9px; font-size:16.5px; font-weight:600; border-radius:12px; }
+.phone .signin .key { background:#000; border-color:#000; color:#fff; box-shadow:0 var(--key-travel) 0 0 #2A2A27, inset 0 1px 0 rgba(255,255,255,.12); }
+.phone.day .signin .key { background:#111; border-color:#111; box-shadow:0 var(--key-travel) 0 0 #6E6C63, inset 0 1px 0 rgba(255,255,255,.12); }
+.signin .key:active { box-shadow:0 .5px 0 0 #000 !important; }
+.signin .hint { text-align:center; font-size:11.5px; color:var(--print3); margin-top:12px; line-height:1.6; }
+
+/* 行內錯誤銘板（error 態） */
+.errplate {
+  display:none; margin-bottom:14px; position:relative; overflow:hidden;
+  background:var(--panel); border:1px solid var(--line-strong); border-radius:10px;
+  padding:11px 14px 11px 22px; font-size:13.5px; line-height:1.6; color:var(--print);
+}
+.errplate::before { content:""; position:absolute; left:0; top:0; bottom:0; width:9px; }
+.errplate .et { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.24em; color:var(--led-r); display:block; margin-bottom:3px; }
+.errplate em { font-style:normal; color:var(--print2); font-size:12px; display:block; margin-top:3px; }
+.st-error .errplate { display:block; }
+.errplate::before { background:repeating-linear-gradient(45deg, var(--led-r) 0 5px, transparent 5px 10px); opacity:.85; }
+
+/* 開機自檢（checking 態）：全屏覆蓋 */
+.boot {
+  display:none; position:absolute; inset:0; z-index:10; background:var(--bg);
+  flex-direction:column; justify-content:center; padding:0 34px;
+}
+.st-checking .boot { display:flex; }
+.boot .bmk { font-family:var(--font-display); font-size:30px; font-weight:700; letter-spacing:.08em; color:var(--print); display:flex; gap:5px; }
+.boot .bmk .dot { width:9px; height:9px; margin-top:3px; background:var(--orange); clip-path:polygon(0 0, calc(100% - 3px) 0, 100% 3px, 100% 100%, 0 100%); }
+.boot .lines { margin-top:26px; font-family:var(--font-mono); font-size:10.5px; line-height:2.1; color:var(--print2); letter-spacing:.06em; }
+.boot .lines .ok { color:var(--led-g); }
+.boot .lines .run { color:var(--led-a); }
+.boot .lines div { opacity:0; animation:rise .3s ease-out forwards; }
+.boot .lines div:nth-child(1){animation-delay:.1s} .boot .lines div:nth-child(2){animation-delay:.5s}
+.boot .lines div:nth-child(3){animation-delay:.9s} .boot .lines div:nth-child(4){animation-delay:1.3s}
+.boot .blink { animation:caret 1s steps(1) infinite; }
+
+.p0foot { padding:0 0 8px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a href="index.html">‹ 總覽</a>
+  <h1>P0 · 登入<small>品牌銘板＋Apple 登入鍵帽＋通電自檢</small></h1>
+  <div class="toggles">
+    <span class="lab">THEME</span>
+    <button data-theme="night" class="on">霧面黑</button>
+    <button data-theme="day">暖灰機殼</button>
+    <span class="lab">STATE</span>
+    <button data-state="normal">正常</button>
+    <button data-state="checking">啟動自檢</button>
+    <button data-state="error">登入失敗</button>
+  </div>
+</header>
+
+<main>
+<div class="phone" id="phone">
+  <div class="inner">
+    <div class="statusrow"><span>9:41</span><span class="r">●●● ⌁ ▮</span></div>
+    <div class="pwr"><i class="led g pulse"></i><span>PWR</span></div>
+
+    <div class="stage">
+      <div class="brand">
+        <div class="mk rise d1">BRAINSTROM INSTRUMENTS</div>
+        <h1 class="rise d2">BrainStrom<span class="dot"></span></h1>
+        <p class="tag rise d3">把腦中的風暴，<br>變成一座你自己的系統。</p>
+        <div class="spec rise d4">
+          <span>MODEL <b>NOTE OS 1.0</b></span>
+          <span>FOR <b>BUILDERS &amp; CREATORS</b></span>
+        </div>
+      </div>
+
+      <div class="signin rise d5">
+        <div class="errplate">
+          <span class="et">ERR · SIGN-IN FAILED</span>
+          登入沒有完成，請再試一次。
+          <em>你的筆記都還在，放心。</em>
+        </div>
+        <div class="key"> 使用 Apple 登入</div>
+        <p class="hint">只用來識別你的帳號。<br>筆記內容永遠存在你自己的裝置與 iCloud。</p>
+      </div>
+    </div>
+
+    <div class="printfoot p0foot">BRAINSTROM <i></i> MADE FOR BUILDERS <i></i> V1.0</div>
+    <div class="home"><i></i></div>
+
+    <!-- 啟動自檢覆蓋層 -->
+    <div class="boot">
+      <div class="bmk">BrainStrom<span class="dot"></span></div>
+      <div class="lines">
+        <div><span class="ok">[ OK ]</span> 本機資料庫</div>
+        <div><span class="ok">[ OK ]</span> 登入憑證</div>
+        <div><span class="ok">[ OK ]</span> AI 連線 · brainstrom-ai</div>
+        <div><span class="run">[ .. ]</span> 載入你的系統<span class="blink">▌</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<aside class="notes">
+  <h2>// 佈局</h2>
+  <li>品牌銘板：模板印刷廠標 → display 字體大字標（<b>Avenir Next Condensed</b>，iOS 內建零依賴）＋ 缺角橘點 → 標語 → 規格印刷兩行。</li>
+  <li>登入鍵 = <b>54pt 黑鍵帽</b>（Apple 官方樣式 ＋ 鍵帽行程 2.5px）；下方隱私白話兩行。</li>
+  <li>右上 <b>PWR 綠 LED</b> 呼吸：App 活著的訊號，全 App 延續。</li>
+  <h2>// 狀態</h2>
+  <li><b>啟動自檢</b>：冷啟動 0.8~1.5s 內完成憑證檢查時顯示——把 loading 變成儀器開機儀式（<span class="tm">每行 stagger 0.4s</span>）。逾時直接進登入頁。</li>
+  <li><b>登入失敗</b>：紅斜紋行內錯誤銘板（<span class="hp">haptic .notification(.error)</span>），不彈 alert；附「筆記都還在」安撫句。</li>
+  <h2>// 觸點</h2>
+  <li><span class="tp">auth.signInWithApple</span> → 成功進 P1；<span class="tp">auth.restoreSession</span> 於自檢執行。</li>
+  <h2>// 無障礙</h2>
+  <li>登入鍵 VoiceOver=「使用 Apple 登入，按鈕」；自檢層 announce「正在載入你的系統」。</li>
+</aside>
+</main>
+<script src="shared.js"></script>
+</body>
+</html>

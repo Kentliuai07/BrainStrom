@@ -1,0 +1,49 @@
+// ============================================================
+// BrainStrom · 共用編譯規範（Debug/Release 皆繼承）
+// 鐵律：Swift 6 嚴格並發、warnings as errors、零第三方依賴
+// ============================================================
+
+// —— 連線參數（不進 git；缺檔時用 example 的占位值不會炸 build）——
+#include? "Config.xcconfig"
+
+// —— 識別 ——
+PRODUCT_NAME = $(TARGET_NAME)
+PRODUCT_BUNDLE_IDENTIFIER = com.brainstrom.ios
+MARKETING_VERSION = 1.0.0
+CURRENT_PROJECT_VERSION = 1
+
+// —— 平台 ——
+SDKROOT = iphoneos
+SUPPORTED_PLATFORMS = iphoneos iphonesimulator
+IPHONEOS_DEPLOYMENT_TARGET = 17.0
+TARGETED_DEVICE_FAMILY = 1
+
+// —— Swift 6 嚴格模式 ——
+SWIFT_VERSION = 6.0
+SWIFT_TREAT_WARNINGS_AS_ERRORS = YES
+GCC_TREAT_WARNINGS_AS_ERRORS = YES
+SWIFT_EMIT_LOC_STRINGS = YES
+
+// —— Info.plist：自動生成 ＋ Config/Info.plist 的自訂鍵合併 ——
+GENERATE_INFOPLIST_FILE = YES
+INFOPLIST_FILE = Config/Info.plist
+INFOPLIST_KEY_CFBundleDisplayName = BrainStrom
+INFOPLIST_KEY_UILaunchScreen_Generation = YES
+INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait
+INFOPLIST_KEY_UIUserInterfaceStyle = Automatic
+
+// —— 本地化：繁中為基準語言、String Catalog ——
+LOCALIZATION_PREFERS_STRING_CATALOGS = YES
+
+// —— 資源 ——
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor
+
+// —— 簽章（模擬器開發階段；上架前再填 Team）——
+CODE_SIGN_STYLE = Automatic
+
+// —— 其他 ——
+ENABLE_PREVIEWS = YES
+ENABLE_USER_SCRIPT_SANDBOXING = YES
+ALWAYS_SEARCH_USER_PATHS = NO
+CLANG_ENABLE_MODULES = YES

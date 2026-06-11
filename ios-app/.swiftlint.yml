@@ -1,0 +1,40 @@
+# BrainStrom iOS · SwiftLint 規範
+# （swiftlint 未裝機前先不掛 build phase；裝機後：brew install swiftlint）
+
+included:
+  - BrainStrom
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - contains_over_first_not_nil
+  - fatal_error_message
+  - first_where
+  - sorted_first_last
+  - redundant_nil_coalescing
+  - vertical_whitespace_closing_braces
+
+disabled_rules:
+  - todo                  # 開發期允許 TODO
+  - trailing_whitespace
+
+line_length:
+  warning: 130
+  error: 170
+  ignores_comments: true
+
+type_body_length:
+  warning: 300
+  error: 450
+
+file_length:
+  warning: 450
+  error: 650
+
+function_body_length:
+  warning: 60
+  error: 100
+
+identifier_name:
+  min_length: 2
+  excluded: [x, y, z, i, n, ok]

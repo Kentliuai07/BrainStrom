@@ -1,0 +1,102 @@
+/* ============================================================
+   BrainStrom iOS · 設計 Tokens v2「工業硬體」
+   = 未來 DesignSystem/Tokens.swift 的 1:1 唯一來源
+   世界觀：App 是一台「筆記儀器」(Teenage Engineering / Braun)
+   ============================================================ */
+
+:root {
+  /* —— 字體 ——
+     display：銘板/模板印刷（iOS = Avenir Next Condensed，系統內建零依賴）
+     body   ：內文（iOS = SF Pro / PingFang TC）
+     mono   ：機身印刷與數據（iOS = SF Mono）                         */
+  --font-display: "Avenir Next Condensed", "PingFang TC", sans-serif;
+  --font-body: -apple-system, "PingFang TC", "Helvetica Neue", sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+
+  /* —— 字階（規格書 §2 字階不變 ＋ 新增印刷微字階）—— */
+  --fs-h1: 32px;        /* 大標 */
+  --fs-h2: 22px;        /* 區標 */
+  --fs-body: 17px;      /* 內文 lh 1.4~1.75 */
+  --fs-sub: 15px;       /* 次要 */
+  --fs-cap: 12px;       /* 說明 */
+  --fs-print: 10.5px;   /* 機身印刷（mono）*/
+  --fs-stencil: 9px;    /* 模板印刷標籤（mono, letterspacing .26em~.34em）*/
+
+  /* —— 間距（4/8/12/16/20/24/32，頁邊 20）—— */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  --page-x: 20px;
+
+  /* —— 圓角 —— */
+  --r-card: 14px;       /* 硬體模組卡（v1 16 → 14：儀器面板更利落）*/
+  --r-key: 9px;         /* 鍵帽 */
+  --r-input: 10px;      /* 輸入槽 */
+  --r-pill: 999px;
+
+  /* —— 缺角簽名（不變）：卡右上 45° 切 12pt；直條左上切 16pt —— */
+  --notch: 12px;
+  --notch-rail: 16px;
+
+  /* —— 動效 ——
+     iOS：spring(response:0.35, dampingFraction:0.85)；浮層 0.4；
+     鍵帽行程 0.12s；LED 呼吸 2.4s；stagger 40ms                     */
+  --spring: cubic-bezier(.30, 1.22, .42, 1);
+  --t-key: .12s;
+  --t-layer: .25s;
+  --t-rail: .42s;
+
+  /* —— 鍵帽行程（按壓位移）—— */
+  --key-travel: 2.5px;
+}
+
+/* ============ 主題 A：霧面黑（預設）============ */
+.phone {
+  --bg: #1A1A18;              /* 霧面黑機殼 */
+  --panel: #222220;           /* 面板 */
+  --panel2: #2A2A27;          /* 浮起鍵帽 */
+  --recess: #141412;          /* 凹槽（輸入/軌道）*/
+  --line: #3A3A36;            /* 折線 */
+  --line-strong: #4A4A45;     /* 結構邊 */
+  --print: #E8E4D8;           /* 印刷奶油白＝主文字 */
+  --print2: #8E8B80;          /* 次級印刷 */
+  --print3: #5C5A52;          /* 微印刷 */
+  --orange: #FF4D00;          /* TE 橘＝唯一主強調 */
+  --orange-deep: #A03000;     /* 鍵帽側面/按壓 */
+  --orange-dim: rgba(255, 77, 0, .12);
+  --orange-ink: #16100B;      /* 橘鍵上的字 */
+  --led-g: #54D62C;           /* LED 綠＝運行/完成 */
+  --led-a: #FFB000;           /* LED 琥珀＝警示/PRO */
+  --led-r: #FF453A;           /* LED 紅＝危險/錄製 */
+  --danger: #FF5A47;
+  --scrim: rgba(8, 8, 6, .42);
+  --shadow-card: 0 4px 14px rgba(0,0,0,.28);
+  --shadow-rail: -14px 0 38px rgba(0,0,0,.45);
+  --emboss: inset 0 1px 0 rgba(232,228,216,.07);  /* 上緣受光 */
+  --grain-op: .4;
+}
+
+/* ============ 主題 B：暖灰機殼（同一台機器的灰白塑料版）============ */
+.phone.day {
+  --bg: #E6E4DE;
+  --panel: #EFEDE7;
+  --panel2: #F7F5F0;
+  --recess: #DBD8D0;
+  --line: #C9C6BD;
+  --line-strong: #A8A59B;
+  --print: #262521;
+  --print2: #6E6C63;
+  --print3: #9B988D;
+  --orange: #E84200;
+  --orange-deep: #9C2E00;
+  --orange-dim: rgba(232, 66, 0, .10);
+  --orange-ink: #FFF4EC;
+  --led-g: #2FA414;
+  --led-a: #D98F00;
+  --led-r: #E5342B;
+  --danger: #C8321F;
+  --scrim: rgba(60, 56, 48, .30);
+  --shadow-card: 0 4px 14px rgba(60,55,40,.12);
+  --shadow-rail: -14px 0 38px rgba(60,55,40,.22);
+  --emboss: inset 0 1px 0 rgba(255,255,255,.75);
+  --grain-op: .3;
+}

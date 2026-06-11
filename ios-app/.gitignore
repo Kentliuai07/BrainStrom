@@ -1,0 +1,8 @@
+# 金鑰鐵律：連線參數不進 git
+Config/Config.xcconfig
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+.DS_Store
