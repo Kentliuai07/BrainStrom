@@ -193,6 +193,7 @@
 | `card_start` | `{ index, type?, title }` | 开始吐一张结构化卡（BrainStrom 自取的新名；**SBIR_NEW 没有这名字**，它对应的是 SBIR 的 `section_start`，去 SBIR 找要搜 section_start） |
 | `card_done` | `{ index, card }` | 一张卡完成（对应 SBIR 的 `section_done`） |
 | `card_removed` | `{ cardId }` | 增量时 AI 删了一张卡（其内容已被使用者删掉；BrainStrom 自取的新名，SBIR_NEW 没有） |
+| `proposal` | `{ items:[{action,label,args}] }` | 对话式编辑（Step 3.5）：AI 在回答末尾抛出可执行提议按钮（edit_text/structure/find_github/find_youtube/find_info），等使用者点选才动手 |
 | `progress` | `{ current, total, message }` | 进度（如进度分析、增量合并阶段） |
 | `credit_update` | `{ balance, delta }` | 扣款后推新余额（阶段三才真用，先预留） |
 | `hit_list` | `{ systems:[{systemId,title,score}] }` | 全局找回命中的系统列表 |
@@ -245,6 +246,7 @@
   onProgress(cur, total, msg),
   onUsage(usage),         // token 用量
   onHit(systems),         // 全局找回命中列表（hit_list）
+  onProposal(items),      // 对话式编辑提议按钮（proposal，Step 3.5）
   onDone(),
   onError(err)            // { code?, error }
 }
@@ -265,6 +267,9 @@ class AIService extends Base {
 
   // Step 3 + Step 5 卡片结构化（mode: 'full' 第一次 / 'incremental' 第二次；内部共用优化管线）
   async structure(systemId, { mode = 'incremental' } = {}, handlers)
+
+  // Step 3.5 对话式编辑：聊天提议被点选后，按使用者意图直接改笔记（内部走 optimize 管线，有快照可 Undo）
+  async applyEdit(systemId, { instruction } = {}, handlers)
 
   // Step 6 全局找回
   async searchGlobal(query, handlers)
@@ -296,6 +301,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 |---|---|---|---|
 | `ai.health()` | 验收页 | `GET /ai/health` | AIService.health() |
 | `ai.chatNote(id,msgs)` | 笔记底部聊天浮层 | `POST /ai/chat/note` | AIService.chatNote() |
+| `ai.applyEdit(id,{instruction})` | 聊天里点选 AI 提议（Step 3.5） | `POST /ai/optimize`（带 instruction） | AIService.applyEdit() |
 | `ai.optimize(id,{groupTopics})` | 笔记页·优化文字钮（先弹分主题确认框） | `POST /ai/optimize` | AIService.optimize() |
 | `ai.structure(id,{mode:'full'\|'incremental'})` | 笔记页·卡片结构化钮 | `POST /ai/structure` | AIService.structure() |
 | `blocks.addModule(id,type)` | 笔记左下工具按钮 | `POST …/blocks` | BlocksService.add() |
@@ -310,7 +316,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 
 > **触点改版注记**：阶段一的 `systems.setMode` 触点在 v3 **废弃**——`mode('free'|'structured')` 语意由 `docState` 取代（后端在 AI 操作时更新，前端不直接设）；顶部「文章/卡片」视图切换是**纯前端 UI 状态**，不打后端。
 
-新增验收灯（`acceptance.html` 的 `LAMPS` + `Mock.status()`）：阶段一 6 盏 + 阶段二 7 盏 = **共 13 盏**：`ai_engine / chat_note / optimize / structure / structure_incremental / global_recall / git_progress`。注意：**灯是 7 盏、验收点是 11 个**（(a)(b)(c0)~(c8)），多个验收动作共用一盏灯（对应见第 11 章表）。
+新增验收灯（`acceptance.html` 的 `LAMPS` + `Mock.status()`）：阶段一 6 盏 + 阶段二 8 盏 = **共 14 盏**：`ai_engine / chat_note / optimize / dialog_edit / structure / structure_incremental / global_recall / git_progress`（`dialog_edit` = Step 3.5 对话式编辑）。多个验收动作可共用一盏灯（对应见第 11 章表）。
 
 ### 前后端整合与切换设计（模拟层 ↔ Fly.io 真后端；v3.1 补缺）
 
@@ -387,6 +393,28 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
    - 按「卡片结构化」→ 卡片逐张浮现 → `structure` 灯亮、显示「回传 N 张卡」。
    - **两视图同步**：在文章视图点某段改一个字 → 切到卡片视图，同一张卡内容跟着变（反向也成立）。
    - **可撤销**：按「上一步」→ 这次 AI 操作整批消失（文章与卡片一起回去）；按「下一步」→ 整批回来；一路退到底能看到第 1 版原始乱稿（无限历史）。
+
+### 第 6.5 章 · Step 3.5：对话式编辑（AI 在聊天里提议 → 经同意后直接动手改笔记）★使用者 2026-06-11 新增★
+
+> 来源：使用者点子——「问 AI 觉得内容怎么样 → AI 给建议并问『要帮你改吗？』→ 答应后 AI 直接改、使用者看到笔记更新」；延伸「AI 还能问：要不要帮你找对应的 GitHub / YouTube / 相关资讯？」。
+> 定位：这是把**已有的聊天（Step 2）＋优化管线（Step 3）＋安全网（Undo/快照）**接起来的体验升级，**骨架在本章落地，能力随后面 Step 逐步点亮**。
+
+① 目标：聊天不只是问答，AI 可在对话中**提议具体修改**，使用者一句「好」就让 AI 直接套用到笔记（走优化管线、有快照可 Undo），并能提议「找 GitHub/YouTube/资讯」生成模组卡。
+② 交互流程（两段式「提议 → 确认 → 套用」，绝不未经同意就改）：
+   1. 使用者在聊天问「你觉得这则怎么样 / 帮我看看缺什么」。
+   2. AI 回建议（纯文字），**并在结尾抛出可执行提议卡片**（结构化按钮，非纯文字）：例如〔✦ 帮我补上「风险分析」段落〕〔▦ 整理成卡片〕〔🔍 找相关 GitHub〕〔▶ 找参考 YouTube〕。提议由 AI 用 tool_use 回一个 `proposals` 阵列（每项 `{action, label, args}`），前端渲染成按钮。
+   3. 使用者点某个提议 → 走对应已有管线：
+      - `edit_text`（补段落/改写）→ 复用 `/ai/optimize` 的 patch 套用机制（块级 patch + 安全阀 + 套用前快照 trigger=`'optimize'`）→ 笔记当场更新、可 Undo。
+      - `structure` → 走卡片结构化。
+      - `find_github`（Step 7 接通前显示「即将推出」）→ 生 `github` 模组卡。
+      - `find_youtube` / `find_info`（Step 8 接通前显示「即将推出」）→ 生媒体/资讯模组卡。
+   4. 套用后聊天里回一条「已帮你补上 X，可按 ↶ 还原」。
+③ 资料流：聊天回应的 SSE 末尾多一个事件 `proposal`（`{ items:[{action,label,args}] }`，已加入 §2.1 事件表）；前端 onProposal 渲染按钮；点击 → 调对应服务方法（edit_text → `ai.applyEdit(systemId, patch)` 内部即 optimize 管线；其余复用既有触点）。
+④ Fly.io 层：`/ai/chat/note` 的 system prompt 增加「可在回答末尾用 tool 提出 proposals；绝不直接改笔记，必须等使用者点选确认」；`edit_text` 提议点选后走 `/ai/optimize` 同一端点（带 `instruction` 参数指明要补什么）。
+⑤ 服务层：`AIService.chatNote` 的 handlers 加 `onProposal(items)`；新增 `AIService.applyEdit(systemId, {instruction}, handlers)`（内部即 optimize，附带使用者意图）。触点加 `ai.applyEdit`。
+⑥ 前端：聊天气泡下方渲染「提议按钮列」；点击进入「确认 → 套用 → 显示更新 + 可还原」流程；未接通的能力（GitHub/YouTube/资讯）按钮显示锁/「即将推出」。
+⑦ 验收点（新增 `dialog_edit` 灯）：问 AI「帮我补一段风险分析」→ AI 提议〔帮你补上风险分析〕按钮 → 点击 → 笔记多出该段、聊天提示「已补上，可还原」→ 按 ↶ 该段消失。GitHub/YouTube 提议在对应 Step 接通前显示「即将推出」。
+> 能力点亮时程：`edit_text`/`structure` 在本章（Step 3.5）即可用；`find_github` 随 Step 7、`find_youtube`/`find_info` 随 Step 8 接通。
 
 ### 第 7 章 · Step 4：加模组（横排按钮，手动加卡 + 钉选开关）
 
@@ -525,6 +553,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 3. 【Step 1】AI 共用引擎 + `/ai/health`。→ 点 `ai_engine`。
 4. 【Step 2】单专案聊天 `chatNote`。→ 点 `chat_note`，验收 (a)(b)。
 5. 【Step 3】优化文字 `/ai/optimize`（hash gate＋块级 diff＋分主题询问＋安全阀）＋ 卡片结构化 full。→ 点 `optimize`+`structure`，验收 (c0)(c1)(c6)(c7)(c8)。
+5.5. 【Step 3.5】对话式编辑：聊天 `proposal` 提议按钮 + `ai.applyEdit`（点选后走 optimize 套用、可 Undo）；GitHub/YouTube/资讯提议先显示「即将推出」。→ 点 `dialog_edit`。
 6. 【Step 4】加模组（横排按钮）+ 来源标记 + 钉选开关。→ 验收手动卡数/钉选卡数。
 7. 【Step 5】增量结构化（基准 aiHash）+ 钉选三层保护 + 删除规则 + 安全阀 + 快照/Undo。→ 点 `structure_incremental`，验收 (c2)(c3)。
 8. 【Step 6】全局找回 + 写/查向量（触发扩为「任何 AI 操作完成后」＋纯手写笔记兜底向量化）。→ 点 `global_recall`，验收 (c4)。
@@ -561,6 +590,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 - **模组卡两视图同渲染**：文章/卡片两个画面视觉呈现是同一个组件；AI 永不动模组卡内容（使用者拍板）。
 - **段落=块**：文章每一段底层就是一个块，「改卡=改文章」天生成立——已向使用者说明并采用（编辑器多花几天工的代价已告知）。
 - **文章视图编辑方式 = 点哪段改哪段**＋文末续写区；合并/拆分用专门按钮。
+- **对话式编辑（Step 3.5，使用者 2026-06-11 新增）**：AI 在聊天里给建议并提议「要帮你改吗」，经使用者点选确认后才直接套用到笔记（走 optimize 管线、有快照可 Undo）；并可提议「找 GitHub/YouTube/相关资讯」生成模组卡（GitHub 随 Step 7、YouTube/资讯随 Step 8 接通，之前显示「即将推出」）。骨架落在 Step 3.5（见第 6.5 章），新增 `dialog_edit` 灯。
 
 ### 仍待拍板（沿用上面推荐默认即可开工）
 
