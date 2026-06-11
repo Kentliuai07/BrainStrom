@@ -10,12 +10,13 @@ import SwiftUI
 struct ArticleView: View {
 
     @Bindable var doc: NoteDocument
-    @Binding var continueText: String
 
     @Environment(\.palette) private var palette
     @Environment(CompositionRoot.self) private var root
     @State private var titleText = ""
+    @State private var continueText = ""
     @FocusState private var titleFocused: Bool
+    @FocusState private var continueFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -60,7 +61,7 @@ struct ArticleView: View {
                 }
                 .padding(.top, 14)
 
-                // 文末續寫（web .note-body）
+                // 文末續寫（web .note-body）：失焦才提交、splitIntoBlocks 切塊（與網頁一致）
                 TextField(text: $continueText, axis: .vertical) {
                     Text(String(localized: "繼續寫…（空行分段、# 開頭成標題）"))
                 }
@@ -68,11 +69,10 @@ struct ArticleView: View {
                 .foregroundStyle(palette.print)
                 .lineSpacing(4)
                 .padding(.top, 10)
-                .submitLabel(.return)
-                .onChange(of: continueText) { _, new in
-                    // 連按兩次換行＝提交一段（近似 web blur 提交）
-                    if new.hasSuffix("\n\n") {
-                        doc.appendFromContinue(new)
+                .focused($continueFocused)
+                .onChange(of: continueFocused) { _, focused in
+                    if !focused, !continueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        doc.appendFromContinue(continueText)
                         continueText = ""
                     }
                 }

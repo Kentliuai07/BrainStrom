@@ -18,7 +18,8 @@ struct NoteScreen: View {
     @State private var doc: NoteDocument?
     @State private var showDial = false
     @State private var showChat = false
-    @State private var continueText = ""
+    @State private var chatInput = ""
+    @FocusState private var chatFocused: Bool
 
     var body: some View {
         Group {
@@ -46,7 +47,7 @@ struct NoteScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if doc.view == .article {
-                        ArticleView(doc: doc, continueText: $continueText)
+                        ArticleView(doc: doc)
                     } else {
                         CardsView(doc: doc, runStructure: aiNeedsBackend)
                     }
@@ -276,12 +277,22 @@ struct NoteScreen: View {
             .frame(maxWidth: .infinity)
 
             HStack(spacing: 8) {
-                SlotField(height: 40) {
+                TextField(text: $chatInput, axis: .vertical) {
                     Text(String(localized: "問這則筆記…"))
-                        .font(Tokens.Fonts.body(14)).foregroundStyle(palette.print3)
-                        .padding(.horizontal, 11)
                 }
-                Button { aiNeedsBackend() } label: {
+                .font(Tokens.Fonts.body(14))
+                .foregroundStyle(palette.print)
+                .focused($chatFocused)
+                .lineLimit(1...4)
+                .padding(.horizontal, 11)
+                .frame(minHeight: 40, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: Tokens.Radius.input)
+                        .fill(palette.recess)
+                        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.input)
+                            .strokeBorder(palette.line, lineWidth: 1))
+                )
+                Button { sendChat() } label: {
                     Text(String(localized: "送出")).font(Tokens.Fonts.body(13, weight: .semibold))
                         .frame(width: 56, height: 40)
                 }
@@ -304,6 +315,15 @@ struct NoteScreen: View {
 
     private func aiNeedsBackend() {
         root.toast.show(String(localized: "此功能需要真後端（尚未整合）"))
+    }
+
+    private func sendChat() {
+        let text = chatInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        chatInput = ""
+        chatFocused = false
+        // 步驟 7 接真後端後改為串流；目前先提示
+        root.toast.show(String(localized: "聊天於接真後端後啟用（步驟 7）"))
     }
 
     private func deleteSystem() {
