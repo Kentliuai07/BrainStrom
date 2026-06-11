@@ -27,7 +27,9 @@ final class NotesRepository: NotesRepositoring {
                 noteCount: entity.notes.count,
                 cardCount: entity.notes.reduce(0) { $0 + $1.cards.count },
                 visibility: entity.visibilityRaw.flatMap(Visibility.init(rawValue:)) ?? .private,
-                snippet: snippet(of: entity)
+                snippet: snippet(of: entity),
+                ownerId: entity.ownerId,
+                tags: entity.tagsData.flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? []
             )
         }
     }
@@ -129,6 +131,10 @@ final class NotesRepository: NotesRepositoring {
         entity.blocksData = try JSONEncoder().encode(note.blocks)
         entity.updatedAt = .now
         entity.revisionNumber = note.revisionNumber
+        entity.lastAiHash = note.lastAiHash
+        entity.aiRestructureCount = note.aiRestructureCount
+        entity.structuredAt = note.structuredAt
+        entity.nudgeData = try? JSONEncoder().encode(note.nudge)
         entity.system?.updatedAt = .now
         try context.save()
     }
@@ -240,7 +246,11 @@ final class NotesRepository: NotesRepositoring {
             docState: DocState(rawValue: entity.docStateRaw) ?? .raw,
             blocks: (try? JSONDecoder().decode([Block].self, from: entity.blocksData)) ?? [],
             updatedAt: entity.updatedAt,
-            revisionNumber: entity.revisionNumber
+            revisionNumber: entity.revisionNumber,
+            lastAiHash: entity.lastAiHash,
+            aiRestructureCount: entity.aiRestructureCount,
+            structuredAt: entity.structuredAt,
+            nudge: entity.nudgeData.flatMap { try? JSONDecoder().decode(Nudge.self, from: $0) } ?? Nudge()
         )
     }
 }

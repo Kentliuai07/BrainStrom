@@ -12,14 +12,50 @@ enum DocState: String, Codable, Sendable {
     case carded
 }
 
-/// 內容塊類型。
+/// 內容塊類型。（釘選統一用 Block.isPinned，不再有獨立 pinned 型別）
 enum BlockKind: String, Codable, Sendable {
     case paragraph
     case heading1
     case heading2
     case todo
-    case pinned     // AI 永不改動
-    case module     // 內嵌模組卡
+    case module     // 內嵌模組卡（恆釘選）
+}
+
+/// 塊來源（《整合契約 §4》）。
+enum BlockSource: String, Codable, Sendable {
+    case manual
+    case ai
+    case notes
+}
+
+/// 點子助攻狀態機（《整合契約 §4》Nudge）。
+struct Nudge: Codable, Hashable, Sendable {
+    enum State: String, Codable, Sendable {
+        case pending
+        case dismissed
+        case opened
+    }
+    var state: State
+    var hash: String?
+    var openingText: String?
+    var openingProposals: [ProposalSnapshot]
+    var at: Date?
+
+    init(state: State = .pending, hash: String? = nil,
+         openingText: String? = nil, openingProposals: [ProposalSnapshot] = [], at: Date? = nil) {
+        self.state = state
+        self.hash = hash
+        self.openingText = openingText
+        self.openingProposals = openingProposals
+        self.at = at
+    }
+}
+
+/// 教練開場的提議快照（可重播；對齊 SSE proposal）。
+struct ProposalSnapshot: Codable, Hashable, Sendable {
+    let action: String
+    let label: String
+    let instruction: String?
 }
 
 /// 模組類型（PRO 鎖另由授權層判定，不做付費牆）。
@@ -54,11 +90,14 @@ struct NoteSystem: Identifiable, Hashable, Codable, Sendable {
     var cardCount: Int
     var visibility: Visibility
     var snippet: String
+    var ownerId: String?
+    var tags: [String]
 
     init(id: UUID = UUID(), name: String,
          createdAt: Date = .now, updatedAt: Date = .now,
          noteCount: Int = 0, cardCount: Int = 0,
-         visibility: Visibility = .private, snippet: String = "") {
+         visibility: Visibility = .private, snippet: String = "",
+         ownerId: String? = nil, tags: [String] = []) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
@@ -67,6 +106,8 @@ struct NoteSystem: Identifiable, Hashable, Codable, Sendable {
         self.cardCount = cardCount
         self.visibility = visibility
         self.snippet = snippet
+        self.ownerId = ownerId
+        self.tags = tags
     }
 }
 
@@ -79,14 +120,25 @@ struct Note: Identifiable, Hashable, Codable, Sendable {
     var blocks: [Block]
     var updatedAt: Date
     var revisionNumber: Int
+    var lastAiHash: String?         // 整篇指紋（hash gate 省錢閘）
+    var aiRestructureCount: Int     // 結構化次數
+    var structuredAt: Date?         // 最後結構化時間
+    var nudge: Nudge                // 點子助攻狀態
+
+    /// 存活（未軟刪）的塊，依序。
+    var liveBlocks: [Block] {
+        blocks.filter { !$0.isDeleted }.sorted { $0.orderIndex < $1.orderIndex }
+    }
 
     var characterCount: Int {
-        blocks.reduce(0) { $0 + $1.text.count }
+        liveBlocks.reduce(0) { $0 + $1.text.count }
     }
 
     init(id: UUID = UUID(), systemID: UUID, title: String,
          docState: DocState = .raw, blocks: [Block] = [],
-         updatedAt: Date = .now, revisionNumber: Int = 1) {
+         updatedAt: Date = .now, revisionNumber: Int = 1,
+         lastAiHash: String? = nil, aiRestructureCount: Int = 0,
+         structuredAt: Date? = nil, nudge: Nudge = Nudge()) {
         self.id = id
         self.systemID = systemID
         self.title = title
@@ -94,6 +146,10 @@ struct Note: Identifiable, Hashable, Codable, Sendable {
         self.blocks = blocks
         self.updatedAt = updatedAt
         self.revisionNumber = revisionNumber
+        self.lastAiHash = lastAiHash
+        self.aiRestructureCount = aiRestructureCount
+        self.structuredAt = structuredAt
+        self.nudge = nudge
     }
 }
 
@@ -107,10 +163,18 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
     var moduleKind: ModuleKind? // module 專用
     var modulePayload: String?  // module 結構化資料（JSON）
     var orderIndex: Int
+    var source: BlockSource     // 來源：手動/AI/匯入
+    var aiHash: String?         // 該塊內容指紋（diff 省錢閘用）
+    var structureGen: Int       // 結構化世代
+    var deletedAt: Date?        // 軟刪時間戳（nil=存活）
+
+    var isDeleted: Bool { deletedAt != nil }
 
     init(id: UUID = UUID(), kind: BlockKind, text: String = "",
          isDone: Bool = false, isPinned: Bool = false, moduleKind: ModuleKind? = nil,
-         modulePayload: String? = nil, orderIndex: Int = 0) {
+         modulePayload: String? = nil, orderIndex: Int = 0,
+         source: BlockSource = .manual, aiHash: String? = nil,
+         structureGen: Int = 0, deletedAt: Date? = nil) {
         self.id = id
         self.kind = kind
         self.text = text
@@ -119,11 +183,16 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
         self.moduleKind = moduleKind
         self.modulePayload = modulePayload
         self.orderIndex = orderIndex
+        self.source = source
+        self.aiHash = aiHash
+        self.structureGen = structureGen
+        self.deletedAt = deletedAt
     }
 
-    // 向後相容解碼：舊資料沒有 isPinned 鍵時預設 false。
+    // 向後相容解碼：舊資料缺新鍵時給預設值。
     enum CodingKeys: String, CodingKey {
         case id, kind, text, isDone, isPinned, moduleKind, modulePayload, orderIndex
+        case source, aiHash, structureGen, deletedAt
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -135,6 +204,10 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
         moduleKind = try c.decodeIfPresent(ModuleKind.self, forKey: .moduleKind)
         modulePayload = try c.decodeIfPresent(String.self, forKey: .modulePayload)
         orderIndex = try c.decodeIfPresent(Int.self, forKey: .orderIndex) ?? 0
+        source = try c.decodeIfPresent(BlockSource.self, forKey: .source) ?? .manual
+        aiHash = try c.decodeIfPresent(String.self, forKey: .aiHash)
+        structureGen = try c.decodeIfPresent(Int.self, forKey: .structureGen) ?? 0
+        deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
     }
 }
 

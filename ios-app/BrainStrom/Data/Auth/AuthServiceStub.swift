@@ -26,6 +26,15 @@ struct AuthServiceStub: AuthServicing {
         UserDefaults.standard.removeObject(forKey: Self.storageKey)
     }
 
+    func updatePrefs(_ prefs: UserPrefs) async -> UserAccount? {
+        guard let current = await restoreSession() else { return nil }
+        let updated = UserAccount(userID: current.userID, email: current.email, prefs: prefs)
+        if let data = try? JSONEncoder().encode(updated) {
+            UserDefaults.standard.set(data, forKey: Self.storageKey)
+        }
+        return updated
+    }
+
     func deleteAccount() async throws {
         try await Task.sleep(for: .milliseconds(600))
         UserDefaults.standard.removeObject(forKey: Self.storageKey)
