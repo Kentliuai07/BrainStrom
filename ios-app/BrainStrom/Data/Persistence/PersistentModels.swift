@@ -43,6 +43,8 @@ final class NoteEntity {
     var blocksData: Data
     var updatedAt: Date
     var revisionNumber: Int
+    /// 版本指針（指向 revisions 的 versionNumber；-1=尚無版本）。
+    var versionPointer: Int = -1
     /// 整篇指紋（hash gate 省錢閘）。
     var lastAiHash: String?
     /// 結構化次數。
@@ -104,19 +106,26 @@ final class CardEntity {
 @Model
 final class RevisionEntity {
     @Attribute(.unique) var id: UUID
-    var kindRaw: String
+    var kindRaw: String          // trigger（optimize/structure/cardEdit/delete/addModule/restore…）
     var createdAt: Date
     var charDelta: Int
     var cardCount: Int?
+    /// 版本序號（指針法用）。
+    var versionNumber: Int = 0
+    /// 整批快照（{title,docState,blocks} 的 JSON；含軟刪塊以便復活）。
+    var blocksJson: String?
 
     var note: NoteEntity?
 
-    init(id: UUID, kindRaw: String, createdAt: Date, charDelta: Int, cardCount: Int?) {
+    init(id: UUID, kindRaw: String, createdAt: Date, charDelta: Int, cardCount: Int?,
+         versionNumber: Int = 0, blocksJson: String? = nil) {
         self.id = id
         self.kindRaw = kindRaw
         self.createdAt = createdAt
         self.charDelta = charDelta
         self.cardCount = cardCount
+        self.versionNumber = versionNumber
+        self.blocksJson = blocksJson
     }
 }
 

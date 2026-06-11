@@ -224,6 +224,70 @@ final class NotesRepository: NotesRepositoring {
             }
     }
 
+    // MARK: - 版本指針法（《整合契約 §4》）
+
+    /// 是否已有任何版本（NoteDocument 載入時決定要不要種 v0）。
+    func hasVersions(noteID: UUID) throws -> Bool {
+        guard let note = try fetchNote(id: noteID) else { return false }
+        return !note.revisions.isEmpty
+    }
+
+    /// 提交一個版本（commit-after-change）：清 redo → 去重 → append → 指針=末位。
+    func commitVersion(noteID: UUID, snapshot: Data, trigger: String) throws {
+        guard let note = try fetchNote(id: noteID) else { return }
+        let snapStr = String(decoding: snapshot, as: UTF8.self)
+        let ptr = note.versionPointer
+        // 清掉指針之後的版本（砍 redo 分支）
+        for rev in note.revisions where rev.versionNumber > ptr {
+            context.delete(rev)
+        }
+        // 與目前指針版本內容相同 → 去重不落步
+        if let current = note.revisions.first(where: { $0.versionNumber == ptr }),
+           current.blocksJson == snapStr {
+            return
+        }
+        let newNumber = ptr + 1
+        let rev = RevisionEntity(id: UUID(), kindRaw: trigger, createdAt: .now,
+                                 charDelta: 0, cardCount: nil,
+                                 versionNumber: newNumber, blocksJson: snapStr)
+        rev.note = note
+        context.insert(rev)
+        note.versionPointer = newNumber
+        try context.save()
+    }
+
+    /// 撤銷：指針 -1，回傳該版本快照（越界回 nil）。
+    func undoVersion(noteID: UUID) throws -> Data? {
+        guard let note = try fetchNote(id: noteID), note.versionPointer > 0 else { return nil }
+        let target = note.versionPointer - 1
+        note.versionPointer = target
+        try context.save()
+        return snapshotData(of: note, versionNumber: target)
+    }
+
+    /// 重做：指針 +1，回傳該版本快照（越界回 nil）。
+    func redoVersion(noteID: UUID) throws -> Data? {
+        guard let note = try fetchNote(id: noteID) else { return nil }
+        let maxNumber = note.revisions.map(\.versionNumber).max() ?? -1
+        guard note.versionPointer < maxNumber else { return nil }
+        let target = note.versionPointer + 1
+        note.versionPointer = target
+        try context.save()
+        return snapshotData(of: note, versionNumber: target)
+    }
+
+    /// ↶↷ 可用狀態。
+    func versionState(noteID: UUID) throws -> (canUndo: Bool, canRedo: Bool) {
+        guard let note = try fetchNote(id: noteID) else { return (false, false) }
+        let maxNumber = note.revisions.map(\.versionNumber).max() ?? -1
+        return (note.versionPointer > 0, note.versionPointer < maxNumber)
+    }
+
+    private func snapshotData(of note: NoteEntity, versionNumber: Int) -> Data? {
+        note.revisions.first { $0.versionNumber == versionNumber }?
+            .blocksJson.flatMap { Data($0.utf8) }
+    }
+
     // MARK: - 私有
 
     private func fetchSystem(id: UUID) throws -> SystemEntity? {

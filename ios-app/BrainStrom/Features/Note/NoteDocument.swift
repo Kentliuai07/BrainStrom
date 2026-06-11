@@ -2,9 +2,16 @@ import Foundation
 
 // ============================================================
 // 筆記頁本地文件 store —— 驅動活文件編輯器
-// 對齊 web main.js 的 note() 行為；本地 SwiftData 落盤、記憶體 undo/redo。
-// AI（✦ 優化／▦ 結構化／💬 聊天）先不接後端（照 web：非 real 時提示）。
+// 對齊 web main.js note()；版本指針法（《整合契約 §4》）取代記憶體 undo。
+// AI（✦/▦/💬）先不接後端（步驟 7）。
 // ============================================================
+
+/// 整批快照（版本鏈存這個的 JSON；含軟刪塊以便復活）。
+private struct DocSnapshot: Codable {
+    var title: String
+    var docStateRaw: String
+    var blocks: [Block]
+}
 
 @MainActor
 @Observable
@@ -17,7 +24,7 @@ final class NoteDocument {
 
     private(set) var noteID: UUID
     var title: String
-    private(set) var blocks: [Block]
+    private(set) var blocks: [Block]          // 全部塊（含軟刪，供快照）
     private(set) var docState: DocState
     private(set) var visibility: Visibility
 
@@ -25,11 +32,9 @@ final class NoteDocument {
     private(set) var naming: Bool = false
     var savedFlash = false
 
-    // 記憶體 undo/redo（web 用 server 版本；此處本地）。
-    private var undoStack: [(String, [Block])] = []
-    private var redoStack: [(String, [Block])] = []
-    var canUndo: Bool { !undoStack.isEmpty }
-    var canRedo: Bool { !redoStack.isEmpty }
+    // 版本指針法 → ↶↷ 可用狀態（由倉儲驅動）。
+    private(set) var canUndo = false
+    private(set) var canRedo = false
 
     init?(systemID: UUID, repository: any NotesRepositoring) {
         self.systemID = systemID
@@ -41,12 +46,14 @@ final class NoteDocument {
         self.docState = note.docState
         let system = (try? repository.systems())?.first { $0.id == systemID }
         self.visibility = system?.visibility ?? .private
-        self.naming = Self.isNamingGate(title: note.title, blocks: self.blocks)
+        self.naming = Self.isNamingGate(title: note.title, blocks: liveBlocksOf(self.blocks))
         if view == .cards && docState != .carded { view = .article }
+        seedInitialVersionIfNeeded()
+        refreshVersionState()
     }
 
-    /// 排序後的塊（已維持 orderIndex）。
-    var orderedBlocks: [Block] { blocks }
+    /// 給 UI 的塊（濾掉軟刪、依序）。
+    var orderedBlocks: [Block] { liveBlocksOf(blocks) }
 
     var docStateIsCarded: Bool { docState == .carded }
 
@@ -62,22 +69,21 @@ final class NoteDocument {
 
     func commitTitle(_ raw: String) {
         let v = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let zero = blocks.isEmpty
+        let zero = orderedBlocks.isEmpty
         if v.isEmpty {
             if !zero {
-                if title != "未命名系統" { title = "未命名系統"; persist() }
+                if title != "未命名系統" { title = "未命名系統"; persist(trigger: "cardEdit") }
             } else {
                 title = ""
                 if !naming { naming = true }
-                persist()
+                persist(trigger: nil)
             }
             return
         }
-        if v != title { title = v; persist() }
+        if v != title { title = v; persist(trigger: "cardEdit") }
         if naming { naming = false }
     }
 
-    /// 命名態快速命名（web「先隨便取」）。
     func quickName() -> String {
         let f = DateFormatter(); f.dateFormat = "M/d"
         let name = f.string(from: .now) + " " + String(localized: "隨手記")
@@ -89,58 +95,60 @@ final class NoteDocument {
 
     func editBlockText(_ id: UUID, to text: String) {
         guard let i = blocks.firstIndex(where: { $0.id == id }), blocks[i].text != text else { return }
-        pushUndo()
         blocks[i].text = text
-        persist()
+        blocks[i].aiHash = nil       // 內容變了，指紋作廢（diff 會視為 changed）
+        persist(trigger: "cardEdit")
     }
 
     func toggleTodo(_ id: UUID) {
         guard let i = blocks.firstIndex(where: { $0.id == id }) else { return }
-        pushUndo()
         blocks[i].isDone.toggle()
-        persist()
+        persist(trigger: "cardEdit")
     }
 
     func togglePin(_ id: UUID) {
         guard let i = blocks.firstIndex(where: { $0.id == id }) else { return }
         blocks[i].isPinned.toggle()
-        persist()
+        persist(trigger: nil)        // 釘選不落版本（同網頁）
     }
 
     func move(_ id: UUID, by step: Int) {
-        guard let i = blocks.firstIndex(where: { $0.id == id }) else { return }
-        let ni = i + step
-        guard ni >= 0 && ni < blocks.count else { return }
-        pushUndo()
-        blocks.swapAt(i, ni)
-        reindex()
-        persist()
+        let live = orderedBlocks
+        guard let liveIdx = live.firstIndex(where: { $0.id == id }) else { return }
+        let target = liveIdx + step
+        guard target >= 0 && target < live.count else { return }
+        // 在全陣列中交換這兩個 live 塊的 orderIndex
+        let aID = live[liveIdx].id, bID = live[target].id
+        guard let ai = blocks.firstIndex(where: { $0.id == aID }),
+              let bi = blocks.firstIndex(where: { $0.id == bID }) else { return }
+        let tmp = blocks[ai].orderIndex
+        blocks[ai].orderIndex = blocks[bi].orderIndex
+        blocks[bi].orderIndex = tmp
+        blocks.sort { $0.orderIndex < $1.orderIndex }
+        persist(trigger: "cardEdit")
     }
 
+    /// 刪除＝軟刪（寫 deletedAt；undo 可復活）。
     func delete(_ id: UUID) {
-        guard blocks.contains(where: { $0.id == id }) else { return }
-        pushUndo()
-        blocks.removeAll { $0.id == id }
-        reindex()
-        persist()
+        guard let i = blocks.firstIndex(where: { $0.id == id }), !blocks[i].isDeleted else { return }
+        blocks[i].deletedAt = .now
+        persist(trigger: "delete")
     }
 
-    /// 文末「繼續寫…」提交：空行分段、`#` 開頭成標題。
     func appendFromContinue(_ raw: String) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        pushUndo()
+        var nextOrder = (blocks.map(\.orderIndex).max() ?? -1) + 1
         for seg in Algo.splitIntoBlocks(text) {
             var b = seg
-            b.orderIndex = blocks.count
+            b.orderIndex = nextOrder
+            nextOrder += 1
             blocks.append(b)
         }
-        persist()
+        persist(trigger: "cardEdit")
     }
 
-    /// 加模組（web dial）：text/todo/heading 可插；module 類恆釘選。
     func insertModule(_ moduleID: String) {
-        pushUndo()
         let kind: BlockKind
         var module: ModuleKind?
         switch moduleID {
@@ -149,11 +157,12 @@ final class NoteDocument {
         case "text": kind = .paragraph
         default: kind = .module; module = ModuleKind(rawValue: moduleID)
         }
-        let block = Block(kind: kind, text: "",
-                          isPinned: kind == .module,
-                          moduleKind: module, orderIndex: blocks.count)
+        let order = (blocks.map(\.orderIndex).max() ?? -1) + 1
+        let block = Block(kind: kind, text: "", isPinned: kind == .module,
+                          moduleKind: module, orderIndex: order,
+                          source: .manual)
         blocks.append(block)
-        persist()
+        persist(trigger: kind == .module ? "addModule" : "cardEdit")
     }
 
     func toggleVisibility() {
@@ -166,44 +175,77 @@ final class NoteDocument {
         view = v
     }
 
-    // MARK: - Undo / Redo（本地）
+    // MARK: - Undo / Redo（版本指針法，倉儲落盤；殺 App 重開仍在）
 
+    @discardableResult
     func undo() -> Bool {
-        guard let snap = undoStack.popLast() else { return false }
-        redoStack.append((title, blocks))
-        (title, blocks) = snap
-        persist(track: false)
+        guard let data = try? repository.undoVersion(noteID: noteID) else { return false }
+        applySnapshot(data)
         return true
     }
 
+    @discardableResult
     func redo() -> Bool {
-        guard let snap = redoStack.popLast() else { return false }
-        undoStack.append((title, blocks))
-        (title, blocks) = snap
-        persist(track: false)
+        guard let data = try? repository.redoVersion(noteID: noteID) else { return false }
+        applySnapshot(data)
         return true
     }
 
-    private func pushUndo() {
-        undoStack.append((title, blocks))
-        if undoStack.count > 50 { undoStack.removeFirst() }
-        redoStack.removeAll()
+    private func applySnapshot(_ data: Data) {
+        guard let snap = try? JSONDecoder().decode(DocSnapshot.self, from: data) else { return }
+        title = snap.title
+        docState = DocState(rawValue: snap.docStateRaw) ?? .raw
+        blocks = snap.blocks.sorted { $0.orderIndex < $1.orderIndex }   // 含軟刪塊：原 id 覆寫、復活
+        naming = Self.isNamingGate(title: title, blocks: orderedBlocks)
+        if view == .cards && docState != .carded { view = .article }
+        saveNote()
+        refreshVersionState()
     }
 
     // MARK: - 持久化
 
-    private func reindex() {
-        for i in blocks.indices { blocks[i].orderIndex = i }
+    private func seedInitialVersionIfNeeded() {
+        guard (try? repository.hasVersions(noteID: noteID)) == false else { return }
+        if let data = snapshotData() {
+            try? repository.commitVersion(noteID: noteID, snapshot: data, trigger: "open")
+        }
     }
 
-    private func persist(track: Bool = true) {
+    private func reindex() {
+        // 維持 live 塊連續 orderIndex（軟刪塊保留原位即可）
+        var i = 0
+        for idx in blocks.indices where !blocks[idx].isDeleted {
+            blocks[idx].orderIndex = i; i += 1
+        }
+    }
+
+    /// trigger != nil 時同時落一個版本（commit-after-change）。
+    private func persist(trigger: String?) {
         reindex()
-        naming = Self.isNamingGate(title: title, blocks: blocks)
+        naming = Self.isNamingGate(title: title, blocks: orderedBlocks)
+        saveNote()
+        if let trigger, let data = snapshotData() {
+            try? repository.commitVersion(noteID: noteID, snapshot: data, trigger: trigger)
+            refreshVersionState()
+        }
+        flashSaved()
+    }
+
+    private func saveNote() {
         let note = Note(id: noteID, systemID: systemID, title: title,
                         docState: docState, blocks: blocks, updatedAt: .now)
         try? repository.saveNote(note)
         try? repository.renameSystem(id: systemID, name: title)
-        flashSaved()
+    }
+
+    private func snapshotData() -> Data? {
+        try? JSONEncoder().encode(DocSnapshot(title: title, docStateRaw: docState.rawValue, blocks: blocks))
+    }
+
+    private func refreshVersionState() {
+        let state = (try? repository.versionState(noteID: noteID)) ?? (canUndo: false, canRedo: false)
+        canUndo = state.canUndo
+        canRedo = state.canRedo
     }
 
     private func flashSaved() {
@@ -213,7 +255,10 @@ final class NoteDocument {
             savedFlash = false
         }
     }
+}
 
+private func liveBlocksOf(_ blocks: [Block]) -> [Block] {
+    blocks.filter { !$0.isDeleted }.sorted { $0.orderIndex < $1.orderIndex }
 }
 
 /// 加模組選單項（web MODULES）。
