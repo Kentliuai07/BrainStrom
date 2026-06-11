@@ -111,7 +111,7 @@
 - `call(apiKey, params, ctx)` — 非串流，等完整回覆。
 - `stream(apiKey, params, ctx)` — 串流（内部用）。
 - `streamAsync(apiKey, params, ctx)` — 串流 + 呼叫前先做余额/成本检查（`beforeAICall`）（**业务层都用这个**）。
-- `ctx`（AuditContext）**必填：`db / ownerType('user'|'system') / ownerId / operation / projectId`**（缺 `db`/`ownerType` 会编译失败、计费失效）；可选 `signal`（前端断线 AbortSignal，断线即中断 Anthropic 停止烧钱）、`onCreditDeducted`。
+- `ctx`（AuditContext）**必填：`db / ownerType('user'|'system') / ownerId / operation / projectId`**（缺 `db`/`ownerType` 会编译失败、计费失效）；可选 `signal`（前端断线 AbortSignal，断线即中断 Anthropic 停止烧钱）、`onCreditDeducted`、`env`（型别上选填，但 SBIR 的 `beforeAICall` 缺 `env` 会直接 throw，照抄时务必传入）。
 
 ### 2.3 两层重试（更正：别混）
 
