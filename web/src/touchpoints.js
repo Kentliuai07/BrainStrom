@@ -29,4 +29,7 @@ export const TOUCHPOINTS = [
   // ---- 阶段二 · Step 3 两个 AI 按钮（hash gate / diff / 安全阀 / 套用在前端服务层；server 无状态只调 Claude）----
   { method:'ai.optimize(id,{groupTopics})', ui:'笔记页·✦ 优化钮（先弹分主题确认框）', api:'POST /ai/optimize', swift:'AIService.optimize()' },
   { method:'ai.structure(id,{mode})',       ui:'笔记页·▦ 卡片钮／卡片视图空状态按钮', api:'POST /ai/structure', swift:'AIService.structure()' },
+  // ---- 阶段二 · Step 3.5 对话式编辑 + Step 3.6 点子助攻（F9）----
+  { method:'ai.applyEdit(id,{instruction})', ui:'聊天里点选 AI 提议（edit_text）', api:'POST /ai/optimize（带 instruction）', swift:'AIService.applyEdit()' },
+  { method:'auth.updatePrefs(patch)',        ui:'设定页·点子助攻开关', api:'PATCH /api/me/prefs', swift:'AuthService.updatePrefs()' },
 ];

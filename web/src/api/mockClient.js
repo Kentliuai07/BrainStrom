@@ -59,6 +59,7 @@ function init(){
   db.users ||= {}; db.systems ||= {}; db.blocks ||= {}; db.session ||= null;
   db.versions ||= {}; db.versionPtr ||= {}; db.meta ||= {};
   migrateV2(db);
+  migrateV3(db);
   save(db); return db;
 }
 
@@ -133,6 +134,16 @@ function migrateV2(db){
   db.meta.schemaVersion = 2;
 }
 
+// ---- migrateV3（Step 3.6 / F9）：幂等——旧系统补 nudge 默认值、users 补 prefs ----
+function migrateV3(db){
+  if((db.meta.schemaVersion||0) >= 3) return;
+  for(const s of Object.values(db.systems))
+    if(s.nudge===undefined) s.nudge={ state:'pending', hash:null, opening:null, at:null };
+  for(const u of Object.values(db.users))
+    if(u.prefs===undefined) u.prefs={ ideaNudge:true };
+  db.meta.schemaVersion = 3;
+}
+
 // ---- AI 模拟引擎工具（阶段二 Step 1/2，§2.6 / 附录 F5）----
 // 块 → 可读文字（聊天上下文序列化用）
 function blockText(b){
@@ -194,7 +205,24 @@ const RawMock = {
     if(!s||s.deletedAt||(s.ownerId!==db.session && s.visibility!=='public')){
       emit({ type:'error', code:'not_found', error:'找不到这则笔记' }); return;
     }
-    const { ans, hitCount } = buildChatAnswer(db, payload.systemId, payload?.messages);
+    // Step 3.6 kickoff（教练开场，模拟版）：messages 允许空；回开场白＋结尾抛 proposal（F9）
+    let kickoffItems = null, ans, hitCount = 0;
+    if(payload?.kickoff){
+      const texts = liveBlocks(db, payload.systemId).filter(b=>TEXTUAL_TYPES.includes(b.type))
+        .map(blockText).filter(t=>t.trim());
+      const title = s.title || '这个点子';
+      ans = texts.length
+        ? `「${title}」目前有 ${texts.length} 段内容，第 1 段「${texts[0].slice(0,12)}…」写得最扎实。但还缺：1. 目标用户没写清楚——不写清楚，功能会越做越歪；2. 没提技术选型——不先定，开工第一天就卡住。`
+        : `「${title}」这个方向可以做。笔记还是空的，先想三件事：1. 谁会用？2. 最小能跑的范围是什么？3. 打算用什么技术做？想不清楚也没关系，我可以帮你起草。`;
+      kickoffItems = [
+        { action:'edit_text', label:'帮你起草三段',
+          args:{ instruction:`按名称《${title}》起草目标用户/核心功能/技术选型三段草稿，每段 2-3 句、[待補] 占位` } },
+        { action:'structure', label:'整理成卡片', args:{} },
+        { action:'find_github', label:'找竞品 GitHub', args:{} },
+      ];
+    }else{
+      ({ ans, hitCount } = buildChatAnswer(db, payload.systemId, payload?.messages));
+    }
     // 切片（每片 2–4 字），逐片吐
     const chunks=[]; let i=0;
     while(i<ans.length){ const n=2+Math.floor(Math.random()*3); chunks.push(ans.slice(i,i+n)); i+=n; }
@@ -210,6 +238,7 @@ const RawMock = {
     }
     if(signal?.aborted) return;
     if(hitCount>0) emit({ type:'progress', current:1, total:1, message:`引用到 ${hitCount} 张卡` });
+    if(kickoffItems) emit({ type:'proposal', items:kickoffItems }); // §2.1：proposal 在 done 之前
     // 第一次聊天串流「成功完成」→ 点亮 chat_note 灯（status() 读 db.meta.lamps）
     const db2=init(); (db2.meta.lamps ||= {}).chat_note=true; save(db2);
     emit({ type:'done' });
@@ -218,11 +247,18 @@ const RawMock = {
   async signInWithApple(){
     await sleep(); const db=init();
     let userId = Object.keys(db.users)[0];
-    if(!userId){ userId=uid(); db.users[userId]={ id:userId, email:'you@privaterelay.appleid.com', createdAt:now() }; }
+    if(!userId){ userId=uid(); db.users[userId]={ id:userId, email:'you@privaterelay.appleid.com', prefs:{ ideaNudge:true }, createdAt:now() }; }
     db.session=userId; save(db);
     return { ...db.users[userId] };
   },
-  async me(){ const db=init(); return db.session? {...db.users[db.session]} : null; },
+  async me(){ const db=init(); return db.session? {...db.users[db.session]} : null; }, // 回传含 prefs（migrateV3 保证存在）
+  // Step 3.6：使用者偏好（merge 进当前 user.prefs 并回传新 prefs；触点 auth.updatePrefs）
+  async updatePrefs(patch){
+    await sleep(60); const db=init(); const u=requireUser(db);
+    const user=db.users[u];
+    user.prefs={ ...(user.prefs||{ ideaNudge:true }), ...(patch||{}) };
+    save(db); return { ...user.prefs };
+  },
   async signOut(){ const db=init(); db.session=null; save(db); },
   async deleteAccount(){
     await sleep(); const db=init(); const u=db.session; if(!u) throw err(401);
@@ -244,9 +280,11 @@ const RawMock = {
   },
   async createSystem(title){
     await sleep(); const db=init(); const u=requireUser(db);
-    const t=(title||'未命名系统').slice(0,256);
+    // F9 名称先行：允许空字串 title（命名态由前端 gate）；只有参数缺省（undefined/null）才回默认名
+    const t=(title==null?'未命名系统':String(title)).slice(0,256);
     const s={ id:uid(), ownerId:u, title:t, visibility:'private', mode:'free', version:1, tags:[],
       lastAiHash:null, docState:'raw', ai_restructure_count:0, structuredAt:null,
+      nudge:{ state:'pending', hash:null, opening:null, at:null }, // 点子助攻状态机（F9）
       createdAt:now(), updatedAt:now(), deletedAt:null };
     db.systems[s.id]=s; save(db); return {...s};
   },
@@ -267,6 +305,7 @@ const RawMock = {
     if(patch.docState!==undefined) s.docState=patch.docState;
     if(patch.ai_restructure_count!==undefined) s.ai_restructure_count=patch.ai_restructure_count;
     if(patch.structuredAt!==undefined) s.structuredAt=patch.structuredAt;
+    if(patch.nudge!==undefined) s.nudge=patch.nudge; // Step 3.6：点子助攻状态机（F9）
     s.version++; s.updatedAt=now(); save(db); return {...s};
   },
   async deleteSystem(id){
@@ -381,6 +420,7 @@ const RawMock = {
       // chat_note / optimize / structure = 各操作第一次成功完成后点亮（db.meta.lamps）；其余各 Step 完成后逐一点亮
       ai_engine:true, chat_note:!!db.meta.lamps?.chat_note,
       optimize:!!db.meta.lamps?.optimize, structure:!!db.meta.lamps?.structure,
+      dialog_edit:!!db.meta.lamps?.dialog_edit, // Step 3.5：聊天提议落地（applyEdit 成功后点亮）
       structure_incremental:false, global_recall:false, git_progress:false,
       systems:Object.values(db.systems).filter(s=>!s.deletedAt).length, updatedAt:now() };
   }

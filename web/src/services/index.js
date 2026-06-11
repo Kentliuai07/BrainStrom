@@ -47,6 +47,15 @@ export function shouldSkipAi(sys, blocks){
   return !!sys?.lastAiHash && fullHash(blocks) === sys.lastAiHash;
 }
 
+// Step 3.6 助攻指纹（F9）：名称＋只取文字/标题块（DIFF_TYPES 口径）的全文串接——
+// 模组卡增删不算「点子变了」；与 lastAiHash 无关。重播 gate 用。
+export function nudgeHash(title, blocks){
+  const body = (blocks || []).slice().sort((a, b) => a.position - b.position)
+    .filter(b => DIFF_TYPES.includes(b.type))
+    .map(b => normalizeText(blockContent(b))).join('\n\n');
+  return fnvHash(String(title || '') + '\n\n' + body);
+}
+
 // 块级 diff（F3）：只算文字/标题类、未钉选的；aiHash==null（新写）或不符（改过）= changed
 export function diffBlocks(blocks){
   const changed = [], unchanged = [];
@@ -63,27 +72,35 @@ const stripAll = s => String(s || '').replace(/[\s\p{P}\p{S}]/gu, '');
 
 // F2 安全阀（纯函式，程式判定、不信 AI）：优化 patch 整批检查
 // changedIdSet = 本次 diff 出的变动块 id（patch 只准碰这些）
-export function checkOptimizePatch(blocks, patch, changedIdSet){
+// mode（F9 变体）：'optimize'（默认，行为一字不变）｜'instruction'（applyEdit 专用）——
+//   instruction 模式：touch 范围放宽为「全部未钉选文字/标题块」、CHANGE_RATIO 放宽 ±200%、
+//   touch_ratio 分母同步用该集合大小；**不放宽**：钉选/模组整批拒绝、adds 空内容拒绝、删除合法性照旧。
+export function checkOptimizePatch(blocks, patch, changedIdSet, mode = 'optimize'){
+  const instruction = mode === 'instruction';
+  const touchSet = instruction
+    ? new Set((blocks || []).filter(b => DIFF_TYPES.includes(b.type) && !b.pinned).map(b => b.id))
+    : changedIdSet;
+  const ratioCap = instruction ? 2.0 : CHANGE_RATIO_CAP;
   const adds = patch?.adds || [], updates = patch?.updates || [], removes = patch?.removes || [];
   const byId = new Map((blocks || []).map(b => [b.id, b]));
   // touch_ratio（F2 修正）：变动块本来就全部该被整理，分母应是「本次变动块数」而非未钉选总数的一半——
   // 否则首次优化（全部块皆 changed）会被误杀。改/删不得超过变动块数（合并场景 1 update+1 remove 仍≤changed）。
   // 「AI 乱动没变的块」由下方 touch_forbidden 100% 拦截，不靠这条。
-  if((updates.length + removes.length) > changedIdSet.size)
-    return { ok:false, reason:`touch_ratio：动＋删 ${updates.length + removes.length} 块，超过本次变动块数 ${changedIdSet.size}` };
+  if((updates.length + removes.length) > touchSet.size)
+    return { ok:false, reason:`touch_ratio：动＋删 ${updates.length + removes.length} 块，超过${instruction ? '未钉选文字/标题块数' : '本次变动块数'} ${touchSet.size}` };
   for(const u of updates){
     const b = byId.get(u.id);
     if(!b) return { ok:false, reason:`unknown_block：update 指到不存在的块 ${u.id}` };
-    if(b.pinned || isModuleBlock(b) || !changedIdSet.has(b.id))
+    if(b.pinned || isModuleBlock(b) || !touchSet.has(b.id))
       return { ok:false, reason:'touch_forbidden：update 碰到钉选/模组/没变的块' };
     const oldLen = normalizeText(blockContent(b)).length, newLen = normalizeText(u.content).length;
-    if(Math.abs(newLen - oldLen) > Math.max(oldLen, 1) * CHANGE_RATIO_CAP)
-      return { ok:false, reason:`change_ratio：单块字数变化超过 ±30%（${oldLen}→${newLen} 字）` };
+    if(Math.abs(newLen - oldLen) > Math.max(oldLen, 1) * ratioCap)
+      return { ok:false, reason:`change_ratio：单块字数变化超过 ±${Math.round(ratioCap * 100)}%（${oldLen}→${newLen} 字）` };
   }
   for(const id of removes){
     const b = byId.get(id);
     if(!b) return { ok:false, reason:`unknown_block：remove 指到不存在的块 ${id}` };
-    if(b.pinned || isModuleBlock(b) || !changedIdSet.has(b.id))
+    if(b.pinned || isModuleBlock(b) || !touchSet.has(b.id))
       return { ok:false, reason:'touch_forbidden：remove 碰到钉选/模组/没变的块' };
     // 删除合法性（F2-b 合并场景）：被删块内容归一化后 ≥50% 字符以连续片段出现在某 update 里
     const rc = stripAll(blockContent(b));
@@ -136,11 +153,12 @@ export function computeStructuredBlocks(blocks, cards){
 // ===== 套用层（合并＋落库；含安全阀，被拒回 {ok:false, reason} 不动资料）=====
 
 // 套用优化 patch：安全阀 → updates/removes/adds 落库 → 更新受影响块 aiHash、系统 lastAiHash/docState 等
-export async function applyOptimizePatch(systemId, patch){
+// mode：'optimize'（默认）｜'instruction'（applyEdit，F9 安全阀变体——见 checkOptimizePatch）
+export async function applyOptimizePatch(systemId, patch, mode = 'optimize'){
   const sys = await Mock.getSystem(systemId);
   const blocks = (sys.blocks || []).slice().sort((a, b) => a.position - b.position);
   const changedIdSet = new Set(diffBlocks(blocks).changed.map(b => b.id));
-  const verdict = checkOptimizePatch(blocks, patch, changedIdSet);
+  const verdict = checkOptimizePatch(blocks, patch, changedIdSet, mode);
   if(!verdict.ok) return verdict; // 不套用、不动资料（快照已在呼叫端先存，内容没变会被去重）
   const removes = new Set(patch.removes || []);
   for(const u of (patch.updates || [])){
@@ -239,6 +257,13 @@ export class AuthService extends Base {
   async signOut(){ await Mock.signOut(); this.user=null; this.changed(); }
   async deleteAccount(){ await Mock.deleteAccount(); this.user=null; this.changed(); }
   async me(){ return this.user; }
+  // Step 3.6：使用者偏好（merge；触点 auth.updatePrefs）——「点子助攻」总开关吃 prefs.ideaNudge
+  async updatePrefs(patch){
+    const prefs=await Mock.updatePrefs(patch);
+    if(this.user) this.user={ ...this.user, prefs };
+    this.changed({ type:'prefs', prefs });
+    return prefs;
+  }
 }
 
 export class SystemsService extends Base {
@@ -283,6 +308,7 @@ export class AIService extends Base {
         case 'card_start':   h.onCardStart?.(ev.index, ev.title, ev.type); break;
         case 'card_done':    h.onCard?.(ev.index, ev.card); break;
         case 'card_removed': h.onCardRemoved?.(ev.cardId); break;
+        case 'proposal':     h.onProposal?.(ev.items); break; // Step 3.5：对话式编辑提议按钮
         case 'hit_list':     h.onHit?.(ev.systems); break;
         case 'done':         h.onDone?.(); break;
         case 'error':        h.onError?.(ev); break;
@@ -299,16 +325,17 @@ export class AIService extends Base {
     return Mock.aiHealth();
   }
   // Step 2 单笔记聊天：messages=[{role:'user'|'ai',content}]，AI 知道这则的全部 blocks
-  // real 模式契约：POST {messages, note:{title, blocks:[{type,content,pinned}]}}（前端只送内容收结果）
-  async chatNote(systemId, messages, handlers={}, signal){
+  // real 模式契约：POST {messages, note:{title, blocks:[{type,content,pinned}]}, kickoff}（前端只送内容收结果）
+  // Step 3.6：kickoff=true（点子助攻教练开场）时 messages 可为空阵列（F9）
+  async chatNote(systemId, messages, handlers={}, signal, { kickoff = false } = {}){
     let payload;
     if(BACKEND.ai === 'real'){
       const sys = await Mock.getSystem(systemId);
-      payload = { messages, note: serializeNote(sys) };
-    } else payload = { systemId, messages };
+      payload = { messages: messages || [], note: serializeNote(sys), kickoff: !!kickoff };
+    } else payload = { systemId, messages: messages || [], kickoff: !!kickoff };
     await this._stream('/ai/chat/note', payload, {
       ...handlers,
-      onDone: ()=>{ handlers.onDone?.(); this.changed({ type:'ai', op:'chatNote' }); },
+      onDone: ()=>{ Mock.setLamp('chat_note'); handlers.onDone?.(); this.changed({ type:'ai', op:'chatNote' }); }, // 灯：real 模式也要点（mock 路径内已点，幂等）
     }, signal);
   }
 
@@ -361,6 +388,62 @@ export class AIService extends Base {
       if(!r.ok){ h.onError?.({ type:'error', code:'safety_valve', error: r.reason }); return r; }
       await Mock.setLamp('optimize'); // 验收灯（db.meta.lamps）
       this.changed({ type:'ai', op:'optimize' });
+      h.onDone?.();
+      return r;
+    }catch(e){
+      if(signal?.aborted) return { ok:false, reason:'aborted' };
+      h.onError?.({ type:'error', code:'network', error: String(e?.message || e) });
+      return { ok:false, reason:'network' };
+    }
+  }
+
+  // ---- Step 3.5 对话式编辑：聊天提议被点选后，按使用者意图直接改笔记（F9 instruction 模式）----
+  // 跳过 hash gate（使用者明示要改）→ POST /ai/optimize（全部未钉选文字/标题块标 changed:true、
+  // 其余只读；带 instruction）→ 套用前快照（trigger='optimize'，可 Undo）→ instruction 模式安全阀套用。
+  async applyEdit(systemId, { instruction = '' } = {}, handlers = {}, signal){
+    const h = handlers;
+    try{
+      if(!String(instruction).trim()){
+        h.onError?.({ type:'error', code:'bad_request', error:'缺 instruction（提议按钮要带要补什么）' });
+        return { ok:false, reason:'bad_request' };
+      }
+      if(BACKEND.ai !== 'real'){
+        h.onError?.({ type:'error', code:'need_real_backend', error:'此功能需要真后端（config.js 切 real）' });
+        return { ok:false, reason:'need_real_backend' };
+      }
+      const sys = await Mock.getSystem(systemId);
+      const blocks = (sys.blocks || []).slice().sort((a, b) => a.position - b.position);
+      // instruction 模式 touch 范围 = 全部未钉选文字/标题块（F9）；钉选/模组块只读
+      const editable = new Set(blocks.filter(b => DIFF_TYPES.includes(b.type) && !b.pinned).map(b => b.id));
+      const note = { title: sys.title || '未命名', blocks: blocks.map(b => ({
+        id: b.id, type: b.type, content: blockContent(b),
+        pinned: !!b.pinned, changed: editable.has(b.id) })) };
+      const patch = { adds: [], updates: [], removes: [] };
+      let errEv = null;
+      await realStream('/ai/optimize', { note, groupTopics: false, instruction: String(instruction).slice(0, 2000) }, ev => {
+        switch(ev.type){
+          case 'card_done': { const c = ev.card || {};
+            if(c.action === 'add') patch.adds.push({ type: c.type, content: c.content, position: c.position });
+            else if(c.action === 'update') patch.updates.push({ id: c.id, content: c.content });
+            h.onCard?.(ev.index, c); break; }
+          case 'card_removed': patch.removes.push(ev.cardId); h.onCardRemoved?.(ev.cardId); break;
+          case 'usage':    h.onUsage?.(ev); break;
+          case 'progress': h.onProgress?.(ev.current, ev.total, ev.message); break;
+          case 'error':    errEv = ev; break;
+        }
+      }, signal);
+      if(errEv){ h.onError?.(errEv); return { ok:false, reason: errEv.code }; }
+      if(!patch.adds.length && !patch.updates.length && !patch.removes.length){
+        h.onProgress?.(1, 1, 'AI 没有提出任何修改'); h.onDone?.();
+        return { ok:true, applied:0, removed:0 };
+      }
+      // 套用前快照（trigger='optimize'，一步、可 Undo）→ instruction 模式安全阀
+      await Mock.saveVersion(systemId, 'optimize');
+      const r = await applyOptimizePatch(systemId, patch, 'instruction');
+      if(!r.ok){ h.onError?.({ type:'error', code:'safety_valve', error: r.reason }); return r; }
+      // applyOptimizePatch 已更新 aiHash/lastAiHash/ai_restructure_count/structuredAt（docState 不降级）
+      await Mock.setLamp('dialog_edit'); // 验收灯（Step 3.5）
+      this.changed({ type:'ai', op:'applyEdit' });
       h.onDone?.();
       return r;
     }catch(e){

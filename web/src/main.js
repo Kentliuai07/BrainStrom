@@ -1,6 +1,6 @@
 // main.js — 组合根 + 路由 + 画面。UI 只透过 services 碰后端。
 // v3 活文件模型：一份笔记 = 一串有顺序的块；「文章 / 卡片」是同一份资料的两种画法（纯前端切换）。
-import { AuthService, SystemsService, BlocksService, StatusService, AIService, splitIntoBlocks, AI_BACKEND } from './services/index.js';
+import { AuthService, SystemsService, BlocksService, StatusService, AIService, splitIntoBlocks, nudgeHash, AI_BACKEND } from './services/index.js';
 
 // ---- 组合根（建立并注入服务，无全域单例滥用）----
 const services = {
@@ -80,21 +80,22 @@ class App {
           <div class="spacer"></div>
           <button class="iconbtn" id="settings">${svg('gear')}</button>
           <button class="iconbtn accent" id="add">${svg('plus')}</button></div>
-        <div class="banner">${svg('sparkles',15,2)} 阶段二 Step 3：笔记底部 💬 问 AI、✦ 优化文字、▦ 卡片结构化都能用了</div>
+        <div class="banner">${svg('sparkles',15,2)} 阶段二 Step 3.5/3.6：新笔记先取名，按 ⚡ 让 AI 教练点评，提议点了就落地</div>
         <div id="syslist"><div class="muted" style="padding:20px 0">载入中…</div></div>
       </div></div></div>`);
     $('#settings').onclick=()=>this.settings();
-    $('#add').onclick=async ()=>{ const s=await services.systems.create('未命名系统'); this.note(s.id); };
+    // Step 3.6 名称先行：新建给空 title，进笔记页「命名态」（F9 gate）
+    $('#add').onclick=async ()=>{ const s=await services.systems.create(''); this.note(s.id); };
     try{
       const { items } = await services.systems.list();
       const box=$('#syslist');
       if(!items.length){ box.innerHTML=`<div class="empty"><div class="big">📓</div><div>还没有系统</div>
         <button class="btn" id="first">建立第一个系统</button></div>`;
-        $('#first').onclick=async()=>{ const s=await services.systems.create('未命名系统'); this.note(s.id); }; return; }
+        $('#first').onclick=async()=>{ const s=await services.systems.create(''); this.note(s.id); }; return; }
       box.innerHTML = items.map(s=>`<button class="syscard" data-id="${s.id}">
         <div class="row"><span class="pill ${s.visibility==='private'?'priv':'pub'}">${svg(s.visibility==='private'?'lock':'globe',9,2)} ${s.visibility==='private'?'私密':'公开'}</span>
         <span class="spacer"></span><span class="faint" style="font-size:10px">${fmt(s.updatedAt)}</span></div>
-        <div class="sys-title">${esc(s.title)}</div>
+        <div class="sys-title">${esc(s.title)||'未命名系统'}</div>
         <div class="sys-snip">${esc(s.snippet||'（空白系统，点开开始写）')}</div>
         ${s.tags?.length?`<div class="tags">${s.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`:''}
       </button>`).join('');
@@ -128,6 +129,7 @@ class App {
       <div class="dial-scrim" id="scrim"></div><div class="dial hidden" id="dial"></div>
       <div class="chatpanel hidden" id="chatpanel">
         <div class="chathead">${svg('chat',15,2)} 问 AI · 这则笔记<span class="spacer"></span>
+          <button class="sparkbtn hidden" id="chatspark" title="教练点评（内容没变就重播、零成本）" aria-label="教练点评">⚡</button>
           <button class="link" id="chatclose">收合 ▾</button></div>
         <div class="chatlist" id="chatlist"></div>
         <div class="chatfoot">
@@ -137,13 +139,16 @@ class App {
         </div>
       </div>
     </div>`);
-    $('#back').onclick=()=>this.home();
+    // 离开清理（F9）：空名 && 零块 → 软删 + toast「空笔记已丢弃」，清单不留空壳
+    $('#back').onclick=async()=>{ const d=await this.cleanupEmptyNote(); this.home(); if(d) this.toast('空笔记已丢弃'); };
     // 问 AI 浮钮（dock 左侧聊天钮 = 触点表「笔记底部聊天浮层」的入口）
     $('#chat').onclick=()=>this.toggleChat();
     // 阶段二 Step 3：两颗 AI 钮（✦ 优化文字 / ▦ 卡片结构化）
     $('#ai-opt').onclick=()=>this.runOptimize();
     $('#ai-card').onclick=()=>this.runStructure();
     $('#chatclose').onclick=()=>this.toggleChat(false);
+    // Step 3.6：面板 ⚡（指纹同→重播零成本；不同→重新 kickoff）
+    $('#chatspark').onclick=()=>this.sparkReplay();
     $('#chatsend').onclick=()=>this.sendChat();
     $('#chatstop').onclick=()=>this.chatAbort?.abort();
     const ci=$('#chatin');
@@ -153,6 +158,8 @@ class App {
       await services.systems.delete(this.cur.id); this.toast('已删除系统'); setTimeout(()=>this.home(),300); };
     let sys; try{ sys=await services.systems.get(id); }catch{ this.toast('打不开'); return this.home(); }
     this.cur=sys;
+    // F9 命名态 gate：零块 && (空名 || 旧「未命名系统」空壳)；已有内容的笔记永不锁正文
+    this.naming=this.isNamingGate(sys);
     // 视图偏好（sessionStorage）；docState 未到 carded 时强制回文章
     this.view = sessionStorage.getItem(VIEW_KEY+id) || 'article';
     if(this.view==='cards' && sys.docState!=='carded') this.view='article';
@@ -170,6 +177,38 @@ class App {
     $('#scrim').onclick=()=>this.closeDial();
     this.syncViewSeg();
     this.renderContent();
+    this.syncNamingUI();
+    this.syncSpark();
+  }
+  // F9 gate 条件：!title.trim() && 零块；旧资料不迁移——「未命名系统」零块空壳打开时同样进命名态
+  isNamingGate(s){
+    const zero=!(s.blocks||[]).length;
+    return zero && (!String(s.title||'').trim() || s.title==='未命名系统');
+  }
+  // 命名态禁用清单（F9）：fab/✦/▦/💬 全 disabled（正文区/续写区由 renderArticle 直接不渲染）
+  syncNamingUI(){
+    ['#fab','#ai-opt','#ai-card','#chat'].forEach(s=>{ const b=$(s); if(b) b.disabled=!!this.naming; });
+  }
+  // 面板 ⚡ 小钮：nudge.state!=='pending' 时显示（手动重看教练点评的常驻入口）
+  syncSpark(){
+    const b=$('#chatspark'); if(!b) return;
+    const st=this.cur?.nudge?.state;
+    b.classList.toggle('hidden', !st || st==='pending');
+  }
+  // F9 离开清理：空名&&零块 → 软删（回 true 让呼叫端 toast）；防御分支：空名但有块 → 回填保留
+  async cleanupEmptyNote(){
+    const c=this.cur; if(!c) return false;
+    try{
+      const input=$('#title');
+      const tval=String(input?input.value:(c.title||'')).trim();
+      const zero=!(c.blocks||[]).length;
+      if(zero && !tval && !String(c.title||'').trim()){
+        await services.systems.delete(c.id); return true;
+      }
+      if(!zero && !tval && !String(c.title||'').trim())
+        await services.systems.update(c.id,{title:'未命名系统'}); // 理论不可达的防御分支
+    }catch{}
+    return false;
   }
   // 视图切换：纯前端 UI 状态，不打后端（v3 决策）
   setView(v){
@@ -187,7 +226,8 @@ class App {
   async reload(){
     try{ this.cur=await services.systems.get(this.cur.id); }catch{ return this.home(); }
     if(this.view==='cards' && this.cur.docState!=='carded') this.view='article';
-    this.syncViewSeg(); this.renderContent();
+    this.naming=this.isNamingGate(this.cur); // 重算 gate（已有内容的笔记永不锁正文）
+    this.syncViewSeg(); this.renderContent(); this.syncNamingUI(); this.syncSpark();
   }
   renderContent(){
     if(this.view==='cards') this.renderCards(); else this.renderArticle();
@@ -202,16 +242,24 @@ class App {
   }
   sortedBlocks(){ return (this.cur.blocks||[]).slice().sort((a,b)=>a.position-b.position); }
 
-  // ---- 文章视图（§1.2b：点哪段改哪段 + 文末续写区）----
+  // ---- 文章视图（§1.2b：点哪段改哪段 + 文末续写区；F9 命名态 gate）----
   renderArticle(){
     const c=$('#content');
-    c.innerHTML=`<textarea class="note-title" id="title" rows="1" placeholder="标题">${esc(this.cur.title)}</textarea>
-      <div class="blocks" id="blocks"></div>
-      <textarea class="note-body" id="contwrite" rows="1" placeholder="继续写…（空行分段、# 开头成标题）"></textarea>`;
+    // 命名态：旧「未命名系统」空壳显示空名称栏（旧资料不迁移，blur 不动它）
+    const showTitle=(this.naming && this.cur.title==='未命名系统') ? '' : this.cur.title;
+    c.innerHTML=`<textarea class="note-title" id="title" rows="1" placeholder="${this.naming?'先给这个点子取个名字':'标题'}">${esc(showTitle)}</textarea>
+      <div class="titleaux" id="titleaux"></div>
+      ${this.naming
+        ? `<div class="naminghint">✏️ 先给这个点子取个名字，就能开始写</div>`
+        : `<div class="blocks" id="blocks"></div>
+      <textarea class="note-body" id="contwrite" rows="1" placeholder="继续写…（空行分段、# 开头成标题）"></textarea>`}`;
     const title=$('#title');
     title.oninput=()=>autoraf(title);
-    title.onblur=async e=>{ const v=e.target.value.trim()||'未命名系统'; const u=await services.systems.update(this.cur.id,{title:v}); this.cur.title=u.title; this.cur.version=u.version; this.saved(); };
+    title.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); title.blur(); } }; // Enter 提交＝blur
+    title.onblur=()=>this.commitTitle(title.value);
     autoraf(title);
+    this.renderTitleAux();
+    if(this.naming){ title.focus(); return; } // 命名态：游标停名称栏，正文不渲染
     const bs=this.sortedBlocks();
     if(!bs.length) $('#blocks').innerHTML=`<div class="faint" id="bhint" style="padding:6px 8px">空白笔记——直接在下方「继续写…」开始，或＋加模组</div>`;
     bs.forEach(b=>this.appendBlock(b));
@@ -227,6 +275,179 @@ class App {
       this.saved(); await this.reload();
     };
   }
+  // 名称提交（blur / Enter）。F9 title blur 规则：非空→存；空名有块→回填「未命名系统」；
+  // 空名零块→保持空、维持命名态。命名态下非空提交＝解锁＋重渲染。
+  async commitTitle(raw){
+    const v=String(raw||'').trim();
+    const zero=!this.sortedBlocks().length;
+    if(!v){
+      if(!zero){ // 有块回填（现行为）
+        if(this.cur.title!=='未命名系统'){
+          const u=await services.systems.update(this.cur.id,{title:'未命名系统'});
+          this.cur.title=u.title; this.cur.version=u.version; this.saved();
+        }
+        const t=$('#title'); if(t){ t.value=this.cur.title; autoraf(t); }
+      }else{ // 零块保持空，维持/进入命名态
+        if(String(this.cur.title||'').trim() && this.cur.title!=='未命名系统'){
+          const u=await services.systems.update(this.cur.id,{title:''});
+          this.cur.title=u.title; this.cur.version=u.version;
+        }
+        if(!this.naming){ this.naming=true; this.renderContent(); this.syncNamingUI(); }
+      }
+      return;
+    }
+    if(v!==this.cur.title){
+      const u=await services.systems.update(this.cur.id,{title:v});
+      this.cur.title=u.title; this.cur.version=u.version; this.saved();
+    }
+    if(this.naming){ this.naming=false; this.renderContent(); this.syncNamingUI(); } // 解锁＋重渲染
+    else this.renderTitleAux(); // 名称从无到有：助攻胶囊可能要浮现
+    this.syncSpark();
+  }
+  // 标题正下方的行内区：命名态放「先随便取」；命名完成放助攻胶囊（F9 规则表）
+  renderTitleAux(){
+    const aux=$('#titleaux'); if(!aux) return;
+    if(this.naming){
+      aux.innerHTML=`<button class="quickname" id="quickname">先随便取</button>`;
+      $('#quickname').onclick=async()=>{ // 快速倒垃圾通道：一键占位名秒解锁
+        const d=new Date(); const name=`${d.getMonth()+1}/${d.getDate()} 随手记`;
+        const t=$('#title'); if(t){ t.value=name; autoraf(t); }
+        await this.commitTitle(name);
+      };
+      return;
+    }
+    const nudge=this.cur.nudge||{};
+    const swOn=services.auth.user?.prefs?.ideaNudge!==false; // 总开关（用户级）
+    if(swOn && nudge.state==='pending' && String(this.cur.title||'').trim()){
+      aux.innerHTML=`<div class="nudgecap" id="nudgecap">
+        <button class="nudgego" id="nudgego">⚡ 让 AI 教练看看这个点子</button>
+        <button class="nudgex" id="nudgex" aria-label="不再显示" title="不再显示">✕</button></div>`;
+      $('#nudgego').onclick=()=>this.startKickoff();
+      $('#nudgex').onclick=async()=>{ // ✕ → dismissed：该笔记胶囊永不再自动出现
+        const cap=$('#nudgecap'); if(cap) cap.classList.add('fade');
+        const u=await services.systems.update(this.cur.id,{nudge:{...(this.cur.nudge||{}),state:'dismissed'}});
+        this.cur.nudge=u.nudge;
+        setTimeout(()=>{ const c2=$('#nudgecap'); if(c2) c2.remove(); },250);
+        this.toast('不再为这则笔记显示（设定页可关闭）');
+        this.syncSpark();
+      };
+    } else aux.innerHTML='';
+  }
+
+  // ---- Step 3.6 点子助攻：kickoff 教练开场 / 指纹重播（F9）----
+  // 防连点四层闸：①按下即转 opened 收胶囊 ②chatBusy 防抖 ③面板 ⚡ 受 nudge.hash gate ④server 60/分限流
+  async startKickoff(){
+    if(this.chatBusy) return;
+    const hash=nudgeHash(this.cur.title, this.cur.blocks);
+    const u=await services.systems.update(this.cur.id,
+      {nudge:{ ...(this.cur.nudge||{}), state:'opened', hash, at:new Date().toISOString() }});
+    this.cur.nudge=u.nudge;
+    this.renderTitleAux(); this.syncSpark(); // 胶囊收起、面板 ⚡ 浮现
+    this.toggleChat(true);
+    await this.runKickoffChat();
+  }
+  // 实际跑一次 kickoff 串流：开场白逐字进 AI 气泡 → proposal 渲染按钮列 → 完成写 nudge.opening（重播快照）
+  async runKickoffChat(){
+    if(this.chatBusy) return;
+    const bubble=this.chatBubble('ai','');
+    const textEl=bubble.querySelector('.ctext');
+    textEl.innerHTML='<span class="faint">教练看稿中…</span>';
+    this.chatBusy=true; this.chatLock(true);
+    const ac=new AbortController(); this.chatAbort=ac;
+    let acc=''; let props=null;
+    const meta=(cls,txt)=>{ const m=document.createElement('div'); m.className=cls; m.textContent=txt; bubble.appendChild(m); this.chatScroll(); };
+    try{
+      await services.ai.chatNote(this.cur.id, [], {
+        onDelta:t=>{ acc+=t; textEl.textContent=acc; this.chatScroll(); },
+        onUsage:u2=>meta('cmeta',`tokens: in ${u2.input_tokens} / out ${u2.output_tokens}`),
+        onProposal:items=>{ props=items; },
+        onError:e=>meta('cerr','出错：'+(e.error||e.code||'未知错误')),
+      }, ac.signal, { kickoff:true });
+    }catch(e){ meta('cerr','出错：'+(e.message||e)); }
+    finally{
+      if(!acc) textEl.textContent='';
+      if(ac.signal.aborted && acc) meta('cmeta','（已停止）');
+      if(acc) this.chatMsgs.push({role:'ai',content:acc}); // 开场白进同一份聊天历史（与手动 💬 同面板）
+      if(props?.length) this.renderProposals(bubble, props);
+      this.chatBusy=false; this.chatAbort=null; this.chatLock(false);
+      if(!ac.signal.aborted && (acc || props?.length)){ // 完成后存开场快照（同内容重按零成本重播）
+        try{
+          const u=await services.systems.update(this.cur.id,
+            {nudge:{ ...(this.cur.nudge||{}), state:'opened', opening:{ text:acc, proposals:props||[] } }});
+          this.cur.nudge=u.nudge;
+        }catch{}
+      }
+      this.syncSpark();
+      $('#chatin')?.focus();
+    }
+  }
+  // 面板 ⚡：指纹同 → 注入 nudge.opening（零网络、零成本）；不同 → 重新 kickoff 并更新 hash/opening
+  async sparkReplay(){
+    if(this.chatBusy) return;
+    const nu=this.cur.nudge||{};
+    const hash=nudgeHash(this.cur.title, this.cur.blocks);
+    if(nu.opening && nu.hash===hash){
+      const bubble=this.chatBubble('ai','');
+      const pre=document.createElement('div'); pre.className='cmeta';
+      pre.textContent='上次的教练点评（内容没变，未消耗 AI）';
+      bubble.insertBefore(pre, bubble.firstChild);
+      bubble.querySelector('.ctext').textContent=nu.opening.text||'';
+      if(nu.opening.proposals?.length) this.renderProposals(bubble, nu.opening.proposals);
+      if(nu.opening.text) this.chatMsgs.push({role:'ai',content:nu.opening.text});
+      this.chatScroll();
+      return;
+    }
+    try{
+      const u=await services.systems.update(this.cur.id,
+        {nudge:{ ...nu, state:'opened', hash, at:new Date().toISOString() }});
+      this.cur.nudge=u.nudge;
+    }catch{}
+    this.renderTitleAux();
+    await this.runKickoffChat();
+  }
+  // ---- Step 3.5 提议按钮列：AI 气泡下方横排小钮；点过整列禁用（防重复）----
+  renderProposals(bubble, items){
+    if(!bubble || !items?.length) return;
+    const LOCKED=['find_github','find_youtube','find_info']; // 接通前显示「即将推出」
+    const row=document.createElement('div'); row.className='proprow';
+    items.slice(0,4).forEach(it=>{
+      const locked=LOCKED.includes(it.action);
+      const btn=document.createElement('button'); btn.className='propbtn'+(locked?' locked':'');
+      btn.textContent=(locked?'🔒 ':'')+String(it.label||it.action).slice(0,12);
+      btn.onclick=async()=>{
+        if(locked){ this.toast('即将推出'); return; } // 锁定项不锁整列（没执行任何事）
+        row.querySelectorAll('.propbtn').forEach(b=>b.disabled=true);
+        if(it.action==='structure'){ this.toggleChat(false); await this.runStructure(); }
+        else if(it.action==='edit_text') await this.runApplyEdit(it.args?.instruction || it.label || '');
+        else this.toast('即将推出');
+      };
+      row.appendChild(btn);
+    });
+    bubble.appendChild(row); this.chatScroll();
+  }
+  // edit_text 提议落地：ai.applyEdit（执行中锁定编辑器同 ✦；完成可 ↶ 还原）
+  async runApplyEdit(instruction){
+    if(this.aiBusy) return;
+    if(AI_BACKEND!=='real'){ this.toast('此功能需要真后端（config.js 切 real）'); return; }
+    this.aiBusy=true; this.aiLock(true,'AI 帮你补内容中…'); this.chatLock(true);
+    this.aiAbort=new AbortController();
+    let err=null, skip=null;
+    const r=await services.ai.applyEdit(this.cur.id,{instruction},{
+      onProgress:(c,t,msg)=>{ if(msg) skip=msg; },
+      onError:e=>{ err=e; },
+    }, this.aiAbort.signal);
+    this.aiBusy=false; this.aiAbort=null; this.aiLock(false); this.chatLock(false);
+    if(err) this.aiErrToast(err);
+    else if(skip && !(r?.applied||r?.removed)) this.toast(skip); // AI 没提出任何修改
+    else{
+      this.toast('已帮你补上，可按 ↶ 还原');
+      this.chatMsgs.push({role:'ai',content:'已帮你补上，可按 ↶ 还原'});
+      const p=$('#chatpanel');
+      if(p && !p.classList.contains('hidden')) this.chatBubble('ai','已帮你补上，可按 ↶ 还原');
+    }
+    await this.reload();
+  }
+
   appendBlock(b){
     const wrap=$('#blocks'); const hint=$('#bhint'); if(hint) hint.remove();
     const tmp=document.createElement('div'); tmp.innerHTML=this.blockHTML(b);
@@ -543,6 +764,7 @@ class App {
   // ---------- 设定 ----------
   settings(){
     const cur=document.documentElement.getAttribute('data-theme');
+    const nudgeOn=services.auth.user?.prefs?.ideaNudge!==false; // 点子助攻总开关（F9）
     this.frame(`<div class="view">
       <div class="nav"><button class="link" id="back">${svg('back',20,2)} 返回</button><span class="spacer"></span><span class="title">设定</span><span class="spacer"></span></div>
       <div class="scroll"><div class="pad">
@@ -552,12 +774,22 @@ class App {
           <div class="li"><span class="lbl">帐号</span><span class="val">${esc(services.auth.user?.email||'')}</span></div>
           <div class="li" id="logout"><span class="lbl" style="color:var(--primary)">登出</span></div>
         </div>
+        <div class="sect">AI</div>
+        <div class="card list" style="padding:0">
+          <div class="li"><span class="lbl">点子助攻<div class="faint" style="font-size:11px;font-weight:400;margin-top:2px">取名后浮现「⚡ 让 AI 教练看看」胶囊</div></span>
+            <button class="switch ${nudgeOn?'on':''}" id="nudgesw" role="switch" aria-checked="${nudgeOn}" aria-label="点子助攻"><i></i></button></div>
+        </div>
         <button class="btn btn-danger" id="del" style="width:100%;margin-top:18px">删除帐号</button>
         <div class="faint" style="font-size:11px;margin-top:8px">删除将立即永久移除你的资料、无法复原（正式版会再要求 Apple 验证）。</div>
       </div></div></div>`);
     $('#back').onclick=()=>this.home();
     $('#t-ob').onclick=()=>{ setTheme('obsidian'); this.settings(); };
     $('#t-ap').onclick=()=>{ setTheme('approach'); this.settings(); };
+    $('#nudgesw').onclick=async()=>{ // UI 只走服务层（auth.updatePrefs 触点）
+      await services.auth.updatePrefs({ideaNudge:!nudgeOn});
+      this.toast(!nudgeOn?'已开启点子助攻':'已关闭点子助攻');
+      this.settings();
+    };
     $('#logout').onclick=async()=>{ await services.auth.signOut(); this.login(); };
     $('#del').onclick=async()=>{ if(!confirm('确定删除帐号？资料将立即永久删除、无法复原。')) return;
       await services.auth.deleteAccount(); this.toast('帐号已删除'); setTimeout(()=>this.login(),600); };
