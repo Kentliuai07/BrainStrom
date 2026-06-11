@@ -2,7 +2,42 @@
 // 每个 Service 继承 EventTarget；资料变动时 dispatch → UI 订阅后重渲染。
 // 对应 SwiftUI 的 @Observable ViewModel / Service。
 import { Mock, splitIntoBlocks } from '../api/mockClient.js';
+import { BACKEND } from '../config.js';
 export { splitIntoBlocks }; // §1.2b 切块纯函式（UI 经服务层取用，不直碰 api/）
+
+// real 模式：fetch + ReadableStream 逐行解析 SSE（§3 整合设计——EventSource 带不了 POST/header）
+async function realStream(endpoint, body, onEvent, signal){
+  const res = await fetch(BACKEND.aiBaseUrl + endpoint, {
+    method:'POST',
+    headers:{ 'Authorization':'Bearer '+BACKEND.authToken, 'Content-Type':'application/json' },
+    body: JSON.stringify(body), signal,
+  });
+  if(!res.ok || !res.body){
+    let detail=''; try{ detail=(await res.json()).error; }catch{}
+    onEvent({ type:'error', code:'http_'+res.status, error: detail||('HTTP '+res.status) });
+    return;
+  }
+  const reader = res.body.getReader(); const dec = new TextDecoder(); let buf='';
+  while(true){
+    const { done, value } = await reader.read();
+    if(done) break;
+    buf += dec.decode(value, { stream:true });
+    let i;
+    while((i = buf.indexOf('\n\n')) >= 0){
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 2);
+      if(line.startsWith('data: ')){ try{ onEvent(JSON.parse(line.slice(6))); }catch{} }
+    }
+  }
+}
+
+// 把当前笔记序列化成 real 后端契约的 note 形状（{title, blocks:[{type,content,pinned}]}）
+function serializeNote(sys){
+  const text = b => b?.payload?.content ?? b?.payload?.text ?? '';
+  return {
+    title: sys?.title || '未命名',
+    blocks: (sys?.blocks || []).map(b => ({ type:b.type, content:text(b), pinned:!!b.pinned })),
+  };
+}
 
 class Base extends EventTarget {
   changed(detail){ this.dispatchEvent(new CustomEvent('change',{detail})); }
@@ -51,7 +86,7 @@ export class AIService extends Base {
   // Step 1 底层：所有 AI 方法共用的串流 transport——把引擎 emit 的 SSE 事件按 §3 介面分发
   async _stream(endpoint, payload, handlers={}, signal){
     const h=handlers;
-    await Mock.aiStream(endpoint, payload, ev=>{
+    const dispatch = ev=>{
       switch(ev.type){
         case 'delta':        h.onDelta?.(ev.text); break;
         case 'usage':        h.onUsage?.(ev); break;
@@ -62,12 +97,26 @@ export class AIService extends Base {
         case 'done':         h.onDone?.(); break;
         case 'error':        h.onError?.(ev); break;
       }
-    }, signal);
+    };
+    if(BACKEND.ai === 'real') await realStream(endpoint, payload, dispatch, signal);
+    else await Mock.aiStream(endpoint, payload, dispatch, signal);
   }
-  async health(){ return Mock.aiHealth(); }
+  async health(){
+    if(BACKEND.ai === 'real'){
+      try{ const r=await fetch(BACKEND.aiBaseUrl+'/ai/health'); return await r.json(); }
+      catch(e){ return { ok:false, error:String(e) }; }
+    }
+    return Mock.aiHealth();
+  }
   // Step 2 单笔记聊天：messages=[{role:'user'|'ai',content}]，AI 知道这则的全部 blocks
+  // real 模式契约：POST {messages, note:{title, blocks:[{type,content,pinned}]}}（前端只送内容收结果）
   async chatNote(systemId, messages, handlers={}, signal){
-    await this._stream('/ai/chat/note', { systemId, messages }, {
+    let payload;
+    if(BACKEND.ai === 'real'){
+      const sys = await Mock.getSystem(systemId);
+      payload = { messages, note: serializeNote(sys) };
+    } else payload = { systemId, messages };
+    await this._stream('/ai/chat/note', payload, {
       ...handlers,
       onDone: ()=>{ handlers.onDone?.(); this.changed({ type:'ai', op:'chatNote' }); },
     }, signal);
