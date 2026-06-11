@@ -2,7 +2,7 @@ import Foundation
 
 // ============================================================
 // AI 服務 · 真後端實作 —— brainstrom-ai（Fly.io）
-// POST + Bearer + text/event-stream
+// POST + Bearer + text/event-stream；路徑/Body 對齊《整合契約 §1》
 // ============================================================
 
 struct AIServiceLive: AIServicing {
@@ -22,41 +22,30 @@ struct AIServiceLive: AIServicing {
         }
     }
 
-    func optimize(_ payload: NotePayload, options: OptimizeOptions) -> AsyncThrowingStream<AIEvent, any Error> {
-        struct Body: Encodable {
-            let note: NotePayload
-            let splitTopics: Bool
-            let addHeadings: Bool
-            let proofread: Bool
-        }
-        return stream(path: "ai/optimize", body: Body(
-            note: payload,
-            splitTopics: options.splitTopics,
-            addHeadings: options.addHeadings,
-            proofread: options.proofread
-        ))
-    }
-
-    func structure(_ payload: NotePayload) -> AsyncThrowingStream<AIEvent, any Error> {
-        struct Body: Encodable {
-            let note: NotePayload
-        }
-        return stream(path: "ai/structure", body: Body(note: payload))
-    }
-
-    func chat(messages: [ChatMessage], context: NotePayload?) -> AsyncThrowingStream<AIEvent, any Error> {
+    func chatNote(messages: [ChatMessage], note: NotePayload, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error> {
         struct Body: Encodable {
             let messages: [ChatMessage]
-            let note: NotePayload?
+            let note: NotePayload
+            let kickoff: Bool
         }
-        return stream(path: "ai/chat", body: Body(messages: messages, note: context))
+        return stream(path: "ai/chat/note", body: Body(messages: messages, note: note, kickoff: kickoff))
     }
 
-    func search(query: String) -> AsyncThrowingStream<AIEvent, any Error> {
+    func optimize(note: NotePayload, groupTopics: Bool, instruction: String?) -> AsyncThrowingStream<AIEvent, any Error> {
         struct Body: Encodable {
-            let query: String
+            let note: NotePayload
+            let groupTopics: Bool
+            let instruction: String?
         }
-        return stream(path: "ai/search", body: Body(query: query))
+        return stream(path: "ai/optimize", body: Body(note: note, groupTopics: groupTopics, instruction: instruction))
+    }
+
+    func structure(note: NotePayload) -> AsyncThrowingStream<AIEvent, any Error> {
+        struct Body: Encodable {
+            let note: NotePayload
+            let mode: String
+        }
+        return stream(path: "ai/structure", body: Body(note: note, mode: "full"))
     }
 
     // MARK: - SSE 共通管線
@@ -81,7 +70,7 @@ struct AIServiceLive: AIServicing {
                         throw URLError(.badServerResponse)
                     }
                     guard http.statusCode == 200 else {
-                        continuation.yield(.error(message: String(localized: "伺服器回應 \(http.statusCode)，請稍後再試。")))
+                        continuation.yield(.error(code: errorCode(for: http.statusCode), message: errorMessage(for: http.statusCode)))
                         continuation.finish()
                         return
                     }
@@ -89,24 +78,28 @@ struct AIServiceLive: AIServicing {
                     var accumulator = SSEAccumulator()
                     var lineBuffer: [UInt8] = []
 
+                    func emit(_ json: String?) -> Bool {  // 回傳 true 表示收到 done，要結束
+                        guard let json, let event = SSEEventMapper.map(jsonString: json) else { return false }
+                        continuation.yield(event)
+                        if case .done = event { return true }
+                        return false
+                    }
+
                     for try await byte in bytes {
                         guard !Task.isCancelled else { break }
                         if byte == 0x0A {  // \n
                             var line = String(decoding: lineBuffer, as: UTF8.self)
                             lineBuffer.removeAll(keepingCapacity: true)
                             if line.hasSuffix("\r") { line.removeLast() }
-                            if let message = accumulator.feed(line: line),
-                               let event = SSEEventMapper.map(message) {
-                                continuation.yield(event)
-                                if case .done = event {
-                                    continuation.finish()
-                                    return
-                                }
+                            if emit(accumulator.feed(line: line)) {
+                                continuation.finish()
+                                return
                             }
                         } else {
                             lineBuffer.append(byte)
                         }
                     }
+                    _ = emit(accumulator.flush())  // 收尾：無結尾空行的最後一筆
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()
@@ -117,6 +110,24 @@ struct AIServiceLive: AIServicing {
             continuation.onTermination = { _ in
                 task.cancel()
             }
+        }
+    }
+
+    private func errorCode(for status: Int) -> String {
+        switch status {
+        case 401: "unauthorized"
+        case 429: "rate_limited"
+        case 400: "bad_request"
+        default: "http_\(status)"
+        }
+    }
+
+    private func errorMessage(for status: Int) -> String {
+        switch status {
+        case 401: String(localized: "登入憑證失效，請重新登入。")
+        case 429: String(localized: "AI 暫時忙線，稍等再試")
+        case 400: String(localized: "筆記太大，先精簡或拆成兩則")
+        default: String(localized: "伺服器回應 \(status)，請稍後再試。")
         }
     }
 }

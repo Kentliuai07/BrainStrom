@@ -1,93 +1,129 @@
 import Foundation
 
 // ============================================================
-// SSE 解析 —— text/event-stream 行協議 → AIEvent
-// 事件名照阶段二文档 §2.1：delta/done/error/usage/
-// card_start/card_done/card_removed/progress/hit_list
+// SSE 解析 —— 後端裁決：沒有 event: 行，每事件一行 data: {JSON}\n\n，
+// type 在 JSON 裡。流程：逐行掃 data: 前綴 → 累積 → 空行/結束時 JSON.parse
+// → 依 JSON.type 分發成 AIEvent。
 // ============================================================
 
-/// 一則完整 SSE 訊息。
-struct SSEMessage: Equatable, Sendable {
-    let event: String?
-    let data: String
-}
-
-/// 行累積器：逐行餵入，遇空行吐出完整訊息（單一 Task 內使用）。
+/// 行累積器：逐行餵入，遇空行（或結束 flush）吐出完整的 data JSON 字串。
 struct SSEAccumulator {
-    private var eventName: String?
     private var dataLines: [String] = []
 
-    mutating func feed(line: String) -> SSEMessage? {
+    /// 餵一行；遇空行回傳累積的 data JSON 字串（無資料則 nil）。
+    mutating func feed(line: String) -> String? {
         if line.isEmpty {
-            guard eventName != nil || !dataLines.isEmpty else { return nil }
-            let message = SSEMessage(event: eventName, data: dataLines.joined(separator: "\n"))
-            eventName = nil
-            dataLines = []
-            return message
+            return flush()
         }
-        if line.hasPrefix(":") { return nil }  // 註解/心跳
-        if line.hasPrefix("event:") {
-            eventName = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
-        } else if line.hasPrefix("data:") {
+        if line.hasPrefix(":") { return nil }           // 註解/心跳
+        if line.hasPrefix("data:") {
             dataLines.append(String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces))
         }
+        // event:/id: 等行一律忽略（後端不用 event: 行）
         return nil
+    }
+
+    /// 串流結束時呼叫：若還有未吐出的 data（無結尾空行）也補吐。
+    mutating func flush() -> String? {
+        guard !dataLines.isEmpty else { return nil }
+        let joined = dataLines.joined(separator: "\n")
+        dataLines.removeAll(keepingCapacity: true)
+        return joined.isEmpty ? nil : joined
     }
 }
 
-/// SSE 訊息 → 領域事件 的對應。
+/// data JSON 字串 → 領域事件。
 enum SSEEventMapper {
 
-    static func map(_ message: SSEMessage) -> AIEvent? {
-        let object = (try? JSONSerialization.jsonObject(with: Data(message.data.utf8))) as? [String: Any]
+    static func map(jsonString: String) -> AIEvent? {
+        guard let data = jsonString.data(using: .utf8),
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return nil
+        }
+        return map(object)
+    }
 
-        switch message.event {
-        case "delta", nil:
-            let text = (object?["text"] as? String) ?? message.data
+    static func map(_ object: [String: Any]) -> AIEvent? {
+        guard let type = object["type"] as? String else { return nil }
+
+        switch type {
+        case "delta":
+            let text = (object["text"] as? String) ?? ""
             return text.isEmpty ? nil : .delta(text)
+
+        case "usage":
+            return .usage(AIUsage(
+                inputTokens: intValue(object["input_tokens"]),
+                outputTokens: intValue(object["output_tokens"]),
+                cacheReadInputTokens: intValue(object["cache_read_input_tokens"]),
+                model: (object["model"] as? String) ?? ""
+            ))
+
+        case "progress":
+            return .progress(
+                current: intValue(object["current"]),
+                total: intValue(object["total"]),
+                message: object["message"] as? String
+            )
+
+        case "card_start":
+            // ⚠ 契約 card_start.type 與事件 discriminator "type" 撞名（同一扁平物件無法並存）；
+            // 先用備援鍵 cardType，否則留空，待後端澄清實際鍵名。
+            return .cardStart(
+                index: intValue(object["index"]),
+                title: (object["title"] as? String) ?? "",
+                type: (object["cardType"] as? String) ?? ""
+            )
+
+        case "card_done":
+            guard let card = object["card"] as? [String: Any] else { return nil }
+            return .cardDone(index: intValue(object["index"]), card: cardPayload(card))
+
+        case "card_removed":
+            guard let cardId = (object["cardId"] as? String) ?? (object["card_id"] as? String) else { return nil }
+            return .cardRemoved(cardId: cardId)
+
+        case "proposal":
+            let items = (object["items"] as? [[String: Any]]) ?? []
+            let parsed = items.compactMap { item -> ProposalItem? in
+                guard let action = item["action"] as? String,
+                      let label = item["label"] as? String else { return nil }
+                let args = item["args"] as? [String: Any]
+                return ProposalItem(action: action, label: label, instruction: args?["instruction"] as? String)
+            }
+            return parsed.isEmpty ? nil : .proposal(parsed)
 
         case "done":
             return .done
 
         case "error":
-            let detail = (object?["detail"] as? String)
-                ?? (object?["error"] as? String)
-                ?? message.data
-            return .error(message: detail)
-
-        case "usage":
-            return .usage(
-                inputTokens: (object?["input_tokens"] as? Int) ?? 0,
-                outputTokens: (object?["output_tokens"] as? Int) ?? 0
+            return .error(
+                code: (object["code"] as? String) ?? "unknown",
+                message: (object["error"] as? String) ?? (object["detail"] as? String) ?? ""
             )
 
-        case "card_start":
-            guard let id = object?["id"] as? String else { return nil }
-            return .cardStart(id: id, title: (object?["title"] as? String) ?? "")
-
-        case "card_done":
-            guard let id = object?["id"] as? String else { return nil }
-            return .cardDone(id: id)
-
-        case "card_removed":
-            guard let id = object?["id"] as? String else { return nil }
-            return .cardRemoved(id: id)
-
-        case "progress":
-            let value = (object?["value"] as? Double) ?? Double(message.data) ?? 0
-            return .progress(min(max(value, 0), 1))
-
-        case "hit_list":
-            guard let array = object?["hits"] as? [[String: Any]] else { return nil }
-            let hits = array.compactMap { item -> SearchHit? in
-                guard let id = item["id"] as? String,
-                      let title = item["title"] as? String else { return nil }
-                return SearchHit(id: id, title: title, systemName: (item["system"] as? String) ?? "")
-            }
-            return .hitList(hits)
-
         default:
-            return nil  // 未知事件：容忍前進，不炸
+            return nil   // 未知事件：容忍前進，不炸
         }
+    }
+
+    private static func cardPayload(_ card: [String: Any]) -> CardPayload {
+        CardPayload(
+            action: card["action"] as? String,
+            id: card["id"] as? String,
+            type: card["type"] as? String,
+            title: card["title"] as? String,
+            content: card["content"] as? String,
+            position: card["position"] as? Int,
+            absorbed: (card["absorbed"] as? [String]) ?? []
+        )
+    }
+
+    /// JSON 數字可能解成 Int / Double / NSNumber，統一取 Int。
+    private static func intValue(_ any: Any?) -> Int {
+        if let i = any as? Int { return i }
+        if let d = any as? Double { return Int(d) }
+        if let n = any as? NSNumber { return n.intValue }
+        return 0
     }
 }
