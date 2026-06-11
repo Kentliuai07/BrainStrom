@@ -138,3 +138,23 @@ input,textarea{font:inherit;color:inherit}
 .li{display:flex;align-items:center;gap:12px;padding:14px;border-bottom:1px solid var(--hair)}
 .li .lbl{flex:1} .li .val{color:var(--text-muted);font-size:14px}
 .savechip{font-size:11px;color:var(--text-faint);font-weight:700}
+
+/* ---- 阶段二 Step 2 · 单笔记聊天面板（问 AI）---- */
+.chatpanel{position:absolute;left:0;right:0;bottom:0;height:56%;z-index:60;display:flex;flex-direction:column;
+  background:var(--surface);border-top:1px solid var(--hair);border-radius:20px 20px 0 0;box-shadow:var(--shadow-medium)}
+.chathead{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:12px 14px;font-size:13px;font-weight:800;border-bottom:1px solid var(--hair)}
+.chathead .link{color:var(--primary);font-weight:700;font-size:12px}
+.chatlist{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:12px 14px;scrollbar-width:none}
+.chatlist::-webkit-scrollbar{display:none}
+.cmsg{max-width:84%;padding:8px 11px;border-radius:14px;font-size:13.5px;line-height:1.6}
+.cmsg.user{align-self:flex-end;background:var(--primary);color:var(--on-primary);border-bottom-right-radius:4px}
+.cmsg.ai{align-self:flex-start;background:var(--surface-2);border:1px solid var(--hair);border-bottom-left-radius:4px}
+.cmsg .ctext{white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word}
+.cmeta{margin-top:5px;font-size:10px;color:var(--text-faint)}
+.cbadge{margin-top:5px;display:inline-block;font-size:10px;font-weight:800;color:var(--primary);background:var(--primary-soft);padding:2px 8px;border-radius:999px}
+.cerr{margin-top:5px;font-size:11px;color:var(--danger);font-weight:700}
+.chatfoot{flex:0 0 auto;display:flex;align-items:flex-end;gap:8px;padding:10px 12px 14px;border-top:1px solid var(--hair)}
+.chatfoot textarea{flex:1;background:var(--surface-2);border:1px solid var(--hair);border-radius:12px;padding:9px 11px;
+  font-size:14px;line-height:1.5;color:var(--text);font-family:inherit;resize:none;outline:none;overflow:hidden;max-height:96px}
+.chatfoot textarea[disabled]{opacity:.55}
+.chatfoot .btn{padding:9px 13px;font-size:13px}

@@ -44,3 +44,32 @@ export class BlocksService extends Base {
 }
 
 export class StatusService extends Base { async get(){ return Mock.status(); } }
+
+// 阶段二 · AI 服务（开发文档 §3）。串流过程走 handlers 回调（不广播）；
+// 完成落库后才 changed({type:'ai', op}) 派事件。signal = AbortSignal（F8 第四参数）。
+export class AIService extends Base {
+  // Step 1 底层：所有 AI 方法共用的串流 transport——把引擎 emit 的 SSE 事件按 §3 介面分发
+  async _stream(endpoint, payload, handlers={}, signal){
+    const h=handlers;
+    await Mock.aiStream(endpoint, payload, ev=>{
+      switch(ev.type){
+        case 'delta':        h.onDelta?.(ev.text); break;
+        case 'usage':        h.onUsage?.(ev); break;
+        case 'progress':     h.onProgress?.(ev.current, ev.total, ev.message); break;
+        case 'card_done':    h.onCard?.(ev.index, ev.card); break;
+        case 'card_removed': h.onCardRemoved?.(ev.cardId); break;
+        case 'hit_list':     h.onHit?.(ev.systems); break;
+        case 'done':         h.onDone?.(); break;
+        case 'error':        h.onError?.(ev); break;
+      }
+    }, signal);
+  }
+  async health(){ return Mock.aiHealth(); }
+  // Step 2 单笔记聊天：messages=[{role:'user'|'ai',content}]，AI 知道这则的全部 blocks
+  async chatNote(systemId, messages, handlers={}, signal){
+    await this._stream('/ai/chat/note', { systemId, messages }, {
+      ...handlers,
+      onDone: ()=>{ handlers.onDone?.(); this.changed({ type:'ai', op:'chatNote' }); },
+    }, signal);
+  }
+}

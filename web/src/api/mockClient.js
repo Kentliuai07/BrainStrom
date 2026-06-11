@@ -133,7 +133,87 @@ function migrateV2(db){
   db.meta.schemaVersion = 2;
 }
 
+// ---- AI 模拟引擎工具（阶段二 Step 1/2，§2.6 / 附录 F5）----
+// 块 → 可读文字（聊天上下文序列化用）
+function blockText(b){
+  if(b?.payload?.content!==undefined) return String(b.payload.content||'');
+  if(b?.payload?.text!==undefined) return String(b.payload.text||'');
+  return JSON.stringify(b?.payload||{});
+}
+// 最长公共连续子串（关键词命中判定用；mock 级、两边字串都很短，O(n·m) 够用）
+function commonSub(a,b){
+  let best='';
+  for(let i=0;i<a.length;i++) for(let j=0;j<b.length;j++){
+    let k=0;
+    while(i+k<a.length && j+k<b.length && a[i+k]===b[j+k]) k++;
+    if(k>best.length) best=a.slice(i,i+k);
+  }
+  return best;
+}
+// 组 mock 聊天回答：反映「真实卡片数 + 真实内容」，证明上下文真的被读到（F5）。
+// 关键词命中 = 使用者问题与某块 content 的最长公共子串去掉空白标点后仍 ≥2 字。
+function buildChatAnswer(db, systemId, messages){
+  const blocks = liveBlocks(db, systemId);
+  const texts = blocks.filter(b=>TEXTUAL_TYPES.includes(b.type));
+  const mods  = blocks.filter(b=>isModuleType(b.type));
+  const q = String([...(messages||[])].reverse().find(m=>m?.role==='user')?.content||'');
+  const first = texts.map(blockText).find(t=>t.trim()) || '';
+  const hits=[];
+  blocks.forEach((b,i)=>{
+    const sub=commonSub(q, blockText(b));
+    if(sub.replace(/[\s\p{P}]/gu,'').length>=2) hits.push({ idx:i+1, sub:sub.trim(), text:blockText(b) });
+  });
+  const other = texts.map(blockText).find(t=>t.trim() && t!==first) || first;
+  let ans = `这则笔记有 ${blocks.length} 张卡（${texts.length} 段文字、${mods.length} 个模组）`;
+  ans += first ? `，主要在讲：「${first.slice(0,20)}…」。` : '，目前还是空的。';
+  ans += `你问的是：「${q.slice(0,30)}」——`;
+  if(hits.length){
+    const h=hits[0];
+    ans += `第 ${h.idx} 段提到「${h.sub}」，从笔记内容看：「${h.text.slice(0,30)}…」`;
+  }else if(other){
+    ans += `从笔记内容看：${other.slice(0,30)}…`;
+  }else{
+    ans += `这则笔记还没有内容，先写点东西再问我吧。`;
+  }
+  return { ans, hitCount: hits.length };
+}
+
 const RawMock = {
+  // ---- AI 共用引擎（阶段二 Step 1，§2.6）----
+  async aiHealth(){ return { ok:true, version:'mock-1' }; },
+  // 模拟串流：setTimeout 链把假回答切片逐个 emit（每片 30–80ms），中途一次 usage，最后 done。
+  // signal 中断 = 静默停止（不再 emit 任何事件，含 done/error）（附录 F8）。
+  // 事件协议与 Fly.io 真后端 SSE 完全一致（§2.1）：{type:'delta'|'usage'|'progress'|'done'|'error', ...}
+  async aiStream(endpoint, payload, emit, signal){
+    if(endpoint!=='/ai/chat/note'){
+      emit({ type:'error', code:'unknown_endpoint', error:'未知 AI 端点：'+endpoint }); return;
+    }
+    const db=init();
+    if(!db.session){ emit({ type:'error', code:'unauthorized', error:'请先登入' }); return; }
+    const s=db.systems[payload?.systemId];
+    if(!s||s.deletedAt||(s.ownerId!==db.session && s.visibility!=='public')){
+      emit({ type:'error', code:'not_found', error:'找不到这则笔记' }); return;
+    }
+    const { ans, hitCount } = buildChatAnswer(db, payload.systemId, payload?.messages);
+    // 切片（每片 2–4 字），逐片吐
+    const chunks=[]; let i=0;
+    while(i<ans.length){ const n=2+Math.floor(Math.random()*3); chunks.push(ans.slice(i,i+n)); i+=n; }
+    const ctxChars = liveBlocks(db, payload.systemId).reduce((sum,b)=>sum+blockText(b).length, 0);
+    const usage = { input_tokens: Math.max(1, Math.ceil(ctxChars/2)),
+      output_tokens: Math.max(1, Math.ceil(ans.length/2)), model:'mock' };
+    const usageAt = Math.floor(chunks.length/2);
+    for(let k=0;k<chunks.length;k++){
+      await sleep(30+Math.floor(Math.random()*50));
+      if(signal?.aborted) return;                 // 中断＝静默停止
+      emit({ type:'delta', text:chunks[k] });
+      if(k===usageAt) emit({ type:'usage', ...usage });
+    }
+    if(signal?.aborted) return;
+    if(hitCount>0) emit({ type:'progress', current:1, total:1, message:`引用到 ${hitCount} 张卡` });
+    // 第一次聊天串流「成功完成」→ 点亮 chat_note 灯（status() 读 db.meta.lamps）
+    const db2=init(); (db2.meta.lamps ||= {}).chat_note=true; save(db2);
+    emit({ type:'done' });
+  },
   // ---- auth ----
   async signInWithApple(){
     await sleep(); const db=init();
@@ -286,8 +366,9 @@ const RawMock = {
     const db=init();
     return { db:true, auth:!!db.session, read_write:true, rls:true, delete_account:true,
       frontend_skeleton:true,
-      // 阶段二 7 盏灯（各 Step 完成后点亮，现在全灭是正常）
-      ai_engine:false, chat_note:false, optimize:false, structure:false,
+      // 阶段二 7 盏灯：ai_engine = 模拟引擎内建即在线（Step 1）；
+      // chat_note = 第一次聊天串流成功完成后点亮（db.meta.lamps，Step 2）；其余各 Step 完成后逐一点亮
+      ai_engine:true, chat_note:!!db.meta.lamps?.chat_note, optimize:false, structure:false,
       structure_incremental:false, global_recall:false, git_progress:false,
       systems:Object.values(db.systems).filter(s=>!s.deletedAt).length, updatedAt:now() };
   }

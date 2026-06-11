@@ -23,4 +23,7 @@ export const TOUCHPOINTS = [
   { method:'systems.versions(id)',   ui:'笔记页·版本列表', api:'GET /api/systems/:id/versions', swift:'SystemsService.versions()' },
   { method:'systems.restore(id,v)',  ui:'笔记页·版本列表', api:'POST /api/systems/:id/restore', swift:'SystemsService.restore()' },
   { method:'blocks.pin(id,bool)',    ui:'卡片·钉选开关', api:'PATCH /api/blocks/:id{pinned}', swift:'BlocksService.update()' },
+  // ---- 阶段二 · AI（Step 1 引擎 + Step 2 单笔记聊天；模拟层↔Fly.io 层签名与 SSE 协议一致）----
+  { method:'ai.health()',            ui:'验收页', api:'GET /ai/health', swift:'AIService.health()' },
+  { method:'ai.chatNote(id,msgs)',   ui:'笔记底部聊天浮层', api:'POST /ai/chat/note', swift:'AIService.chatNote()' },
 ];

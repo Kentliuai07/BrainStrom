@@ -1,6 +1,6 @@
 // main.js — 组合根 + 路由 + 画面。UI 只透过 services 碰后端。
 // v3 活文件模型：一份笔记 = 一串有顺序的块；「文章 / 卡片」是同一份资料的两种画法（纯前端切换）。
-import { AuthService, SystemsService, BlocksService, StatusService, splitIntoBlocks } from './services/index.js';
+import { AuthService, SystemsService, BlocksService, StatusService, AIService, splitIntoBlocks } from './services/index.js';
 
 // ---- 组合根（建立并注入服务，无全域单例滥用）----
 const services = {
@@ -8,6 +8,7 @@ const services = {
   systems: new SystemsService(),
   blocks: new BlocksService(),
   status: new StatusService(),
+  ai: new AIService(), // 阶段二：AI 串流（Step 1 引擎 + Step 2 聊天）
 };
 
 // ---- 图标 ----
@@ -71,13 +72,14 @@ class App {
 
   // ---------- 首页 ----------
   async home(){
+    this.chatAbort?.abort(); // 离开笔记页：中断进行中的 AI 串流（省钱铁律，F8）
     this.frame(`<div class="view">
       <div class="scroll"><div class="pad">
         <div class="row"><div><div class="faint" style="font-size:12px">我的系统</div><div class="h1">BrainStrom</div></div>
           <div class="spacer"></div>
           <button class="iconbtn" id="settings">${svg('gear')}</button>
           <button class="iconbtn accent" id="add">${svg('plus')}</button></div>
-        <div class="banner">${svg('sparkles',15,2)} 阶段一骨架：登入/清单/速记/旋钮可用；AI 为占位</div>
+        <div class="banner">${svg('sparkles',15,2)} 阶段二 Step 2：打开笔记按底部 💬 可问 AI（其余 AI 功能陆续点亮）</div>
         <div id="syslist"><div class="muted" style="padding:20px 0">载入中…</div></div>
       </div></div></div>`);
     $('#settings').onclick=()=>this.settings();
@@ -100,8 +102,11 @@ class App {
       $('#retry').onclick=()=>this.home(); }
   }
 
-  // ---------- 笔记（活文件：文章 / 卡片两视图 + Undo/Redo）----------
+  // ---------- 笔记（活文件：文章 / 卡片两视图 + Undo/Redo + 问 AI 聊天）----------
   async note(id){
+    // 聊天历史只存前端内存，切换笔记即清空（附录 D7）；先中断上一篇残留的串流
+    this.chatAbort?.abort(); this.chatAbort=null;
+    this.chatMsgs=[]; this.chatBusy=false;
     this.frame(`<div class="view">
       <div class="nav"><button class="link" id="back">${svg('back',20,2)} 系统</button>
         <span class="spacer"></span>
@@ -111,14 +116,31 @@ class App {
         <button class="histbtn" id="redo" aria-label="下一步" title="下一步">↷</button>
         <button class="pill priv" id="vis" style="border:none">${svg('lock',9,2)} 私密</button></div>
       <div class="scroll"><div class="pad" id="content"><div class="muted">载入中…</div></div></div>
-      <div class="dock"><button class="iconbtn accent" id="chat">${svg('chat')}</button>
+      <div class="dock"><button class="iconbtn accent" id="chat" title="问 AI" aria-label="问 AI">${svg('chat')}</button>
         <button class="iconbtn" id="dsys">${svg('trash')}</button>
         <span class="spacer"></span><span class="savechip" id="save"></span></div>
       <button class="fab" id="fab">+</button>
       <div class="dial-scrim" id="scrim"></div><div class="dial hidden" id="dial"></div>
+      <div class="chatpanel hidden" id="chatpanel">
+        <div class="chathead">${svg('chat',15,2)} 问 AI · 这则笔记<span class="spacer"></span>
+          <button class="link" id="chatclose">收合 ▾</button></div>
+        <div class="chatlist" id="chatlist"></div>
+        <div class="chatfoot">
+          <textarea id="chatin" rows="1" placeholder="问这则笔记…"></textarea>
+          <button class="btn btn-ghost hidden" id="chatstop">停止</button>
+          <button class="btn" id="chatsend">送出</button>
+        </div>
+      </div>
     </div>`);
     $('#back').onclick=()=>this.home();
-    $('#chat').onclick=()=>this.toast('AI 对话：阶段二');
+    // 问 AI 浮钮（dock 左侧聊天钮 = 触点表「笔记底部聊天浮层」的入口）
+    $('#chat').onclick=()=>this.toggleChat();
+    $('#chatclose').onclick=()=>this.toggleChat(false);
+    $('#chatsend').onclick=()=>this.sendChat();
+    $('#chatstop').onclick=()=>this.chatAbort?.abort();
+    const ci=$('#chatin');
+    ci.oninput=()=>autoraf(ci);
+    ci.onkeydown=e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); this.sendChat(); } };
     $('#dsys').onclick=async()=>{ if(!confirm('删除这个系统？此动作无法复原。')) return;
       await services.systems.delete(this.cur.id); this.toast('已删除系统'); setTimeout(()=>this.home(),300); };
     let sys; try{ sys=await services.systems.get(id); }catch{ this.toast('打不开'); return this.home(); }
@@ -297,6 +319,61 @@ class App {
     </div>`).join('')}</div>`;
   }
   saved(){ const s=$('#save'); if(s){ s.textContent='已储存'; setTimeout(()=>{ if(s) s.textContent=''; },1200);} }
+
+  // ---- 单笔记聊天面板（阶段二 Step 2）----
+  // 铁律：UI 只走 services.ai；历史只存内存（this.chatMsgs），切换笔记清空（D7）
+  toggleChat(open){
+    const p=$('#chatpanel'); if(!p) return;
+    const show = open!==undefined ? open : p.classList.contains('hidden');
+    p.classList.toggle('hidden', !show);
+    if(show){ this.renderChat(); $('#chatin')?.focus(); }
+  }
+  renderChat(){
+    const list=$('#chatlist'); if(!list) return;
+    list.innerHTML = this.chatMsgs.length ? '' :
+      `<div class="faint" style="font-size:12px;padding:6px 4px">问我这则笔记的内容，例如「这则在讲什么？」</div>`;
+    for(const m of this.chatMsgs) this.chatBubble(m.role, m.content);
+  }
+  chatBubble(role, text){
+    const list=$('#chatlist'); if(!list) return null;
+    const el=document.createElement('div'); el.className='cmsg '+(role==='user'?'user':'ai');
+    const t=document.createElement('div'); t.className='ctext'; t.textContent=text||'';
+    el.appendChild(t); list.appendChild(el); this.chatScroll(); return el;
+  }
+  chatScroll(){ const l=$('#chatlist'); if(l) l.scrollTop=l.scrollHeight; }
+  chatLock(b){
+    const i=$('#chatin'), s=$('#chatsend'), st=$('#chatstop');
+    if(i) i.disabled=b; if(s) s.disabled=b; if(st) st.classList.toggle('hidden',!b);
+  }
+  async sendChat(){
+    const ta=$('#chatin'); if(!ta||this.chatBusy) return;
+    const q=ta.value.trim(); if(!q) return;
+    ta.value=''; autoraf(ta);
+    this.chatMsgs.push({role:'user',content:q});
+    this.chatBubble('user', q);
+    const bubble=this.chatBubble('ai','');
+    const textEl=bubble.querySelector('.ctext');
+    textEl.innerHTML='<span class="faint">思考中…</span>';
+    this.chatBusy=true; this.chatLock(true);
+    const ac=new AbortController(); this.chatAbort=ac;
+    let acc='';
+    const meta=(cls,txt)=>{ const m=document.createElement('div'); m.className=cls; m.textContent=txt; bubble.appendChild(m); this.chatScroll(); };
+    try{
+      await services.ai.chatNote(this.cur.id, this.chatMsgs.slice(), {
+        onDelta:t=>{ acc+=t; textEl.textContent=acc; this.chatScroll(); },                        // 逐字接进气泡
+        onUsage:u=>meta('cmeta',`tokens: in ${u.input_tokens} / out ${u.output_tokens}`),         // token 用量小字
+        onProgress:(c,tot,msg)=>meta('cbadge', msg||'引用到卡'),                                   // 「引用到 M 张卡」徽章
+        onError:e=>meta('cerr','出错：'+(e.error||e.code||'未知错误')),                            // 红字错误
+      }, ac.signal);
+    }catch(e){ meta('cerr','出错：'+(e.message||e)); }
+    finally{
+      if(!acc) textEl.textContent='';                                  // 没吐半个字（出错/秒停）清掉「思考中…」
+      if(ac.signal.aborted && acc) meta('cmeta','（已停止）');
+      if(acc) this.chatMsgs.push({role:'ai',content:acc});             // 部分回答也进历史
+      this.chatBusy=false; this.chatAbort=null; this.chatLock(false);  // onDone/出错/中断一律解锁
+      $('#chatin')?.focus();
+    }
+  }
 
   // 加模组选单（垂直、全在屏幕内、列表式无障碍；旋钮手势之后接 GestureService）
   openDial(){
