@@ -130,7 +130,7 @@ final class NoteDocument {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         pushUndo()
-        for seg in Self.splitIntoBlocks(text) {
+        for seg in Algo.splitIntoBlocks(text) {
             var b = seg
             b.orderIndex = blocks.count
             blocks.append(b)
@@ -214,24 +214,6 @@ final class NoteDocument {
         }
     }
 
-    // MARK: - 切塊
-
-    static func splitIntoBlocks(_ text: String) -> [Block] {
-        let paragraphs = text.components(separatedBy: "\n\n")
-        var result: [Block] = []
-        for para in paragraphs {
-            let trimmed = para.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            if trimmed.hasPrefix("# ") {
-                result.append(Block(kind: .heading1, text: String(trimmed.dropFirst(2))))
-            } else if trimmed.hasPrefix("## ") {
-                result.append(Block(kind: .heading2, text: String(trimmed.dropFirst(3))))
-            } else {
-                result.append(Block(kind: .paragraph, text: trimmed))
-            }
-        }
-        return result
-    }
 }
 
 /// 加模組選單項（web MODULES）。
