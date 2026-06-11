@@ -81,6 +81,42 @@
 
 **为什么「没变的段落不重送」是铁律**：① 省钱；② 防「影印机效应」——整篇重送会让 AI 把已优化的段落一遍遍重写，每代走样一点，按多了内容面目全非且无人察觉。指纹挡住它。
 
+### 1.2b 编辑器与切块细则（开发级规格，v3.1 补）
+
+**切块规则（body 迁移与文末续写共用同一个函式 `splitIntoBlocks(text)`）**：
+
+- 按「**一个以上连续空行**」（regex `\n{2,}`）切块，每个自然段一个 `type:'text'` 块。
+- 行首 `#` 的标题行**独立成块**（`type:'heading'`）。
+- 代码围栏（```…```）内部**不切**，整段围栏归同一块。
+- 切出来的块依序给 `position`；迁移旧 body 时各块设 `source:'notes'`、`pinned:false`、`aiHash:null`。
+
+**文章视图·段落编辑器行为（点哪段改哪段）**：
+
+1. 每个文字块渲染成一个只读段落；模组块渲染成组件（不可文字编辑）；钉选块显示 📌 标记。
+2. 点一个段落 → 该段变成 textarea（自动聚焦）；其他段不动。
+3. 失焦（blur）保存：内容**有变**才写回块＋落一步存档（trigger=`'cardEdit'`）；没变就只收起编辑框、不落步。
+4. 文末常驻「继续写…」输入区：失焦时把输入文字用 `splitIntoBlocks` 切成新块 append（每次提交落一步，trigger=`'cardEdit'`）。
+5. 段落「合并/拆分」按钮放在编辑态的工具列（v1 可后移到第二批）。
+6. AI 操作（优化/结构化）进行中**锁定整个编辑器**＋显示进度，结束才解锁（防串流套用盖掉新打的字）。
+
+**「要不要分主题」的 UI 形态（每次都问）**：
+
+- 按「优化文字」→ 弹一个简单确认框：「要不要顺便分主题、加小标题？〔要〕〔不要〕」→ 选完把 `groupTopics: true/false` 带进 `ai.optimize(id,{groupTopics})` 才开跑。
+- 答应时：AI 生成的小标题作为**独立 `type:'heading'` 块**（`source:'ai'`）插进块串；之后卡片结构化就拿这些标题块当**分卡边界**。
+
+**优化文字的 patch 格式（tool_use 强制 schema，与卡片结构化同一套三件式）**：
+
+```json
+{
+  "新增块": [ { "type": "text|heading", "payload": {...}, "插入位置": 3 } ],
+  "更新块": [ { "块id": "...", "payload": {...} } ],
+  "刪除块": [ "块id" ]
+}
+```
+
+- 「刪除块」在优化里**只准用于合并场景**（两个乱段并成一段：一条更新＋一条删除，内容必须并进更新块里）；合法性判定见**附录 F2 安全阀统一规格**（程式判定，不信 AI 自己说）。
+- 钉选块、模组块、没变的块：禁止出现在 patch 里（出现即整批拒绝）。
+
 ### 1.3 阶段二要补的栏位（先补，贯穿全程；v3 改版）
 
 | 表 | 新增栏位 | 用途 | 引入于 |
@@ -96,7 +132,21 @@
 
 新表（沿用 `backend-design.md`，真后端阶段建 migration）：
 
-- `structure_versions`：`{ id, systemId, version, blocksJson, trigger('optimize'|'structure'|'incremental'|'cardEdit'|'merge'|'split'|'delete'|'restore'), createdAt }` —— **全篇内容快照**（整串块存 JSON）。一键还原、上一步/下一步都吃这张表（抄 SBIR_NEW `proposal_versions` 概念）。**无限保留、不修剪**（使用者拍板无限退；纯文字很便宜）；第 1 版就是最早的原稿。
+- `structure_versions`：`{ id, systemId, version, blocksJson, trigger, createdAt }` —— **全篇内容快照**（整串块存 JSON）。一键还原、上一步/下一步都吃这张表（抄 SBIR_NEW `proposal_versions` 概念）。**无限保留、不修剪**（使用者拍板无限退；纯文字很便宜）；第 1 版就是最早的原稿。
+
+**`trigger` 完整枚举与触发时机（每种 = 落一步存档的时机，存的是「动手前」的状态）**：
+
+| trigger | 什么时候存 |
+|---|---|
+| `optimize` | 按「优化文字」、确认分主题选项后、套用 patch 前 |
+| `structure` | 第一次按「卡片结构化」、套用前 |
+| `incremental` | 第二次以后按「卡片结构化」、套用 patch 前 |
+| `cardEdit` | 改完一个块/卡失焦保存时（内容有变才存）；文末续写提交时 |
+| `merge` / `split` | 按合并/拆分按钮时 |
+| `delete` | 删一个块/卡时 |
+| `addModule` | 加一张模组卡时 |
+| `restore` | 整篇还原到某旧版前（还原本身可再 undo） |
+| `migrate` | 旧 body block 迁移成段落块完成时（= 每个旧系统的「第 1 版」快照） |
 - `embeddings`：`{ id, systemId, kind('note'|'summary'), chunkText, vector, model, createdAt }`
 - `chat_threads`：`{ id, userId, scope('note'|'global'), systemId?, createdAt }`
 - `chat_messages`：`{ id, threadId, role('user'|'ai'|'ctx'), content, createdAt }`
@@ -183,7 +233,24 @@
 
 ## 第 3 章 · 服务层与触点扩充总览
 
-阶段二新增一个 `AIService extends Base`（继承 EventTarget，与现有四个 Service 同模式，变动时 `changed()` 派事件）。所有方法签名一次列清，后面各 Step 只引用：
+阶段二新增一个 `AIService extends Base`（继承 EventTarget，与现有四个 Service 同模式）。**事件规则**：串流过程中的逐字/逐卡更新走 `handlers` 回调（不广播）；AI 操作**完成落库后**才 `changed({type:'ai', op})` 派事件，让订阅的视图整体刷新。`SystemsService.undo/redo/restore` 完成后同样 `changed({type:'restore'})`。
+
+**`handlers` 介面（所有 AI 方法共用，全部可选）**：
+
+```js
+{
+  onDelta(text),          // AI 逐字吐字
+  onCard(index, card),    // 一张卡/块完成（card_done）
+  onCardRemoved(cardId),  // 增量删卡（card_removed）
+  onProgress(cur, total, msg),
+  onUsage(usage),         // token 用量
+  onHit(systems),         // 全局找回命中列表（hit_list）
+  onDone(),
+  onError(err)            // { code?, error }
+}
+```
+
+所有方法签名一次列清，后面各 Step 只引用：
 
 ```js
 class AIService extends Base {
@@ -229,8 +296,8 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 |---|---|---|---|
 | `ai.health()` | 验收页 | `GET /ai/health` | AIService.health() |
 | `ai.chatNote(id,msgs)` | 笔记底部聊天浮层 | `POST /ai/chat/note` | AIService.chatNote() |
-| `ai.optimize(id,opts)` | 笔记页·优化文字钮 | `POST /ai/optimize` | AIService.optimize() |
-| `ai.structure(id,opts)` | 笔记页·卡片结构化钮 | `POST /ai/structure` | AIService.structure() |
+| `ai.optimize(id,{groupTopics})` | 笔记页·优化文字钮（先弹分主题确认框） | `POST /ai/optimize` | AIService.optimize() |
+| `ai.structure(id,{mode:'full'\|'incremental'})` | 笔记页·卡片结构化钮 | `POST /ai/structure` | AIService.structure() |
 | `blocks.addModule(id,type)` | 笔记左下工具按钮 | `POST …/blocks` | BlocksService.add() |
 | `ai.searchGlobal(q)` | 首页全局 AI 框 | `POST /ai/search-similar` | AIService.searchGlobal() |
 | `ai.chatGlobal(msgs)` | 首页全局对话 | `POST /ai/chat/global` | AIService.chatGlobal() |
@@ -241,7 +308,42 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 | `systems.versions(id)` / `systems.restore(id,v)` | 笔记页·版本列表 | `GET …/versions`·`POST …/restore` | SystemsService.versions()/restore() |
 | `blocks.pin(id,bool)` | 卡片·钉选开关 | `PATCH /api/blocks/:id{pinned}` | BlocksService.update() |
 
-新增验收灯（`acceptance.html` 的 `LAMPS` + `Mock.status()`）：阶段一 6 盏 + 阶段二 7 盏 = `ai_engine / chat_note / optimize / structure / structure_incremental / global_recall / git_progress`。
+> **触点改版注记**：阶段一的 `systems.setMode` 触点在 v3 **废弃**——`mode('free'|'structured')` 语意由 `docState` 取代（后端在 AI 操作时更新，前端不直接设）；顶部「文章/卡片」视图切换是**纯前端 UI 状态**，不打后端。
+
+新增验收灯（`acceptance.html` 的 `LAMPS` + `Mock.status()`）：阶段一 6 盏 + 阶段二 7 盏 = **共 13 盏**：`ai_engine / chat_note / optimize / structure / structure_incremental / global_recall / git_progress`。注意：**灯是 7 盏、验收点是 11 个**（(a)(b)(c0)~(c8)），多个验收动作共用一盏灯（对应见第 11 章表）。
+
+### 前后端整合与切换设计（模拟层 ↔ Fly.io 真后端；v3.1 补缺）
+
+> 使用者点名的缺口：现在前端是 GitHub Pages 上的静态 HTML（吃 localStorage 假后端），文档此前没写「怎么接真后端、怎么切换」。本节补齐。
+
+**拓扑（现在 → 阶段二完成时）**：
+
+- 现在：`GitHub Pages 静态前端(web/)` → `mockClient.js`（localStorage，全假）。
+- 阶段二完成：`静态前端（GitHub Pages 照旧）` → ① AI 类触点打 `https://<app>.fly.dev`（Fly.io 常驻 AI 代理，锁全部金钥）；② CRUD 类触点仍打 mock（Supabase 是阶段三/真后端阶段才接，接上后 CRUD 触点再切）。
+- **前端永远是静态页，不用搬家**；变的只有「服务层背后打谁」。
+
+**切换开关（唯一开关点 = 服务层注入的 client）**：
+
+- 新增 `web/src/config.js`：`export const BACKEND = { ai: 'mock' | 'real', data: 'mock' | 'real', aiBaseUrl: 'https://<app>.fly.dev' }`。
+- 组合根建 Service 时按 `BACKEND` 注入 `mockClient` 或 `realClient`（`realClient` 与 `mockClient` **方法签名完全一致**——这就是触点表当唯一契约的意义）。UI 一行不改。
+- **可以按「触点类别」分别切**：先把 `ai.*` 切 real（验真 AI），`systems/blocks/auth` 仍 mock；互不影响。
+
+**SSE 串流怎么跨域接（关键技术点）**：
+
+- 不用 `EventSource`（它只能 GET、带不了 body 和 header）；用 **`fetch` + `ReadableStream`**：`POST https://<app>.fly.dev/ai/optimize` → 逐行读 `data: {json}\n\n` → 喂给 `handlers`。`mockClient.aiStream` 模拟同一行为，所以前端解析代码两边共用。
+- 断线/取消：`AbortController.signal` 传进 fetch，组件卸载或使用者按取消 → abort → Fly.io 端透传中断 Anthropic（省钱，见第 12 章风险 8）。
+
+**CORS 与鉴权**：
+
+- Fly.io 端 CORS 白名单只放前端正式域名（GitHub Pages 域）＋本地 dev（`localhost:*`）；`Access-Control-Allow-Headers: Authorization, Content-Type`。
+- 每个请求带 `Authorization: Bearer <token>`：阶段二先用 dev token（Fly.io 校验一个共享密钥即可，防裸奔被刷）；阶段三换 Supabase Auth JWT，**前端代码不变**（仍只是带 header）。
+- **金钥分布**：前端 0 把金钥；Fly.io 持 `ANTHROPIC_API_KEY`、`GITHUB_TOKEN`、（未来）`SUPABASE_SERVICE_KEY`、embedding 供应商 key，全在 Fly.io secrets。
+
+**部署与健康检查**：
+
+- Fly.io：1 台常驻小机（`min_machines_running=1`，避免冷启动毁串流体验），HTTPS 由 Fly 托管。
+- `GET /ai/health` 回 `{ ok:true, version }`；验收页 `ai_engine` 灯的真后端模式就打这条（mock 模式打 `Mock.aiHealth()`）。
+- 真后端没起来/挂了 → 前端 Service 捕获后回退提示「AI 服务暂时不可用」，CRUD 不受影响（两类触点独立）。
 > **必做**：扩 `LAMPS` 数组之外，**一定要同时在 `mockClient.js` 的 `status()` 回传对应布尔键**（现状 `status()` 只回 `db/auth/read_write/rls/delete_account/frontend_skeleton/systems/updatedAt`）。没补布尔键，新灯永远是灭的。
 
 ---
@@ -262,7 +364,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 ### 第 5 章 · Step 2：单专案聊天（最简单 AI，验证引擎）
 
 ① 目标：在一则笔记里跟 AI 聊，AI 知道**这则的全部内容（含手动加的卡）**。
-② 资料流：服务层取 `getSystem(id)` 全部 blocks → 组三层 system block（抄 SBIR `prompt-builder`）：㈠ 静态人设+规则（挂 `cache_control:ephemeral` 省 token）㈡ 该专案全文（每张卡序列化成文字）㈢ 任务指令 → 走 `/ai/chat/note` 串流。
+② 资料流：服务层取 `getSystem(id)` **当前活文件的全部 blocks**（段落块＋模组块，不管优化过没有；聊天永远基于「现在这一版」，要聊旧版先还原再聊）→ 组三层 system block（抄 SBIR `prompt-builder`）：㈠ 静态人设+规则（挂 `cache_control:ephemeral` 省 token）㈡ 该专案全文（每张卡序列化成文字）㈢ 任务指令 → 走 `/ai/chat/note` 串流。
 ③ 模拟层：`aiStream('/ai/chat/note')` 回一段「我读到你这则有 N 张卡，包含 X、Y…」的**假但反映真实卡片数**的回答（证明上下文真被读到）。
 ④ Fly.io 层：`POST /ai/chat/note`，三层 block + 快取，`streamAsync`。
 ⑤ 服务层：`AIService.chatNote(systemId, messages, handlers)`；触点 `ai.chatNote`。
@@ -274,8 +376,8 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 
 ① 目标：「优化文字」把乱稿整理成一篇顺的文章（仍是文章）；「卡片结构化」把内容归组成一张张卡。两者改的都是同一串块，文章/卡片两视图同步。
 ② 资料流：
-   - **优化文字**（`POST /ai/optimize`）：照 §1.2 八步管线——hash gate（`lastAiHash` 没变→零成本结束）→ 块级 diff（`aiHash`）→ 询问「要不要分主题加小标」（每次都问，答应则 AI 顺便插入标题块）→ 只送变动块（钉选块/模组块不送、没变块不准重写）→ tool_use 回「块 patch」（更新/新增/合并段落）→ 安全阀 → 套用前存快照（一步）→ 更新 `aiHash`/`lastAiHash`/`docState:'optimized'` → 重算摘要＋向量。
-   - **卡片结构化**（`POST /ai/structure`，mode=full）：先走同一条优化管线（已优化没变的块跳过）→ prompt「每个主题归成一张卡（标题＋内容），卡的顺序要能直接串成一篇顺的文章；找不到留空、不准编造」＋20 卡参考清单（若有主题小标，小标=现成分卡边界）→ tool_use/parseAIJson 拿到**有顺序的卡阵列** → 存快照（一步）→ 套用 → `card_done` 逐张推前端 → 记 `ai_restructure_count`、`lastAiHash`、各块 `aiHash`、`docState:'carded'`、`structuredAt`。
+   - **优化文字**（`POST /ai/optimize`）：照 §1.2 八步管线——hash gate（`lastAiHash` 没变→零成本结束）→ 块级 diff（`aiHash`）→ 弹分主题确认框（UI 形态与 patch JSON schema 见 **§1.2b**；答应则 AI 顺便插入 `heading` 标题块）→ 只送变动块（钉选块/模组块不送、没变块不准重写）→ tool_use 回三件式块 patch（新增/更新/刪除，刪除仅限合并场景）→ 安全阀 → 套用前存快照（trigger=`'optimize'`，一步）→ 更新 `aiHash`/`lastAiHash`/`docState:'optimized'` → 重算摘要＋向量。
+   - **卡片结构化**（`POST /ai/structure`，mode=full）：先走同一条优化管线（已优化没变的块跳过）→ prompt「每个主题归成一张卡（标题＋内容），卡的顺序要能直接串成一篇顺的文章；**资料不足的主题不要生卡**、不准编造」＋20 卡参考清单（注入方式见附录 F5；若有主题小标，小标=现成分卡边界）→ tool_use/parseAIJson 拿到**有顺序的卡阵列**（每张卡标注它吸收了哪些块 id）→ **full 模式不走 patch**：后端整批替换「未钉选的文字/标题块」为新卡阵列，钉选块与模组块**原位保留**（按相对顺序插回）→ 存快照（一步）→ 套用 → `card_done` 逐张推前端 → 记 `ai_restructure_count`、`lastAiHash`、各块 `aiHash`、`docState:'carded'`、`structuredAt`。（**只有 incremental 模式才走三件式 patch**，见 Step 5。）
 ③ 模拟层：`Mock.optimize` 假装把每段改顺（加标点/首字大写之类的假优化）逐块 emit；`Mock.structure(full)` 把段落按空行归组成几张 `source:'ai'` 卡逐张 emit。
 ④ Fly.io 层：`POST /ai/optimize` + `POST /ai/structure`（共用优化管线模组），`card_start/delta/card_done` 协议（块=卡，事件复用）。
 ⑤ 服务层：`AIService.optimize(id,{groupTopics},handlers)`、`AIService.structure(id,{mode:'full'},handlers)`；触点 `ai.optimize`、`ai.structure`。
@@ -289,7 +391,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 ### 第 7 章 · Step 4：加模组（横排按钮，手动加卡 + 钉选开关）
 
 ① 目标：使用者能自己加卡、改卡；卡片标「来源」（manual）；想保护哪张卡就自己「钉选」。
-② 资料流：选模组 → `blocks.add(systemId,{type,payload,source:'manual',pinned:false})`。**手动卡默认不钉选**（新模型 AI 可动它，安全靠快照+Undo）；每张卡上有「钉选」开关，钉了 AI 永不碰（`blocks.pin` 触点）。
+② 资料流：选模组 → `blocks.add(systemId,{type,payload,source:'manual',pinned})`。**钉选默认值分两类**：手动加的**文字/标题块** `pinned:false`（AI 可整理它，安全靠快照+Undo）；**模组卡**（表格/GitHub/进度环等非文字 type）建立时自动 `pinned:true`（决策 3「视同天生钉选」的资料层落实）。**钉选开关只出现在文字/标题块上**（`blocks.pin` 触点）；模组卡**不显示开关**、恒为 `pinned:true`，使用者不能解钉（防止解钉后 AI 改坏模组资料，见附录 F8）。每次加模组落一步存档（trigger=`'addModule'`）。
 ③ 模拟层：**现状 `mockClient.js` 的 `addBlock`（约第 70–78 行）会忽略 `source`/`pinned`，必须先改它**，把这两个键写进建出的 block 物件（默认 `source:'manual'`、`pinned:false`，由呼叫方覆盖），否则照做等于没存。这步是 Step 3/5 的前置。
 ④ Fly.io 层：无新 AI 端点（纯 CRUD）。
 ⑤ 服务层：复用 `BlocksService.add`，加便捷 `addModule(systemId,type)`；触点 `blocks.addModule`、`blocks.pin`。
@@ -305,11 +407,11 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 ① 目标：卡片化之后使用者又改了内容（文章里续写/改段/删段、或直接改卡），再按「卡片结构化」→ 不整篇重做，只动变动处；AI 可更新、删除未钉选的卡；内容没变就不花钱；改坏了按「上一步」整批还原。
 ② 资料流（九步）：
    1. **Hash gate**：算当前全文指纹比对 `systems.lastAiHash`；一样 → 直接显示旧卡、**不呼叫 AI、零成本**。
-   2. **自动 diff**：不一样 → 逐块比 `aiHash`：没指纹的块=新增、指纹不符=变动、上次有这块现在没了=使用者已删（纯程式，不花 AI）。
-   3. **组增量上下文**：把「新增/变动块的内容＋使用者已删块的旧文＋全部卡片清单(JSON，标注哪些钉选)」交给 AI，prompt 明确「钉选卡绝不准动；未变块已是成品不准重写；其余卡可更新；**删除只准用在内容已被使用者删掉或并入他卡的卡**；没提到的卡一律原样保留」。
+   2. **自动 diff**：不一样 → 逐块比 `aiHash`（演算法伪代码见**附录 F3**）：没指纹的块=新增、指纹不符=变动；「已删块」= 从**最近一次 AI 快照**（`structure_versions` 里最近 trigger∈{optimize,structure,incremental,migrate} 的版本）取出旧块清单，比对当前块集合，旧有今无的就是已删（顺便拿到它的旧文）。纯程式，不花 AI。
+   3. **组增量上下文**：把「新增/变动块的内容＋已删块的旧文（用途：告知 AI 这些内容使用者已删、不准写回来，对应旧卡可删）＋全部卡片清单(JSON，标注哪些钉选)」交给 AI，prompt 骨架见**附录 F4**：「钉选卡绝不准动；未变块已是成品不准重写；其余卡可更新；**删除只准用在内容已被使用者删掉或并入他卡的卡**；没提到的卡一律原样保留」。
    4. **AI 只回 patch**：`{ 新增:[{type,payload,插入位置}], 更新:[{cardId,payload}], 删除:[cardId] }`（tool_use 强制 schema；新增无 id、更新/删除带 id），不用 RFC6902。
    5. **钉选保护三层**：㈠ 资料层 `pinned` 卡永不进「可改/可删」清单（只给 AI 只读上下文）；㈡ prompt 层告知不准碰；㈢ 合并层即使 AI 误回也丢弃针对钉选卡/模组卡的任何 patch。
-   6. **安全阀**：patch 异常（要改＋删的卡数超阈值、想动钉选卡、或想删「对应内容明明还在」的卡）→ 整批拒绝、保留原状、提示重试。
+   6. **安全阀**：统一规格见**附录 F2**（与优化按钮同一套）——动+删超过未钉选块数 50%、单块字数暴冲 ±30%、触碰钉选/模组/没变块、删除不满足合法性（程式判定）→ 整批拒绝、保留原状、回 `{code:'safety_valve'}`、提示重试。
    7. **快照 + Undo**：套用前存 `structure_versions` 快照（trigger=`'incremental'`）——**一次增量 = 一步**，「上一步」整批撤销、「下一步」整批重做，也可在版本列表一键还原任意旧版（无限历史）。
    8. 更新 `ai_restructure_count+=1`、`lastAiHash`、变动卡 `aiHash`/`structureGen`、重算摘要+向量（连动 Step 6）。
    9. 前端只重画变动卡：新增的浮现、更新的原位刷新、删除的淡出（`card_removed` 事件），其余不闪、不重排。文章/卡片两视图同时生效（同一份资料）。
@@ -351,7 +453,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 
 ## 第 11 章 · 前端验收决策点总表（使用者在前端验收）
 
-> 每个验收点 = 一个可操作动作 + 一个可观察结果（灯号/画面）。`acceptance.html` 灯阵从阶段一 6 盏扩到 12 盏。
+> 每个验收点 = 一个可操作动作 + 一个可观察结果（灯号/画面）。`acceptance.html` 灯阵从阶段一 6 盏扩到 **13 盏**（6＋7）。**灯 7 盏、验收点 11 个**：多个验收动作共用一盏灯（哪个动作点哪盏灯见下表「灯号」栏）。**这张表就是开发过程的「前端检查点」清单——每做完一个 Step，开发要停下来让使用者照表操作验收，确认后才进下一步。**
 
 | 验收点 | 动作 | 可观察结果 | 灯号 |
 |---|---|---|---|
@@ -362,7 +464,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 | **(c2) 增量·钉选保护** | 钉选某卡→改文章别处→再结构化 | 钉选卡一字未动；其余该更新的更新、内容被删段落对应的卡被删 | `structure_incremental`（附钉选卡数） |
 | **(c3) 增量·省钱** | 内容没改→再按结构化 | 提示「跳过 AI、没花钱」 | `structure_incremental`（附是否跳过 AI） |
 | **(c4) 全局找回** | 首页输入模糊描述 | 命中正确系统、可点进去 | `global_recall`（附命中数） |
-| **(c5) GitHub 进度** | 绑 repo→分析进度 | 环形% + buildSteps 打勾 | `git_progress`（附完成度） |
+| **(c5) GitHub 进度** | 先按「绑 repo」（`ai.bindRepo`），再按「分析进度」（`ai.analyzeProgress`，两个独立动作） | 环形% + buildSteps 打勾 | `git_progress`（附完成度） |
 | **(c6) 两视图同步** | 文章视图点一段改一字 | 切到卡片视图，同张卡同步变（反向也成立） | `structure`（附两视图同步） |
 | **(c7) 版本还原·无限退** | 连按「上一步」一路退到底 | 每步整批撤销（文章与卡片一起回去），最底能看到第 1 版原始乱稿 | `structure_incremental`（附可还原版本数） |
 | **(c8) 撤销/重做** | 按「上一步」再按「下一步」 | 一次 AI 操作整批撤销、整批重做 | `structure_incremental` |
@@ -419,7 +521,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 每张工单循环：侦察兵摸清→设计指令→工兵实作→验收兵点灯→你过目。建议派工顺序：
 
 1. 【地基 A】资料库补栏（blocks +source/pinned/aiHash/structureGen；systems +lastAiHash/docState/structuredAt；新表 structure_versions 无限保留）+ 旧 body block 迁移成段落块。→ 无灯，是前置。
-2. 【地基 B】文章视图段落编辑器（点哪段改哪段＋文末续写区＋空行切块；取代 body 大 textarea）+ 顶部两段切换「文章/卡片」+ Undo/Redo 地基（无限）。→ 无灯，是前置（前端工作量最大的一块）。
+2. 【地基 B】文章视图段落编辑器（规格照 §1.2b：点哪段改哪段＋文末续写区＋空行切块）+ 顶部两段切换「文章/卡片」+ Undo/Redo 地基（无限）。**含拆旧**：移除 `main.js` 的 `m-free/m-struct` 双模式 seg、`setMode()`、`renderContent()` 的 structured 占位分支、`saveBody()` 大 textarea（约 105/125-126/131-137/152-158 行），旧 body 资料用 `splitIntoBlocks` 迁移。→ 无灯，是前置（前端工作量最大的一块，**做完是第一个前端检查点**：让使用者实际打字/改段/Undo 验手感）。
 3. 【Step 1】AI 共用引擎 + `/ai/health`。→ 点 `ai_engine`。
 4. 【Step 2】单专案聊天 `chatNote`。→ 点 `chat_note`，验收 (a)(b)。
 5. 【Step 3】优化文字 `/ai/optimize`（hash gate＋块级 diff＋分主题询问＋安全阀）＋ 卡片结构化 full。→ 点 `optimize`+`structure`，验收 (c0)(c1)(c6)(c7)(c8)。
@@ -469,8 +571,119 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 ## 附录 E · 关键文件索引
 
 - 服务层：`web/src/services/index.js`（加 `AIService`）
-- 模拟后端：`web/src/api/mockClient.js`（加 `aiStream`/`structure`/向量模拟 + 补栏位）
-- 触点：`web/src/touchpoints.js`（加 AI 触点，唯一契约源）
-- 验收页：`web/acceptance.html`（`LAMPS` 扩 12 盏 + `Mock.status()` 补布尔）
+- 模拟后端：`web/src/api/mockClient.js`（加 `aiStream`/`optimize`/`structure`/版本与 Undo + 补栏位）
+- **触点（= 暂时版前端的「API 整合交接报告」）**：`web/src/touchpoints.js`（程式版，唯一契约源）＋ `全局开发文件夹/Workflow-1-看得到能用.md` §5（文字版）。前后端整合、SwiftUI 搬迁都照这张表；阶段二 13 条新触点登记进同一张表。
+- 验收页：`web/acceptance.html`（`LAMPS` 扩 13 盏 + `Mock.status()` 补布尔）
 - Step 5 权威设计：`docs/增量结构化-SBIR模组完整记录与开发设计.md`、`docs/HANDOFF-incremental-restructure.md`
 - AI 引擎照抄参照（SBIR_NEW）：`saas/backend/src/ai/gateway.ts`、`utils/parse-ai-json.ts`、`chat/prompt-builder.ts`、`chat/handlers/chat-handler.ts`
+
+---
+
+## 附录 F · 开发级实作细则（v3.2 补，达开工标准的最后一里）
+
+> 第二轮复验（开发代理视角）挑出的全部「不问人无法动工」缺项，在此一次补齐。各 Step 正文与本附录冲突时，**以本附录为准**。
+
+### F1 地基 A：payload 标准与迁移脚本
+
+**payload 标准结构**（前端渲染与 AI 序列化都按此）：
+
+- `text`：`{ content: string }`（旧资料的 `text`/`role` 键迁移时丢弃，统一只留 `content`）
+- `heading`：`{ content: string, level: 1|2 }`
+- `todo`：`{ text: string, done: boolean }`
+- 模组卡（先定三种，其余后续补）：`table`：`{ columns: string[], rows: string[][] }`；`github`：`{ repos: [{ name, url, stars, desc }] }`；`devProgress`：`{ percent: number, steps: [{ text, done }] }`。未定义的模组 type 渲染端容错显示 JSON 摘要。
+
+**迁移伪代码（`migrateV2()`，mockClient `load()` 时跑，幂等：查 `db.meta.schemaVersion`）**：
+
+```
+if db.meta.schemaVersion >= 2: return
+for each system:
+  body = 该系统 blocks 中 type=='text' 且 payload.role=='body' 的块
+  if body 且 body.payload.content.trim() 非空:
+    segs = splitIntoBlocks(body.payload.content)   // §1.2b 规则；代码围栏整段一块
+    依序插入 position 0..n-1（原有其他块顺延），每块:
+      { type, payload:{content}, source:'notes', pinned:false, aiHash:null, structureGen:0 }
+    软删 body
+  elif body: 软删 body（空 body 不建空块）
+  其余既有块补默认值: source:'notes', pinned:(模组类 type ? true : false), aiHash:null, structureGen:0
+  system 补: lastAiHash:null, docState:'raw', ai_restructure_count:0, structuredAt:null
+  存「第 1 版快照」(trigger='migrate')
+db.meta.schemaVersion = 2
+```
+
+**`structure_versions.blocksJson`** = `JSON.stringify(当前未软删 blocks 完整阵列)`，不压缩。容量上限沿用 Workflow-1（单系统 blocks≤2000、payload.content≤64KB），见 F7 的 localStorage 限制处理。
+
+**`mockClient.addBlock` 的字段改造归地基 A**（不是 Step 4）：接收并写入 `source/pinned/aiHash/structureGen`，默认 `'manual'/false/null/0`。
+
+### F2 安全阀统一规格（优化与增量同一套，程式判定、不信 AI）
+
+- 常量（默认值，最终阈值是附录 D8 待拍板项）：
+  - `CHANGE_RATIO_CAP = 0.3`：任一「更新块」的字数变化超过 ±30% → 拒绝（抄 SBIR_NEW）。
+  - `TOUCH_RATIO_CAP = 0.5`：一次 patch「改＋删」的块数 > 未钉选块总数 × 50% → 拒绝。
+- **删除合法性**，必须满足其一，否则整批拒绝：
+  - (a) 该块在本次 diff 的「已删清单」里（来源内容被使用者删掉，F3 判定）；
+  - (b) 合并场景：被删块 `content` **归一化后**（去空白与标点）有 **≥50% 的字符以连续片段形式**出现在同批某个「更新块」里。
+- 「内容明明还在」的定义 = 不满足 (a) 也不满足 (b)。
+- 任何 patch 条目触碰钉选块 / 模组块 / 没变块 → 整批拒绝。
+- 拒绝行为：不套用、不存版本、推 `{ type:'error', code:'safety_valve', error:原因 }`，前端 toast「变动过大，已保留原内容，可重试」。
+
+### F3 块级 diff 伪代码（优化与增量共用）
+
+```
+prev = structure_versions 里最近一次 trigger∈{optimize,structure,incremental,migrate} 的快照的 blocks
+cur  = 当前未软删 blocks
+新增块   = cur 中 (文字/标题类) 且 aiHash == null
+变动块   = cur 中 aiHash != null 且 hash(normalize(payload.content)) != aiHash
+已删块   = prev 中存在、cur 中不存在的块（带旧 payload.content 当「已删旧文」）
+没变块   = 其余
+```
+
+- `normalize(s)` = trim + 连续空白折成一格；`hash` 真后端用 sha256，模拟层可用 FNV/djb2（无安全需求）。
+- `lastAiHash` = hash(全部未软删块的 `normalize(content)` 按 position 以 `\n\n` 串接)。
+- AI 操作完成套用后：被新增/更新的块写 `aiHash = hash(normalize(新content))`，没动的块 `aiHash` 不变。
+
+### F4 增量 prompt 骨架（钉选三层之 prompt 层示例，正式措辞抄 SBIR_NEW §4.3 精神）
+
+```
+你是笔记整理助手。输入：
+(A) 使用者新增/修改的内容片段
+(B) 使用者已删除的内容——这些不准写回来；对应的旧卡可以出现在「刪除」清单
+(C) 当前全部卡片 JSON——pinned:true 的卡绝对禁止修改/删除/移动，也不准把内容并进它
+规则：
+1. 只回 patch JSON（新增/更新/刪除 三个阵列），不要任何其他文字。
+2. 没提到的卡一律不动；没变的内容一个字不准重写。
+3. 刪除只准用于：内容已被使用者删除、或已并入某个更新卡。
+4. 保留客观事实（数字、名称）；所有 [方括号占位标签] 原样保留。
+```
+
+### F5 20 卡清单注入与聊天上下文细则
+
+- **20 卡参考清单**：hardcode 成 Fly.io 端 prompt 模板常量（内容取自 §1.5 / `mvp/brainstorm-mvp.html`），挂 `cache_control: ephemeral`；模拟层不用。
+- **「资料不足的主题不要生卡」**：tool_use schema 不允许空 content 卡；AI 对没料的主题直接不生卡（不要「留空卡」）。
+- **Step 2 三层 system block 示例**：㈠ 静态人设＋规则（cache_control）㈡ `专案《{title}》共 {N} 块：\n[1·text] {content}\n[2·table] {序列化}…` ㈢ 任务指令。卡片数 N = 未软删 blocks 总数。
+- **超限降级**：N>50 或总字数 >30,000 → 每块只取前 200 字；仍超 → 每块只取「标题/前 100 字」。
+- **mock chatNote 行为**：回「这则笔记有 N 张卡，提到 {任一块 content 的前 8 个字}…」（证明上下文真的被读到），逐字 emit。
+
+### F6 向量与 GitHub 细则
+
+- `embed(text: string): Promise<number[]>`；真实作 = OpenAI `POST /v1/embeddings`（`model:'text-embedding-3-small'`，回 `data[0].embedding`，1536 维），key 只在 Fly.io。模拟层**不做假向量**——`searchGlobal` 直接关键字 `includes` 匹配各系统摘要/标题。
+- **兜底向量化时机**：任何 AI 操作「响应回完之后」后台异步跑（不阻塞主流程）：找该用户「没有向量、或向量指纹 != 当前 `lastAiHash`」的系统，每轮最多补 5 个（防雪崩）。
+- MMR 默认参数：top-k=8、λ=0.7（λ 越大越偏相关性）。
+- **buildSteps 卡 payload**：`{ steps: [{ text, done }] }`（AI 结构化产出或手动维护）。
+- **进度算法伪代码**：拉 default branch 最近 ≤200 commits（GitHub REST `GET /repos/{o}/{r}/commits`）＋档案树（`GET /git/trees/HEAD?recursive=1`）→ 每个 step：①关键字粗筛（step 文字分词 vs commit message/檔名）②AI 终判给 `0 | 0.5 | 1` 分＋一句 evidence → `percent = round(Σ分/步数×100)`，永远标注「粗略估计」。
+- **`progress_snapshots.stepStates`** = `[{ "step": "...", "score": 0|0.5|1, "evidence": "..." }]`。
+
+### F7 Undo/Redo 实作（模拟层）
+
+- 存放：mock db 内 `db.versions = { [systemId]: [ {version, blocksJson, trigger, createdAt} ] }` + 指针 `db.versionPtr = { [systemId]: n }`。
+- **经典指针法**：每落一步 → 砍掉指针之后的版本（清 Redo）→ append 新快照 → 指针=末位。「上一步」= 指针-1 并整批还原该快照；「下一步」= 指针+1。还原后**整页重渲染**（块量小，不做 diff 渲染）。
+- **localStorage 物理限制（约 5MB）的诚实处理**：mock 层在 db 总量 >4MB 时从「中段」开始丢旧版本，但**永远保留每系统的第 1 版（migrate/原始稿）与最近 50 版**，验收页显示「版本已精简」警告。「无限保留」的完整承诺由真后端（Supabase）兑现——这是浏览器限制，不是设计变更。
+- UI 位置：笔记页顶栏右侧 ↶ ↷ 两钮；「文章/卡片」切换钮放原 `m-free/m-struct` seg 的位置；视图偏好存 sessionStorage。
+- 超长段落：textarea 自动撑高、不折叠；内容 >2000 字时编辑框上方提示「建议拆分」。
+
+### F8 其他定案（一句话一条）
+
+- 模组卡**没有钉选开关**：恒 `pinned:true`，使用者不能解钉（防解钉后 AI 改坏模组资料）。
+- token 成本计算在 **gateway 层**（`beforeAICall` 预检、收到 usage 后记账）；应用层不重复算。
+- AbortSignal：`AIService._stream(endpoint, payload, handlers, signal)` 第四参数，透传给 fetch；组件卸载或「取消」按钮触发 abort。
+- Step 3 full 模式**不走 patch**（整批替换未钉选文字/标题块，钉选/模组块原位保留）；只有 incremental 走 F2/F3/F4 那套 patch。
+- 视图切换不打后端（纯前端状态）；`docState` 由后端在 AI 操作完成时更新。

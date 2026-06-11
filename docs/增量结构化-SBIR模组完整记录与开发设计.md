@@ -424,7 +424,7 @@ refine 的输出上限 `TOKEN_LIMITS.REFINE = 8192`、`temperature: 0.3`（`refi
 
 版本层（新表 `structure_versions`，抄 `proposal_versions` 概念改块阵列版）：
 
-- `{ id, systemId, version, blocksJson, trigger, createdAt }` —— 每次「AI 操作或结构性操作」前存一张整串块的快照；一键还原、上一步/下一步（Undo/Redo）都吃这张表。**无限保留**（使用者拍板无限退）；第 1 版 = 最早的原始乱稿。
+- `{ id, systemId, version, blocksJson, trigger, createdAt }` —— 每次「AI 操作或结构性操作」前存一张整串块的快照；一键还原、上一步/下一步（Undo/Redo）都吃这张表。**无限保留**（使用者拍板无限退）；第 1 版 = 最早的原始乱稿。`trigger` 完整枚举与各自的触发时机以阶段二文档 §1.3 的表为准（`optimize / structure / incremental / cardEdit / merge / split / delete / addModule / restore` 九种）。
 
 ### 6.2 主流程（按钮触发 → 增量合并；v3 基准 = 上次 AI 输出）
 
@@ -530,7 +530,7 @@ refine 的输出上限 `TOKEN_LIMITS.REFINE = 8192`、`temperature: 0.3`（`refi
 
 > 顺序建议；每步独立可验收。资料层先行，再后端逻辑，最后前端接线。
 
-1. **资料模型**：在块（block）加 `source` / `pinned` / `aiHash` / `structureGen`；在系统（system）加 `lastAiHash` / `docState` / `aiRestructureCount`；新表 `structure_versions`（无限保留）。旧 body block 按空行迁移成段落块。（`backend-design.md` 旧规划的 `locked` 改名 `pinned`。）
+1. **资料模型**：在块（block）加 `source` / `pinned` / `aiHash` / `structureGen`；在系统（system）加 `lastAiHash` / `docState` / `aiRestructureCount`；新表 `structure_versions`（无限保留）。旧 body block 按空行迁移成段落块（各段 `source:'notes'`、`pinned:false`、`aiHash:null`，切块规则照阶段二文档 §1.2b 的 `splitIntoBlocks`）。（`backend-design.md` 旧规划的 `locked` 改名 `pinned`。）
 2. **差异侦测层**（纯程式，无 AI）：写「逐块比 `aiHash` → 新增/变动/删除块清单」的函式；含「全文指纹 == `lastAiHash` 就直接 return 不动作」的 hash gate。
 3. **增量 prompt + JSON schema**：照 4.3 措辞写 system prompt；用 `tool_use` 定义「新增卡片 / 更新卡片 / 刪除卡片」的 JSON schema，强制 AI 只回 patch。
 4. **卡片缝合层 `mergeCards`**：实作 6.2 步骤 5 + 6.3 钉选三层保护 + 删除规则 + 6.4 安全阀。`pinned` 白名单硬挡。
