@@ -1,5 +1,6 @@
 // main.js — 组合根 + 路由 + 画面。UI 只透过 services 碰后端。
-import { AuthService, SystemsService, BlocksService, StatusService } from './services/index.js';
+// v3 活文件模型：一份笔记 = 一串有顺序的块；「文章 / 卡片」是同一份资料的两种画法（纯前端切换）。
+import { AuthService, SystemsService, BlocksService, StatusService, splitIntoBlocks } from './services/index.js';
 
 // ---- 组合根（建立并注入服务，无全域单例滥用）----
 const services = {
@@ -34,6 +35,8 @@ const MODULES = [
 
 const $ = (s,r=document)=>r.querySelector(s);
 const setTheme = t => { document.documentElement.setAttribute('data-theme',t); localStorage.setItem('brainstrom.theme',t); };
+const VIEW_KEY = 'brainstrom.view.'; // 视图偏好（sessionStorage，按系统记）
+const LONG_PARA = 2000;              // 超长段落提示阈值（F7）
 
 class App {
   constructor(){ this.root = $('#screen'); }
@@ -97,13 +100,15 @@ class App {
       $('#retry').onclick=()=>this.home(); }
   }
 
-  // ---------- 笔记 ----------
+  // ---------- 笔记（活文件：文章 / 卡片两视图 + Undo/Redo）----------
   async note(id){
     this.frame(`<div class="view">
       <div class="nav"><button class="link" id="back">${svg('back',20,2)} 系统</button>
         <span class="spacer"></span>
-        <div class="seg"><button id="m-free" class="on">自由速记</button><button id="m-struct">AI 结构化</button></div>
+        <div class="seg" style="max-width:130px"><button id="v-article" class="on">文章</button><button id="v-cards">卡片</button></div>
         <span class="spacer"></span>
+        <button class="histbtn" id="undo" aria-label="上一步" title="上一步">↶</button>
+        <button class="histbtn" id="redo" aria-label="下一步" title="下一步">↷</button>
         <button class="pill priv" id="vis" style="border:none">${svg('lock',9,2)} 私密</button></div>
       <div class="scroll"><div class="pad" id="content"><div class="muted">载入中…</div></div></div>
       <div class="dock"><button class="iconbtn accent" id="chat">${svg('chat')}</button>
@@ -117,84 +122,179 @@ class App {
     $('#dsys').onclick=async()=>{ if(!confirm('删除这个系统？此动作无法复原。')) return;
       await services.systems.delete(this.cur.id); this.toast('已删除系统'); setTimeout(()=>this.home(),300); };
     let sys; try{ sys=await services.systems.get(id); }catch{ this.toast('打不开'); return this.home(); }
-    this.cur=sys; this.mode='free';
+    this.cur=sys;
+    // 视图偏好（sessionStorage）；docState 未到 carded 时强制回文章
+    this.view = sessionStorage.getItem(VIEW_KEY+id) || 'article';
+    if(this.view==='cards' && sys.docState!=='carded') this.view='article';
     const renderVis=()=>{ const v=$('#vis'); v.className='pill '+(sys.visibility==='private'?'priv':'pub');
       v.innerHTML=`${svg(sys.visibility==='private'?'lock':'globe',9,2)} ${sys.visibility==='private'?'私密':'公开'}`; };
     renderVis();
     $('#vis').onclick=async()=>{ const u=await services.systems.setVisibility(id, sys.visibility==='private'?'public':'private'); sys.visibility=u.visibility; this.cur=sys; renderVis(); };
-    $('#m-free').onclick=()=>this.setMode('free');
-    $('#m-struct').onclick=()=>this.setMode('structured');
+    $('#v-article').onclick=()=>this.setView('article');
+    $('#v-cards').onclick=()=>this.setView('cards');
+    $('#undo').onclick=async()=>{ const r=await services.systems.undo(id);
+      this.toast(r?'已撤销一步':'没有可撤销的步骤'); await this.reload(); };
+    $('#redo').onclick=async()=>{ const r=await services.systems.redo(id);
+      this.toast(r?'已重做一步':'没有可重做的步骤'); await this.reload(); };
     this.fab=$('#fab'); this.fab.onclick=()=>this.openDial();
     $('#scrim').onclick=()=>this.closeDial();
+    this.syncViewSeg();
     this.renderContent();
   }
-  setMode(m){ this.mode=m; $('#m-free').classList.toggle('on',m==='free'); $('#m-struct').classList.toggle('on',m==='structured');
-    services.systems.setMode(this.cur.id,m); this.renderContent(); $('#fab').classList.toggle('hidden',m!=='free'); }
-  // 正文区块（Apple Notes 式）＝ 标记 role:'body' 的文字块，永远排在最前
-  bodyBlock(){ return (this.cur.blocks||[]).find(b=>b.type==='text' && b.payload?.role==='body'); }
+  // 视图切换：纯前端 UI 状态，不打后端（v3 决策）
+  setView(v){
+    if(v==='cards' && this.cur.docState!=='carded'){ this.toast('先按 AI 结构化'); return; }
+    this.view=v; sessionStorage.setItem(VIEW_KEY+this.cur.id, v);
+    this.syncViewSeg(); this.renderContent();
+  }
+  syncViewSeg(){
+    const a=$('#v-article'), c=$('#v-cards'); if(!a||!c) return;
+    a.classList.toggle('on',this.view==='article');
+    c.classList.toggle('on',this.view==='cards');
+    const carded=this.cur.docState==='carded';
+    c.disabled=!carded; c.title=carded?'':'先按 AI 结构化';
+  }
+  async reload(){
+    try{ this.cur=await services.systems.get(this.cur.id); }catch{ return this.home(); }
+    if(this.view==='cards' && this.cur.docState!=='carded') this.view='article';
+    this.syncViewSeg(); this.renderContent();
+  }
   renderContent(){
+    if(this.view==='cards') this.renderCards(); else this.renderArticle();
+    this.refreshHistoryBtns();
+  }
+  async refreshHistoryBtns(){
+    try{ const v=await services.systems.versions(this.cur.id);
+      const ub=$('#undo'), rb=$('#redo');
+      if(ub) ub.disabled=!v.canUndo;
+      if(rb) rb.disabled=!v.canRedo;
+    }catch{}
+  }
+  sortedBlocks(){ return (this.cur.blocks||[]).slice().sort((a,b)=>a.position-b.position); }
+
+  // ---- 文章视图（§1.2b：点哪段改哪段 + 文末续写区）----
+  renderArticle(){
     const c=$('#content');
-    if(this.mode==='structured'){ c.innerHTML=`<div class="structured-empty">还没整理<br>—— 阶段二接 AI 后，这里会变成结构化的卡片</div>`; return; }
-    const body=this.bodyBlock();
     c.innerHTML=`<textarea class="note-title" id="title" rows="1" placeholder="标题">${esc(this.cur.title)}</textarea>
-      <textarea class="note-body" id="body" rows="1" placeholder="开始写…">${esc(body?.payload.content||'')}</textarea>
-      <div class="blocks" id="blocks"></div>`;
+      <div class="blocks" id="blocks"></div>
+      <textarea class="note-body" id="contwrite" rows="1" placeholder="继续写…（空行分段、# 开头成标题）"></textarea>`;
     const title=$('#title');
     title.oninput=()=>autoraf(title);
     title.onblur=async e=>{ const v=e.target.value.trim()||'未命名系统'; const u=await services.systems.update(this.cur.id,{title:v}); this.cur.title=u.title; this.cur.version=u.version; this.saved(); };
     autoraf(title);
-    const bodyTa=$('#body');
-    bodyTa.oninput=()=>autoraf(bodyTa);
-    bodyTa.onblur=()=>this.saveBody(bodyTa.value);
-    autoraf(bodyTa);
-    this.renderBlocks();
-  }
-  async saveBody(text){
-    const blk=this.bodyBlock();
-    if(blk){ blk.payload={...blk.payload, content:text, text:text, role:'body'};
-      await services.blocks.update(blk.id,{payload:blk.payload}); this.saved(); }
-    else if(text.trim()){ // 第一次输入正文才建立区块，并置于最前（position:-1）让首页摘要显示正文
-      const block=await services.blocks.add(this.cur.id,{type:'text',position:-1,payload:{content:text,text:text,role:'body'}});
-      this.cur.blocks=[block,...(this.cur.blocks||[])]; this.saved(); }
-  }
-  renderBlocks(){
-    const wrap=$('#blocks');
-    const bs=(this.cur.blocks||[]).filter(b=>!(b.type==='text' && b.payload?.role==='body'));
-    wrap.innerHTML='';
-    if(!bs.length){ wrap.innerHTML=`<div class="faint" id="bhint" style="padding:6px 8px">＋ 加模组（可选）：待办、标题…</div>`; return; }
+    const bs=this.sortedBlocks();
+    if(!bs.length) $('#blocks').innerHTML=`<div class="faint" id="bhint" style="padding:6px 8px">空白笔记——直接在下方「继续写…」开始，或＋加模组</div>`;
     bs.forEach(b=>this.appendBlock(b));
+    // 文末常驻续写区：blur 且非空 → 整次提交先落一步，再切块逐个 append
+    const cw=$('#contwrite');
+    cw.oninput=()=>autoraf(cw); autoraf(cw);
+    cw.onblur=async()=>{
+      const v=cw.value; if(!v.trim()) return;
+      await services.systems.saveVersion(this.cur.id,'cardEdit');
+      const segs=splitIntoBlocks(v);
+      for(const seg of segs) await services.blocks.add(this.cur.id,{ ...seg, source:'manual' });
+      cw.value='';
+      this.saved(); await this.reload();
+    };
   }
   appendBlock(b){
     const wrap=$('#blocks'); const hint=$('#bhint'); if(hint) hint.remove();
     const tmp=document.createElement('div'); tmp.innerHTML=this.blockHTML(b);
     const node=tmp.firstElementChild; wrap.appendChild(node); this.wireBlock(node,b);
   }
-  wireBlock(node,b){
-    if(b.type==='todo'){ node.querySelector('.tick').onclick=async()=>{ const done=!b.payload.done;
-      b.payload={...b.payload,done}; node.querySelector('.tick').classList.toggle('on',done);
-      await services.blocks.toggleDone(b.id,b.payload); this.saved(); }; }
-    const ta=node.querySelector('textarea');
-    if(ta){ ta.oninput=()=>autoraf(ta); ta.onblur=async()=>{
-      if(b.type==='todo') b.payload.text=ta.value; else { b.payload.content=ta.value; b.payload.text=ta.value; }
-      await services.blocks.update(b.id,{payload:b.payload}); this.saved(); }; autoraf(ta); }
-    const del=node.querySelector('.bdel');
-    if(del) del.onclick=async()=>{ await services.blocks.delete(b.id);
-      this.cur.blocks=this.cur.blocks.filter(x=>x.id!==b.id); node.remove();
-      if(!this.cur.blocks.length) this.renderBlocks(); this.toast('已删除区块'); };
-    node.querySelectorAll('.bmv').forEach(btn=>btn.onclick=async()=>{
-      const arr=this.cur.blocks, idx=arr.findIndex(x=>x.id===b.id), step=btn.dataset.d==='up'?-1:1;
-      let ni=idx+step;
-      // 跳过正文块，模组不与正文交换位置
-      while(arr[ni] && arr[ni].type==='text' && arr[ni].payload?.role==='body') ni+=step;
-      if(ni<0||ni>=arr.length) return;
-      [arr[idx],arr[ni]]=[arr[ni],arr[idx]];
-      await services.blocks.reorder(this.cur.id, arr.map(x=>x.id)); this.renderBlocks(); this.saved(); });
-  }
   blockHTML(b){
-    const del=`<div class="btools"><button class="bmv" data-d="up" aria-label="上移">▲</button><button class="bmv" data-d="dn" aria-label="下移">▼</button><button class="bdel" aria-label="删除区块">${svg('trash',12,1.8)}</button></div>`;
-    if(b.type==='todo') return `<div class="block todo" data-b="${b.id}"><span class="tick ${b.payload.done?'on':''}">${b.payload.done?svg('check',13,2.4):''}</span><textarea rows="1" placeholder="待办…">${esc(b.payload.text||'')}</textarea>${del}</div>`;
-    if(b.type==='heading') return `<div class="block heading" data-b="${b.id}"><textarea rows="1" placeholder="标题">${esc(b.payload.content||b.payload.text||'')}</textarea>${del}</div>`;
-    return `<div class="block" data-b="${b.id}"><textarea rows="1" placeholder="写点什么…">${esc(b.payload.content||b.payload.text||'')}</textarea>${del}</div>`;
+    const tools=this.toolsHTML(b);
+    const mark=b.pinned?'<span class="pinmark" title="已钉选，AI 永不动">📌</span>':'';
+    if(b.type==='todo') return `<div class="block todo" data-b="${b.id}"><span class="tick ${b.payload.done?'on':''}">${b.payload.done?svg('check',13,2.4):''}</span><textarea rows="1" placeholder="待办…">${esc(b.payload.text||'')}</textarea>${tools}</div>`;
+    if(b.type==='heading') return `<div class="block heading para ${b.pinned?'pinned':''}" data-b="${b.id}"><div class="ptext ${b.payload.level===2?'h2':''}">${mark}${esc(b.payload.content||'')||'<span class="faint">（空标题，点击编辑）</span>'}</div>${tools}</div>`;
+    if(b.type==='text') return `<div class="block para ${b.pinned?'pinned':''}" data-b="${b.id}"><div class="ptext">${mark}${esc(b.payload.content||'')||'<span class="faint">（空白段落，点击编辑）</span>'}</div>${tools}</div>`;
+    // 模组类块：简单组件框（type 名 + payload 摘要），不可文字编辑、恒钉选（无开关）
+    return `<div class="block module" data-b="${b.id}"><div class="mhead">📌 模组 · ${esc(b.type)}</div><div class="mjson">${esc(JSON.stringify(b.payload||{}).slice(0,140))}</div>${tools}</div>`;
+  }
+  // 工具列：📌 钉选（仅 text/heading）＋ 上下移 ＋ 删除；edit=true 时只留钉选
+  toolsHTML(b, edit=false){
+    const pin=(b.type==='text'||b.type==='heading')
+      ? `<button class="bpin ${b.pinned?'on':''}" aria-label="钉选" title="${b.pinned?'取消钉选':'钉选（AI 永不动）'}">📌</button>` : '';
+    if(edit) return `<div class="btools">${pin}</div>`;
+    return `<div class="btools">${pin}<button class="bmv" data-d="up" aria-label="上移">▲</button><button class="bmv" data-d="dn" aria-label="下移">▼</button><button class="bdel" aria-label="删除区块">${svg('trash',12,1.8)}</button></div>`;
+  }
+  wireBlock(node,b){
+    if(b.type==='todo'){
+      node.querySelector('.tick').onclick=async()=>{
+        await services.systems.saveVersion(this.cur.id,'cardEdit');
+        const done=!b.payload.done; b.payload={...b.payload,done};
+        node.querySelector('.tick').classList.toggle('on',done);
+        await services.blocks.toggleDone(b.id,b.payload); this.saved(); this.refreshHistoryBtns(); };
+      const ta=node.querySelector('textarea');
+      ta.oninput=()=>autoraf(ta); autoraf(ta);
+      ta.onblur=async()=>{ if(ta.value===(b.payload.text||'')) return; // 没变不落步
+        await services.systems.saveVersion(this.cur.id,'cardEdit');
+        b.payload={...b.payload,text:ta.value};
+        await services.blocks.update(b.id,{payload:b.payload}); this.saved(); this.refreshHistoryBtns(); };
+    }
+    // text/heading：点段落 → 变 textarea 编辑（§1.2b）
+    const pt=node.querySelector('.ptext');
+    if(pt && (b.type==='text'||b.type==='heading')) pt.onclick=()=>this.editBlock(node,b);
+    this.wireTools(node,b);
+  }
+  wireTools(node,b){
+    const pin=node.querySelector('.bpin');
+    if(pin) pin.onpointerdown=async ev=>{ ev.preventDefault(); // 不抢焦点（编辑态按钉选不触发 blur）
+      const np=!b.pinned;
+      await services.blocks.pin(b.id,np); b.pinned=np;
+      this.toast(np?'已钉选（AI 永不动）':'已取消钉选');
+      if(!node.querySelector('textarea')) this.redrawBlock(node,b); // 读取态：整块重画（更新 📌 标记）
+      else { pin.classList.toggle('on',np); pin.title=np?'取消钉选':'钉选（AI 永不动）'; } }; // 编辑态：只换按钮状态，不打断输入
+    const del=node.querySelector('.bdel');
+    if(del) del.onclick=async()=>{
+      await services.systems.saveVersion(this.cur.id,'delete'); // 删除前落一步
+      await services.blocks.delete(b.id);
+      this.cur.blocks=this.cur.blocks.filter(x=>x.id!==b.id); node.remove();
+      if(!this.cur.blocks.length) this.renderArticle();
+      this.toast('已删除区块'); this.refreshHistoryBtns(); };
+    node.querySelectorAll('.bmv').forEach(btn=>btn.onclick=async()=>{
+      const arr=this.sortedBlocks(), idx=arr.findIndex(x=>x.id===b.id), step=btn.dataset.d==='up'?-1:1;
+      const ni=idx+step; if(ni<0||ni>=arr.length) return;
+      await services.systems.saveVersion(this.cur.id,'cardEdit'); // 移动前落一步
+      [arr[idx],arr[ni]]=[arr[ni],arr[idx]];
+      await services.blocks.reorder(this.cur.id, arr.map(x=>x.id));
+      arr.forEach((x,i)=>{ x.position=i; }); this.cur.blocks=arr;
+      this.renderArticle(); this.saved(); this.refreshHistoryBtns(); });
+  }
+  editBlock(node,b){
+    const old=b.payload.content||'';
+    const hint = old.length>LONG_PARA ? `<div class="longhint">⚠ 这段超过 ${LONG_PARA} 字，建议拆分</div>` : '';
+    node.innerHTML=`${hint}<textarea rows="1" placeholder="${b.type==='heading'?'标题':'写点什么…'}">${esc(old)}</textarea>${this.toolsHTML(b,true)}`;
+    const ta=node.querySelector('textarea');
+    ta.oninput=()=>autoraf(ta); autoraf(ta);
+    ta.focus(); ta.selectionStart=ta.selectionEnd=ta.value.length;
+    ta.onblur=async()=>{
+      const v=ta.value;
+      if(v===old){ this.redrawBlock(node,b); return; } // 没变只收起、不落步
+      await services.systems.saveVersion(this.cur.id,'cardEdit'); // 有变才落一步
+      b.payload={...b.payload, content:v};
+      await services.blocks.update(b.id,{payload:b.payload});
+      this.redrawBlock(node,b); this.saved(); this.refreshHistoryBtns();
+    };
+    this.wireTools(node,b);
+  }
+  redrawBlock(node,b){
+    const tmp=document.createElement('div'); tmp.innerHTML=this.blockHTML(b);
+    const nn=tmp.firstElementChild; node.replaceWith(nn); this.wireBlock(nn,b);
+  }
+
+  // ---- 卡片视图（docState 到 carded 前是空状态；结构化按钮 Step 3 接上）----
+  renderCards(){
+    const c=$('#content');
+    if(this.cur.docState!=='carded'){
+      c.innerHTML=`<div class="structured-empty">还没结构化<br>—— 按 AI 结构化后这里会变成卡片</div>`;
+      return;
+    }
+    const bs=this.sortedBlocks();
+    c.innerHTML=`<div class="blocks">${bs.map(b=>`<div class="card" style="padding:12px">
+      <div class="faint" style="font-size:10px;font-weight:800">${esc(b.type)}${b.pinned?' 📌':''}</div>
+      <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;margin-top:4px">${esc(b.payload?.content||b.payload?.text||JSON.stringify(b.payload||{}).slice(0,140))}</div>
+    </div>`).join('')}</div>`;
   }
   saved(){ const s=$('#save'); if(s){ s.textContent='已储存'; setTimeout(()=>{ if(s) s.textContent=''; },1200);} }
 
@@ -209,8 +309,12 @@ class App {
   closeDial(){ $('#scrim').classList.remove('open'); $('#dial').classList.add('hidden'); }
   async insertModule(i){
     const m=MODULES[i]; const payload = m.id==='todo'?{text:'',done:false}:{content:''};
-    const block=await services.blocks.add(this.cur.id,{type:m.id,payload});
-    this.cur.blocks=[...(this.cur.blocks||[]),block]; this.closeDial(); this.appendBlock(block); this.toast('已插入「'+m.name+'」');
+    const textual=['text','todo','heading'].includes(m.id);
+    await services.systems.saveVersion(this.cur.id, textual?'cardEdit':'addModule'); // 加块前落一步
+    const block=await services.blocks.add(this.cur.id,{type:m.id,payload,source:'manual'});
+    this.cur.blocks=[...(this.cur.blocks||[]),block]; this.closeDial();
+    if(this.view==='article') this.appendBlock(block); else this.renderContent();
+    this.toast('已插入「'+m.name+'」'); this.refreshHistoryBtns();
   }
 
   // ---------- 设定 ----------

@@ -10,11 +10,17 @@ export const TOUCHPOINTS = [
   { method:'systems.get(id)',        ui:'打开笔记', api:'GET /api/systems/:id', swift:'SystemsService.get()' },
   { method:'systems.update(id,p)',   ui:'改标题', api:'PATCH /api/systems/:id', swift:'SystemsService.update()' },
   { method:'systems.setVisibility',  ui:'私密/公开', api:'PATCH …{visibility}', swift:'SystemsService.update()' },
-  { method:'systems.setMode',        ui:'双模式切换', api:'PATCH …{mode}', swift:'SystemsService.update()' },
+  { method:'systems.setMode',        ui:'双模式切换 (v3 废弃——docState 由后端在 AI 操作时更新；视图切换纯前端)', api:'PATCH …{mode}', swift:'SystemsService.update()' },
   { method:'systems.delete(id)',     ui:'删系统', api:'DELETE /api/systems/:id', swift:'SystemsService.delete()' },
   { method:'blocks.add(sid,b)',      ui:'旋钮插块', api:'POST …/blocks', swift:'BlocksService.add()' },
   { method:'blocks.update(id,p)',    ui:'编辑块', api:'PATCH /api/blocks/:id', swift:'BlocksService.update()' },
   { method:'blocks.toggleDone(id)',  ui:'待办勾选', api:'PATCH …{payload.done}', swift:'BlocksService.update()' },
   { method:'blocks.delete(id)',      ui:'删块', api:'DELETE /api/blocks/:id', swift:'BlocksService.delete()' },
   { method:'status.get()',           ui:'验收页', api:'GET /api/status', swift:'(验收页是 Web,不搬)' },
+  // ---- 阶段二 · 版本安全网与钉选（开发文档 §3 表）----
+  { method:'systems.undo(id)',       ui:'笔记页·上一步钮', api:'POST /api/systems/:id/undo', swift:'SystemsService.undo()' },
+  { method:'systems.redo(id)',       ui:'笔记页·下一步钮', api:'POST /api/systems/:id/redo', swift:'SystemsService.redo()' },
+  { method:'systems.versions(id)',   ui:'笔记页·版本列表', api:'GET /api/systems/:id/versions', swift:'SystemsService.versions()' },
+  { method:'systems.restore(id,v)',  ui:'笔记页·版本列表', api:'POST /api/systems/:id/restore', swift:'SystemsService.restore()' },
+  { method:'blocks.pin(id,bool)',    ui:'卡片·钉选开关', api:'PATCH /api/blocks/:id{pinned}', swift:'BlocksService.update()' },
 ];

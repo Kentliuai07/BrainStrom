@@ -93,6 +93,23 @@ input,textarea{font:inherit;color:inherit}
 .tick{width:22px;height:22px;border-radius:50%;border:2px solid var(--text-faint);flex:0 0 auto;margin-top:3px;display:grid;place-items:center}
 .tick.on{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
 .structured-empty{flex:1;display:grid;place-items:center;color:var(--text-faint);text-align:center;padding:40px;font-size:14px}
+/* 文章视图（活文件 v3）：段落点击即编、钉选、模组框、续写区 */
+.block .ptext{font-size:15px;line-height:1.6;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;cursor:text;min-height:1.6em}
+.block.heading .ptext{font-size:18px;font-weight:800}
+.block.heading .ptext.h2{font-size:16px}
+.block.pinned{border-color:color-mix(in srgb,var(--primary) 30%,var(--hair));background:var(--surface)}
+.pinmark{font-size:11px;margin-right:4px;opacity:.85}
+.bpin{width:22px;height:20px;display:grid;place-items:center;font-size:11px;opacity:.45;filter:grayscale(1)}
+.bpin.on{opacity:1;filter:none}
+.block.module{border-color:var(--hair);background:var(--surface);padding:10px 32px 10px 10px}
+.module .mhead{font-size:11px;font-weight:800;color:var(--text-muted);margin-bottom:4px}
+.module .mjson{font-size:11px;color:var(--text-faint);font-family:ui-monospace,monospace;overflow-wrap:anywhere}
+.longhint{font-size:11px;color:var(--danger);font-weight:700;margin:2px 0 4px}
+.histbtn{width:30px;height:30px;min-width:30px;border-radius:50%;display:grid;place-items:center;font-size:15px;
+  background:var(--surface);border:1px solid var(--hair);color:var(--text-muted)}
+.histbtn:active{transform:scale(.9)}
+.histbtn[disabled]{opacity:.35;pointer-events:none}
+.seg button[disabled]{opacity:.4;cursor:not-allowed}
 
 /* 底部工具列 + 旋钮 */
 .dock{flex:0 0 auto;height:74px;display:flex;align-items:center;gap:10px;padding:0 20px 14px;border-top:1px solid var(--hair);background:var(--chrome);backdrop-filter:blur(18px)}

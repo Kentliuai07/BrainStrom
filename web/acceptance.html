@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('brainstrom.theme')||'obsidian');</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BrainStrom · 阶段一验收仪表板</title>
+<title>BrainStrom · 验收仪表板</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="./src/design/tokens.css">
 <style>
@@ -29,8 +29,8 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>阶段一 · 验收仪表板</h1>
-  <div class="sub">Step 0 · 远端看后端真实进度（每完成一步点亮一盏灯）</div>
+  <h1>验收仪表板</h1>
+  <div class="sub">阶段一 6 盏 ＋ 阶段二 7 盏 ＝ 13 盏（AI 灯现在全灭是正常——各 Step 完成后逐一点亮）</div>
   <div class="grid" id="grid"></div>
   <div class="meta"><div>系统数<b id="cnt">—</b></div><div>更新时间<b id="upd" style="font-size:13px">—</b></div></div>
   <div class="row">
@@ -48,6 +48,13 @@
     {k:'rls',n:'权限隔离',d:'只能看自己的资料'},
     {k:'delete_account',n:'删除帐号',d:'级联清除资料'},
     {k:'frontend_skeleton',n:'前端骨架',d:'5 画面 + 旋钮 + 双模式'},
+    {k:'ai_engine',n:'AI 引擎',d:'共用串流引擎在线（Step 1）'},
+    {k:'chat_note',n:'单笔记聊天',d:'单专案 AI 对话（Step 2）'},
+    {k:'optimize',n:'优化文字',d:'AI 整理排版文笔（Step 3）'},
+    {k:'structure',n:'卡片结构化',d:'内容归组成主题卡（Step 3）'},
+    {k:'structure_incremental',n:'增量结构化',d:'第二次只补变动（Step 5）'},
+    {k:'global_recall',n:'全局找回',d:'跨笔记 RAG 找回（Step 6）'},
+    {k:'git_progress',n:'Git 进度',d:'连 GitHub 看进度（Step 7）'},
   ];
   window.refresh=async()=>{
     const s=await Mock.status();
