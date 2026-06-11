@@ -6,7 +6,8 @@
 >
 > 建立日期：2026-06-11　｜　开发顺序：方案 A（先地基＋共用引擎，再用最简单的 AI 功能验证，再做复杂的）
 > 本文档经 6 个探勘代理 + 1 个 Plan 代理交叉验证现有代码后产出。
-> **v2（2026-06-11 同日改版）**：写入使用者最新共识「三层内容模型」——原始散文 AI 永不碰、一份结构化内容渲染成「优化散文＋卡片」两种皮、AI 可改可删未钉选的卡、安全网改为「版本快照＋一键还原＋上一步/下一步」。旧版「手改卡 AI 永不动」铁律已废除，见 §0.2 与 §1.2。
+> **v2（2026-06-11 同日改版）**：写入「三层内容模型」共识（已被 v3 取代）。
+> **v3（2026-06-11 再改版，现行版）**：使用者拍板「**活文件模型**」——不再永久并存「原始手写层」，一份笔记就是一串会不断进化的块（文章/卡片两视图同一份资料）；新增「优化文字」按钮；安全网 = **无限版本历史 + 不限次数的上一步/下一步**；省钱 = 指纹比对、没变的段落不重送。v2 的「三层模型、原稿画面、sourceAnchor/sourceHash」全部作废，见 §0.2 与 §1.2。
 
 ---
 
@@ -18,20 +19,19 @@
 2. **UI 只走服务层**：前端不直接碰后端，一律经 `services/`。这样之后搬 SwiftUI 照 `touchpoints.js` 重接即可。
 3. **模拟层与 Fly.io 层「接口签名 + SSE 事件协议」必须一模一样**：UI 零改动就能从假后端切到真后端。`touchpoints.js` 是这两层之间「唯一的契约真相」。
 
-### 0.2 已拍板决策（硬规则，不可违反；2026-06-11 改版）
+### 0.2 已拍板决策（硬规则，不可违反；v3 活文件模型，2026-06-11）
 
-> ⚠️ 旧版第 1 条「手改永久保护（AI 永不动手改卡）」已于 2026-06-11 被使用者推翻。任何旧文档写「AI 100% 不动」的地方，一律以本节为准。
+> ⚠️ 演进轨迹：v1「手改卡 AI 永不动」→ v2「三层模型（原始散文层永久并存、AI 永不碰）」→ **v3「活文件模型」（现行版）**。旧文档任何「原始散文层永久并存 / AI 永不改写原文 / 三段视图切换」的说法全部作废，一律以本节为准。
 
-1. **三层内容模型**：
-   - 第 1 层「原始散文」（手写乱稿）：**AI 永不改写**；使用者本人可以继续在这里写。
-   - 第 2 层「一份结构化内容」：AI 整理出来的一串有顺序的卡，全笔记**只有这一份**。
-   - 两种皮：「优化散文」与「卡片」都是同一份结构化内容画出来的（**不存两份**，同步天生免费）。
-2. **AI 可以动结构化内容**：不管是优化散文皮还是卡片皮，AI 都能改、能删（推翻旧铁律）；**唯一例外是被使用者「钉选（pinned）」的卡，AI 永不碰**。
-3. **安全网 = 版本快照 + 一键还原 + 上一步/下一步（Undo/Redo）**：每次 AI 动手或大改前先存快照；使用者能一键回到旧版本，也能像一般编辑器那样「上一步、下一步」整批撤销/重做。
-4. **按钮触发**：第二次以后的结构化，使用者按按钮才跑，不自动跑。
-5. **省钱机制**：原稿没变（指纹比对）就不叫 AI；变了只重整变动的部分。
+1. **活文件模型**：一份笔记 = 一份会不断进化的「活文件」= **一串有顺序的块**（段落块＋模组块）。**文章视图**（把块串起来看成一篇文章）与**卡片视图**（把同一串块拆开一张张看）是同一份资料的两种画法，**不存两份**，同步天生免费。**没有永久并存的「原始手写层」**——最早的原稿就是版本历史里的第 1 版，想看就退回去。
+2. **两个 AI 按钮**（都由使用者手动触发，不自动跑）：
+   - **优化文字**：AI 优化整篇排版与文笔，做完**仍是一篇文章**（不卡片化）。每次执行都会问「要不要顺便分主题加小标题」（使用者拍板：每次都问）。
+   - **卡片结构化**：必要时先补优化（已优化没变的段落跳过），然后把内容归组成一张张主题卡。
+3. **AI 可改可删**任何未钉选的块/卡（含手动加的）；**钉选（pinned）的块 AI 永不改、不删、不跨越它去合并前后文**。模组卡（表格/GitHub/进度环…）的内容 AI 永不动（视同天生钉选）。
+4. **安全网 = 无限版本历史 + 不限次数的上一步/下一步（Undo/Redo）**（使用者拍板：无限退）：每次「AI 操作」或「结构性操作」（改一张卡、删卡、合并、拆分、加模组）前自动存档一步；按「上一步」整批退回，文章与卡片**一起**退；打字过程不算步（用输入框原生撤销）。回旧版只做「整篇还原」，不做「捡回片段」（使用者拍板）。
+5. **省钱 + 防走样**：全文指纹没变 → 不叫 AI、零成本；变了 → **只送新写/改过的段落，已优化且没变的段落一个字都不重送**——既省钱，也防「影印机效应」（AI 反复重写同一段，每次走样一点）。
 6. **参考重写**：不直接搬 SBIR_NEW 的码，参考做法在 BrainStrom 重写，但抄它的好东西（prompt、安全阀、版本快照、提示词快取、5 层 JSON 解析）。
-7. **模组卡三视图长一样**：表格 / GitHub / 进度环这类「不是文字」的模组卡，插进笔记后，在原稿、优化散文、卡片三个画面里的视觉呈现是**同一个组件、长一样**。
+7. **模组卡两视图长一样**：模组卡在文章视图与卡片视图的视觉呈现是**同一个组件**（文章里像插图一样嵌在对应位置）。
 
 ### 0.3 卡片版型决策（使用者补充）
 
@@ -43,7 +43,7 @@
 
 1. **现有契约**：服务层（`AuthService/SystemsService/BlocksService/StatusService`）→ 模拟后端（`api/mockClient.js`，localStorage key `brainstrom.mock.v1`）→ 触点（`touchpoints.js` **16 条**，含 `status.get()`）→ 验收页（`acceptance.html` 6 盏灯）。AI 功能照同模式加 `AIService` + 触点 + 验收灯。
 2. **20 卡清单**已存在于 `mvp/brainstorm-mvp.html` 与 `docs/ios-structure.md`。
-3. **资料表**：`docs/backend-design.md` **已规划**（但模拟层 `mockClient.js` **尚未实装**）blocks 的 `source`/`locked`（本版已把 `locked` 改名 `pinned`、语意改「钉选」，见 §1.3）、systems 的 `ai_restructure_count`，以及 `embeddings`/`chat_threads`/`chat_messages` 表。`sourceHash`（原文指纹）连规划都缺，要补。→ **结论：这些栏位现状全部不存在于模拟层，Step 3/4/5 动工前要先改 `mockClient.js` 真正写进去。**
+3. **资料表**：`docs/backend-design.md` **已规划**（但模拟层 `mockClient.js` **尚未实装**）blocks 的 `source`/`locked`（本版已把 `locked` 改名 `pinned`、语意改「钉选」，见 §1.3）、systems 的 `ai_restructure_count`，以及 `embeddings`/`chat_threads`/`chat_messages` 表。指纹栏位（v3 的 `aiHash`/`lastAiHash`）连规划都缺，要补。→ **结论：这些栏位现状全部不存在于模拟层，Step 3/4/5 动工前要先改 `mockClient.js` 真正写进去。**
 4. **SBIR_NEW 可抄的 AI 引擎**：SSE 事件协议、单专案聊天三层上下文 + 提示词快取、不用 tool_use 而用「prompt 写死 JSON + 5 层解析兜底」、gateway 三入口。
 5. **SBIR_NEW 校验/成本**：两层重试（gateway 层 `maxRetries=2`，实际只退避 1s→2s；spec-generator 那条 stream 路 `STREAM_MAX_RETRIES=3` 退避 2s→4s→8s）、model 白名单 `ALLOWED_CLIENT_MODELS`、`CLIENT_MAX_TOKENS_CAP=8192`、每日成本上限 shadow/canary(10%)/full、摘要失败取前 400 字、AI 端点限流 60/分。
 6. **SBIR_NEW 的 RAG 没真做**：MMR、同义词展开是可抄的死码；「生向量／写向量／查向量」三步要 BrainStrom 自己写。
@@ -58,59 +58,60 @@
 - `blocks`：`{ id, systemId, type, position, payload, createdAt, updatedAt, deletedAt }`
 - 自由速记「原文」存法：一个 `type:'text'`、`payload.role==='body'`、`position:-1` 的块（`main.js` 的 `saveBody`）。**这个 body block 的 `payload.content` 就是原文。**
 
-### 1.2 三层内容模型（2026-06-11 新共识，本章核心）★
+### 1.2 活文件内容模型（v3 2026-06-11 拍板，本章核心）★
 
-**三层是什么**（用现有代码对应着讲）：
+**模型是什么**（用现有代码对应着讲）：
 
-- **第 1 层 · 原始散文** = 现状的 body block（`type:'text'` + `payload.role==='body'`）。使用者手写的乱稿。**AI 永远不改写它**；使用者随时可以继续写。它是结构化的输入来源，也是「原文变了要重整」的触发点。
-- **第 2 层 · 一份结构化内容** = body 以外的全部 blocks（文字卡 + 模组卡），按 `position` 排序成「一串有顺序的卡」。全笔记**只有这一份**结构化资料。
-- **两种皮（同一份资料的两种画法，不另外存东西）**：
-  - **优化散文皮**：把那串卡按顺序「串起来」画成一篇顺的文章——文字卡画成段落（卡的标题当小标），模组卡（表格/GitHub/进度环…）原样嵌在文章对应位置（像文章里插一张图）。
-  - **卡片皮**：把同一串卡「拆开」一张张显示。
-- 因为两皮读写的都是**同一串 blocks**，改哪边都是改同一份 → 同步天生免费、永不打架、来回切换零漂移。**禁止为优化散文另外存一份文字**（存两份就会打架）。
+- 一份笔记 = **一串有顺序的 blocks**：段落块（文字类）+ 模组块（表格/GitHub/进度环…），按 `position` 排序。这串块就是**唯一的内容真相**。
+- **文章视图**：把块按顺序串起来画成一篇文章——段落块 = 段落，模组块 = 嵌在对应位置的小组件（像文章里插一张图）。**整篇可编辑**：点哪段改哪段（每段背后就是一个块，点一下变成可编辑框，改完存回那个块），文末有常驻续写区（写完按空行切成新的段落块）。段落合并/拆分用明确按钮（都算一步、可 Undo）。
+- **卡片视图**：把同一串块拆开一张张显示（按过「卡片结构化」之前，这页是置灰/空状态）。卡片可直接编辑、删除、钉选。
+- 改哪边都是改同一串块 → 两视图永远一致、零同步代码、来回切换零漂移。**禁止为任一视图另外存一份文字**（存两份就会打架）。
+- **没有永久并存的「原始手写层」**：使用者永远在最新版上继续写；最早的原稿自动成为版本历史的第 1 版（无限历史，永远找得回）。
+- 旧的 body block 设计（`type:'text'`+`payload.role==='body'` 整篇存一坨）**废弃** → 迁移时按空行把 body 切成一串段落块。
 
-**怎么改字（编辑规则）**：
+**文件生命周期（`docState`，取代旧 `mode:'free'|'structured'` 的语意）**：
 
-- 优化散文皮：**点哪段改哪段**——每个段落背后就是一张卡，点一下那段变成可编辑框，改完存回那张卡（卡片皮立刻跟着变）。段落的合并/拆分用明确按钮操作（合并 = 两卡并一卡、拆分 = 一卡切两卡，都进 Undo 历史），**不开放整篇自由打字**（避免系统「猜你改了哪张卡」猜错造成漂移）。
-- 卡片皮：直接编辑卡，照旧。
-- 原始散文：整篇自由打字，照旧（这层是你的乱稿，AI 不碰）。
+- `raw`（只写过、还没按过任何 AI 按钮）→ `optimized`（按过「优化文字」）→ `carded`(按过「卡片结构化」)。
+- 这是**时间状态**，不是三个画面；画面永远只有「文章 / 卡片」两个（顶部两段切换，卡片段在 `carded` 之前置灰）。
 
-**三个画面各看到什么**（顶部切换从两段扩成三段：**原稿 ↔ 优化散文 ↔ 卡片**）：
+**两个按钮怎么跑（共用同一条管线）**：
 
-- **原稿画面**：body 原文 + 使用者手动插入的模组卡（嵌在原位）。AI 生成的文字卡**不**显示在这（它们的内容就是原文的优化版，显示会重复）。
-- **优化散文画面**：全部结构化卡串成一篇文章（文字卡=段落、模组卡=原样嵌入）。
-- **卡片画面**：全部结构化卡一张张显示。
-- 模组卡在三个画面的视觉呈现是**同一个渲染组件**（决策 7）。
+- **优化文字**：① 算全文指纹，和 `lastAiHash` 一样 → 提示「内容没变」、零成本结束；② 逐块比 `aiHash`，找出「新写的块（没指纹）/ 改过的块（指纹不符）」；③ 问「要不要顺便分主题加小标题」（每次都问）；④ 只把变动块＋少量前后文送 AI（**钉选块、模组块不进 AI 输入**，且 AI 不准跨越它们合并前后文；没变的块一个字不送、不准重写）；⑤ 安全阀（AI 动到没变块/钉选块、或字数暴冲超阈值 → 整批拒绝、保留原状）；⑥ 套用前自动存版本（一步）；⑦ 完成后更新每块 `aiHash`、系统 `lastAiHash`、`docState`；⑧ 顺手重算摘要＋向量（连动 Step 6）。
+- **卡片结构化**：先走同一条优化管线（已优化且没变的块直接跳过，不重复扣钱），再把块归组成主题卡（如果之前答应过分主题，小标题就是现成的分卡边界）；第二次以后走增量（见 Step 5）。
 
-### 1.3 阶段二要补的栏位（先补，贯穿全程）
+**为什么「没变的段落不重送」是铁律**：① 省钱；② 防「影印机效应」——整篇重送会让 AI 把已优化的段落一遍遍重写，每代走样一点，按多了内容面目全非且无人察觉。指纹挡住它。
+
+### 1.3 阶段二要补的栏位（先补，贯穿全程；v3 改版）
 
 | 表 | 新增栏位 | 用途 | 引入于 |
 |---|---|---|---|
-| blocks | `source: 'manual'\|'ai'\|'notes'\|'voice'` | 来源标记（AI 产 vs 手动），只记出身、不再代表保护 | Step 3 |
-| blocks | `pinned: bool`（旧规划名 `locked`，语意改版） | **使用者钉选**；钉了 AI 永不改/删/移这张卡 | Step 4/5 |
-| blocks | `sourceAnchor: string` | 这张卡对应「原文哪一段」的指纹 | Step 5 |
-| blocks | `structureGen: int` | 此卡产自第几代结构化 | Step 5 |
-| systems | `sourceHash: string` | 整份原文指纹，hash gate 用 | Step 5 |
-| systems | `ai_restructure_count: int` | 结构化次数（已规划） | Step 3/5 |
-| systems | `structuredAt: string` | 上次结构化时间 | Step 3 |
+| blocks | `source: 'manual'\|'ai'\|'notes'\|'voice'` | 来源标记（AI 产 vs 手动），只记出身、不代表保护 | Step 3 |
+| blocks | `pinned: bool`（旧规划名 `locked`，语意改版） | **使用者钉选**；钉了 AI 永不改/删/跨越 | Step 4/5 |
+| blocks | `aiHash: string`（取代 v2 的 `sourceAnchor`） | **上次 AI 处理完时这个块的指纹**——diff 与「没变不重送」的基准 | Step 3/5 |
+| blocks | `structureGen: int` | 此块产自第几代 AI 操作 | Step 5 |
+| systems | `lastAiHash: string`（取代 v2 的 `sourceHash` 语意） | 上次 AI 操作完成时**全文指纹**，hash gate 用 | Step 3/5 |
+| systems | `docState: 'raw'\|'optimized'\|'carded'`（取代 `mode` 旧语意） | 文件生命周期状态 | Step 3 |
+| systems | `ai_restructure_count: int` | AI 操作次数（已规划） | Step 3/5 |
+| systems | `structuredAt: string` | 上次 AI 操作时间 | Step 3 |
 
 新表（沿用 `backend-design.md`，真后端阶段建 migration）：
 
-- `structure_versions`：`{ id, systemId, version, blocksJson, trigger('structure'|'incremental'|'merge'|'split'|'restore'|'manual'), createdAt }` —— **全篇结构化内容快照**。一键还原、上一步/下一步（Undo/Redo）都吃这张表（抄 SBIR_NEW `proposal_versions` 概念，改存卡片阵列 JSON）。
+- `structure_versions`：`{ id, systemId, version, blocksJson, trigger('optimize'|'structure'|'incremental'|'cardEdit'|'merge'|'split'|'delete'|'restore'), createdAt }` —— **全篇内容快照**（整串块存 JSON）。一键还原、上一步/下一步都吃这张表（抄 SBIR_NEW `proposal_versions` 概念）。**无限保留、不修剪**（使用者拍板无限退；纯文字很便宜）；第 1 版就是最早的原稿。
 - `embeddings`：`{ id, systemId, kind('note'|'summary'), chunkText, vector, model, createdAt }`
 - `chat_threads`：`{ id, userId, scope('note'|'global'), systemId?, createdAt }`
 - `chat_messages`：`{ id, threadId, role('user'|'ai'|'ctx'), content, createdAt }`
 - `repo_bindings`：`{ id, systemId, provider, repo, tokenRef, createdAt }`
 - `progress_snapshots`：`{ id, systemId, percent, stepStates(json), commitSha, createdAt }`
 
-**Undo/Redo 怎么做**（使用者拍板要「经典上一步/下一步」）：
+**Undo/Redo 怎么做**（使用者拍板：经典上一步/下一步、**不限次数**）：
 
-- 每个「会改结构化内容的操作」= 一步：AI 结构化（整次算一步）、改一张卡、合并/拆分、删卡、手动加卡。
-- 每步动手前把当下整串卡存成一张 `structure_versions` 快照，推进 **Undo 堆叠**；按「上一步」= 还原到上一张快照、把现状推进 **Redo 堆叠**；按「下一步」= 反向。中途做了新操作就清空 Redo（跟一般编辑器一样）。
-- 堆叠上限先取 50 步（旧的丢掉）；卡片量小，整份快照很便宜，之后要省再改成差异存法。
-- 原始散文（body）打字不进这套堆叠（输入框自带原生撤销），但「AI 结构化」这种会动到卡的操作一定进。
+- 算「一步」的操作：AI 优化（整次一步）、AI 结构化（整次一步）、改完一个块/卡（存档时）、合并、拆分、删卡、加模组、整篇还原。
+- **不算「一步」**：打字过程中的每个字（用输入框原生撤销；blur/存档才落一步）。
+- 每步动手前把整串块存成一张 `structure_versions` 快照，推进 Undo 堆叠；「上一步」= 还原到上一张快照、现状进 Redo 堆叠；「下一步」反向；中途做新操作清空 Redo（同一般编辑器）。
+- 快照存后端（换装置、过几天都还在）；**无上限**。还原时文章视图与卡片视图必然一起回去（还原的是唯一那串块）。
+- AI 操作进行中锁定编辑（防止串流套用时盖掉刚打的字）。
 
-> 迁移注意：`addBlock` 加卡时 `source` 由呼叫方决定；旧块迁移补 `source:'notes'`、`pinned:false`。`backend-design.md` 旧规划的 `locked` 一律改名 `pinned`（语意从「系统强制 AI 永不碰」变「使用者主动钉选」）。模拟层只在 localStorage JSON 加这些键；真后端写 Supabase migration。
+> 迁移注意：`addBlock` 加卡时 `source` 由呼叫方决定；旧块迁移补 `source:'notes'`、`pinned:false`、`aiHash:null`；旧 body block 按空行切成段落块。`backend-design.md` 旧规划的 `locked` 一律改名 `pinned`。模拟层只在 localStorage JSON 加这些键；真后端写 Supabase migration。
 
 ### 1.4 资料真相归属（决策）
 
@@ -141,7 +142,7 @@
 | `usage` | `{ input_tokens, output_tokens, cache_read_input_tokens, model }` | token 用量 |
 | `card_start` | `{ index, type?, title }` | 开始吐一张结构化卡（BrainStrom 自取的新名；**SBIR_NEW 没有这名字**，它对应的是 SBIR 的 `section_start`，去 SBIR 找要搜 section_start） |
 | `card_done` | `{ index, card }` | 一张卡完成（对应 SBIR 的 `section_done`） |
-| `card_removed` | `{ cardId }` | 增量时 AI 删了一张卡（对应原稿被删的段落；BrainStrom 自取的新名，SBIR_NEW 没有） |
+| `card_removed` | `{ cardId }` | 增量时 AI 删了一张卡（其内容已被使用者删掉；BrainStrom 自取的新名，SBIR_NEW 没有） |
 | `progress` | `{ current, total, message }` | 进度（如进度分析、增量合并阶段） |
 | `credit_update` | `{ balance, delta }` | 扣款后推新余额（阶段三才真用，先预留） |
 | `hit_list` | `{ systems:[{systemId,title,score}] }` | 全局找回命中的系统列表 |
@@ -192,7 +193,10 @@ class AIService extends Base {
   // Step 2 单专案聊天
   async chatNote(systemId, messages, handlers)
 
-  // Step 3 + Step 5 结构化（mode: 'full' 第一次 / 'incremental' 第二次）
+  // Step 3 优化文字（不卡片化；groupTopics = 这次要不要分主题加小标，每次询问后传入）
+  async optimize(systemId, { groupTopics = false } = {}, handlers)
+
+  // Step 3 + Step 5 卡片结构化（mode: 'full' 第一次 / 'incremental' 第二次；内部共用优化管线）
   async structure(systemId, { mode = 'incremental' } = {}, handlers)
 
   // Step 6 全局找回
@@ -225,7 +229,8 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 |---|---|---|---|
 | `ai.health()` | 验收页 | `GET /ai/health` | AIService.health() |
 | `ai.chatNote(id,msgs)` | 笔记底部聊天浮层 | `POST /ai/chat/note` | AIService.chatNote() |
-| `ai.structure(id,opts)` | 笔记页·AI结构化钮 | `POST /ai/structure` | AIService.structure() |
+| `ai.optimize(id,opts)` | 笔记页·优化文字钮 | `POST /ai/optimize` | AIService.optimize() |
+| `ai.structure(id,opts)` | 笔记页·卡片结构化钮 | `POST /ai/structure` | AIService.structure() |
 | `blocks.addModule(id,type)` | 笔记左下工具按钮 | `POST …/blocks` | BlocksService.add() |
 | `ai.searchGlobal(q)` | 首页全局 AI 框 | `POST /ai/search-similar` | AIService.searchGlobal() |
 | `ai.chatGlobal(msgs)` | 首页全局对话 | `POST /ai/chat/global` | AIService.chatGlobal() |
@@ -236,7 +241,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 | `systems.versions(id)` / `systems.restore(id,v)` | 笔记页·版本列表 | `GET …/versions`·`POST …/restore` | SystemsService.versions()/restore() |
 | `blocks.pin(id,bool)` | 卡片·钉选开关 | `PATCH /api/blocks/:id{pinned}` | BlocksService.update() |
 
-新增验收灯（`acceptance.html` 的 `LAMPS` + `Mock.status()`）：阶段一 6 盏 + 阶段二 6 盏 = `ai_engine / chat_note / structure / structure_incremental / global_recall / git_progress`。
+新增验收灯（`acceptance.html` 的 `LAMPS` + `Mock.status()`）：阶段一 6 盏 + 阶段二 7 盏 = `ai_engine / chat_note / optimize / structure / structure_incremental / global_recall / git_progress`。
 > **必做**：扩 `LAMPS` 数组之外，**一定要同时在 `mockClient.js` 的 `status()` 回传对应布尔键**（现状 `status()` 只回 `db/auth/read_write/rls/delete_account/frontend_skeleton/systems/updatedAt`）。没补布尔键，新灯永远是灭的。
 
 ---
@@ -265,19 +270,21 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
    - **(a) 流式状态**：输入一句送出 → 回答逐字蹦出、右下显示 `usage` token、断线显示 `error`。`ai_engine`+`chat_note` 灯亮。
    - **(b) 单篇识别**：先手动加一张含特定关键字的卡（如「发票辨识」），问「这则在讲什么、提到哪些工具」→ AI 复述出那张卡内容 → 验收页显示「单专案问答→引用到 N 张卡」。
 
-### 第 6 章 · Step 3：AI 结构化（第一次全量）→ 产出「一份结构化内容、两种皮」
+### 第 6 章 · Step 3：两个 AI 按钮——优化文字 ＋ 卡片结构化（第一次）
 
-① 目标：按按钮，把乱写速记整理成「一份结构化内容」，同一份能看成「优化散文」也能看成「卡片」。原稿一字不动。
-② 资料流：取 body 原文 → `/ai/structure`（mode=full）→ prompt「每个主题一张卡（标题＋内容），卡的顺序要能直接串成一篇顺的文章；找不到留空、不准编造；**不准改写原文那个 body**」+ 20 卡参考清单 → tool_use/parseAIJson 拿到**有顺序的卡数组** → 先存一张 `structure_versions` 快照（推进 Undo 堆叠，让这次结构化可整批撤销）→ 每张 `blocks.add(systemId,{type,payload,source:'ai',structureGen:1})` → `card_done` 逐张推前端；同时记 `ai_restructure_count=1`、`systems.sourceHash`、`structuredAt`（为 Step 5 铺路）。
-③ 模拟层：`Mock.structure(full)` 把原文按换行/标题切几段，生成几张 `source:'ai'` 卡逐张 emit。
-④ Fly.io 层：`POST /ai/structure`（mode=full），`card_start/delta/card_done` 协议。
-⑤ 服务层：`AIService.structure(id,{mode:'full'},handlers)`；触点 `ai.structure`。
-⑥ 前端：顶部切换从两段扩成三段「**原稿 ↔ 优化散文 ↔ 卡片**」；优化散文皮与卡片皮都从同一串 blocks 渲染（§1.2 规则）；优化散文皮支持「点哪段改哪段」。
-⑦ 验收点（对应 (c)·结构化 + 新模型三个新动作）：
-   - 按「AI 结构化」→ 卡片逐张浮现 → `structure` 灯亮、显示「回传 N 张卡」+ 预览。
-   - **两皮同步**：在优化散文皮点某段改一个字 → 切到卡片皮，同一张卡内容跟着变（反向也成立）。
-   - **原稿没被动**：结构化后切回原稿画面 → 原文一字未动（body hash 不变）。
-   - **可撤销**：按「上一步」→ 这次结构化整批消失；按「下一步」→ 整批回来。
+① 目标：「优化文字」把乱稿整理成一篇顺的文章（仍是文章）；「卡片结构化」把内容归组成一张张卡。两者改的都是同一串块，文章/卡片两视图同步。
+② 资料流：
+   - **优化文字**（`POST /ai/optimize`）：照 §1.2 八步管线——hash gate（`lastAiHash` 没变→零成本结束）→ 块级 diff（`aiHash`）→ 询问「要不要分主题加小标」（每次都问，答应则 AI 顺便插入标题块）→ 只送变动块（钉选块/模组块不送、没变块不准重写）→ tool_use 回「块 patch」（更新/新增/合并段落）→ 安全阀 → 套用前存快照（一步）→ 更新 `aiHash`/`lastAiHash`/`docState:'optimized'` → 重算摘要＋向量。
+   - **卡片结构化**（`POST /ai/structure`，mode=full）：先走同一条优化管线（已优化没变的块跳过）→ prompt「每个主题归成一张卡（标题＋内容），卡的顺序要能直接串成一篇顺的文章；找不到留空、不准编造」＋20 卡参考清单（若有主题小标，小标=现成分卡边界）→ tool_use/parseAIJson 拿到**有顺序的卡阵列** → 存快照（一步）→ 套用 → `card_done` 逐张推前端 → 记 `ai_restructure_count`、`lastAiHash`、各块 `aiHash`、`docState:'carded'`、`structuredAt`。
+③ 模拟层：`Mock.optimize` 假装把每段改顺（加标点/首字大写之类的假优化）逐块 emit；`Mock.structure(full)` 把段落按空行归组成几张 `source:'ai'` 卡逐张 emit。
+④ Fly.io 层：`POST /ai/optimize` + `POST /ai/structure`（共用优化管线模组），`card_start/delta/card_done` 协议（块=卡，事件复用）。
+⑤ 服务层：`AIService.optimize(id,{groupTopics},handlers)`、`AIService.structure(id,{mode:'full'},handlers)`；触点 `ai.optimize`、`ai.structure`。
+⑥ 前端：顶部两段切换「**文章 ↔ 卡片**」（卡片段在 `carded` 前置灰）；文章视图整篇可编辑（点哪段改哪段＋文末续写区）；两视图从同一串 blocks 渲染（§1.2 规则）。
+⑦ 验收点（对应 (c)·结构化 + 新模型动作）：
+   - 按「优化文字」→ 段落逐段变顺 → `optimize` 灯亮；再按一次（没改内容）→ 提示「内容没变、没花钱」。
+   - 按「卡片结构化」→ 卡片逐张浮现 → `structure` 灯亮、显示「回传 N 张卡」。
+   - **两视图同步**：在文章视图点某段改一个字 → 切到卡片视图，同一张卡内容跟着变（反向也成立）。
+   - **可撤销**：按「上一步」→ 这次 AI 操作整批消失（文章与卡片一起回去）；按「下一步」→ 整批回来；一路退到底能看到第 1 版原始乱稿（无限历史）。
 
 ### 第 7 章 · Step 4：加模组（横排按钮，手动加卡 + 钉选开关）
 
@@ -286,34 +293,34 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 ③ 模拟层：**现状 `mockClient.js` 的 `addBlock`（约第 70–78 行）会忽略 `source`/`pinned`，必须先改它**，把这两个键写进建出的 block 物件（默认 `source:'manual'`、`pinned:false`，由呼叫方覆盖），否则照做等于没存。这步是 Step 3/5 的前置。
 ④ Fly.io 层：无新 AI 端点（纯 CRUD）。
 ⑤ 服务层：复用 `BlocksService.add`，加便捷 `addModule(systemId,type)`；触点 `blocks.addModule`、`blocks.pin`。
-⑥ 前端：UI 从圆形旋钮**简化成横排按钮**（点一下弹出模组列表），加卡功能照做。**三个画面都能加模组**：在原稿画面插入的模组卡，会以同一个视觉组件出现在原稿、优化散文、卡片三个画面的对应位置（决策 7）。
+⑥ 前端：UI 从圆形旋钮**简化成横排按钮**（点一下弹出模组列表），加卡功能照做。**两个视图都能加模组**：插入的模组卡以同一个视觉组件出现在文章视图与卡片视图的对应位置（决策 7）；模组卡内容 AI 永不动（视同天生钉选）。
 ⑦ 验收点：验收页显示某笔记「手动加的 block 数 / 钉选卡数」；钉选卡是 Step 5 保护的输入。
 
 ### 第 8 章 · Step 5：增量结构化（第二次只补变动）★最复杂★
 
-> 权威设计来源：`docs/增量结构化-SBIR模组完整记录与开发设计.md`（其下半部已按 2026-06-11 新共识改版）。
-> 关键：**SBIR_NEW 没有自动 diff、没有钉选、是字串 splice；BrainStrom 要自己写「卡片阵列版的差异侦测」。**
-> **规则改版**：旧版「100% 不动手改卡」已废除 → 新版「AI 可改、可删、可新增任何**未钉选**的卡（含手动卡）；**钉选卡永不碰**；安全靠快照 + Undo/Redo」。
+> 权威设计来源：`docs/增量结构化-SBIR模组完整记录与开发设计.md`（其下半部已按 v3 改版）。
+> 关键：**SBIR_NEW 没有自动 diff、没有钉选、是字串 splice；BrainStrom 要自己写「块阵列版的差异侦测」。**
+> **v3 基准搬家**：没有永久原始层了，diff 基准从「原始稿 hash」搬到「**上次 AI 输出**」——系统级 `lastAiHash` ＋ 块级 `aiHash`。语意：比的是「上次 AI 弄完的样子」vs「使用者在它上面的增改删」。
 
-① 目标：改了原稿再按按钮，不整篇重做，只动变动处；AI 可以更新、删除既有卡（钉选的除外）；原稿没变就不花钱；改坏了按「上一步」整批还原。
+① 目标：卡片化之后使用者又改了内容（文章里续写/改段/删段、或直接改卡），再按「卡片结构化」→ 不整篇重做，只动变动处；AI 可更新、删除未钉选的卡；内容没变就不花钱；改坏了按「上一步」整批还原。
 ② 资料流（九步）：
-   1. **Hash gate**：算新原稿 `sourceHash` 比对 `systems.sourceHash`；一样 → 直接显示旧卡、**不呼叫 AI、零成本**。
-   2. **自动 diff**：不一样 → 旧原稿 vs 新原稿按「段落（空行）＋标题（若有）」切块对比，分出「新增段 / 变动段 / 删除段」（纯程式，不花 AI）。
-   3. **组增量上下文**：把「变动相关的原稿片段（含被删段的旧文）+ 上次结构化卡(JSON，标注哪些钉选)」交给 AI，prompt 明确「钉选卡绝不准动；其余卡可更新；**删除只准用在对应原稿段落已被删掉的卡**；没提到的卡一律原样保留」。
+   1. **Hash gate**：算当前全文指纹比对 `systems.lastAiHash`；一样 → 直接显示旧卡、**不呼叫 AI、零成本**。
+   2. **自动 diff**：不一样 → 逐块比 `aiHash`：没指纹的块=新增、指纹不符=变动、上次有这块现在没了=使用者已删（纯程式，不花 AI）。
+   3. **组增量上下文**：把「新增/变动块的内容＋使用者已删块的旧文＋全部卡片清单(JSON，标注哪些钉选)」交给 AI，prompt 明确「钉选卡绝不准动；未变块已是成品不准重写；其余卡可更新；**删除只准用在内容已被使用者删掉或并入他卡的卡**；没提到的卡一律原样保留」。
    4. **AI 只回 patch**：`{ 新增:[{type,payload,插入位置}], 更新:[{cardId,payload}], 删除:[cardId] }`（tool_use 强制 schema；新增无 id、更新/删除带 id），不用 RFC6902。
-   5. **钉选保护三层**：㈠ 资料层 `pinned` 卡永不进「可改/可删」清单（只给 AI 只读上下文）；㈡ prompt 层告知不准碰；㈢ 合并层即使 AI 误回也丢弃针对钉选卡的任何 patch。
-   6. **安全阀**：patch 异常（要改＋删的卡数超阈值、想动钉选卡、或想删「对应原稿段落还在」的卡）→ 整批拒绝、保留原状、提示重试。
-   7. **快照 + Undo**：套用前存 `structure_versions` 快照（trigger=`'incremental'`）并推进 Undo 堆叠——**一次增量 = 一步**，「上一步」整批撤销、「下一步」整批重做，也可在版本列表一键还原任意旧版。
-   8. 更新 `ai_restructure_count+=1`、`sourceHash`、变动卡 `structureGen`/`sourceAnchor`、重算摘要+向量（连动 Step 6）。
-   9. 前端只重画变动卡：新增的浮现、更新的原位刷新、删除的淡出（`card_removed` 事件），其余不闪、不重排。两皮同时生效（同一份资料）。
-③ 模拟层：最小版——hash 相同返回旧卡；不同则保留钉选卡、追加新内容卡、删掉「对应段落已消失」的未钉选卡。证明「钉选没被洗掉、该删的会删、Undo 能整批回来」。重点放④。
-④ Fly.io 层：`/ai/structure` 加 incremental 分支，实作差异侦测 + patch 合并（含删除）+ 钉选三层保护 + 安全阀 + 快照。
+   5. **钉选保护三层**：㈠ 资料层 `pinned` 卡永不进「可改/可删」清单（只给 AI 只读上下文）；㈡ prompt 层告知不准碰；㈢ 合并层即使 AI 误回也丢弃针对钉选卡/模组卡的任何 patch。
+   6. **安全阀**：patch 异常（要改＋删的卡数超阈值、想动钉选卡、或想删「对应内容明明还在」的卡）→ 整批拒绝、保留原状、提示重试。
+   7. **快照 + Undo**：套用前存 `structure_versions` 快照（trigger=`'incremental'`）——**一次增量 = 一步**，「上一步」整批撤销、「下一步」整批重做，也可在版本列表一键还原任意旧版（无限历史）。
+   8. 更新 `ai_restructure_count+=1`、`lastAiHash`、变动卡 `aiHash`/`structureGen`、重算摘要+向量（连动 Step 6）。
+   9. 前端只重画变动卡：新增的浮现、更新的原位刷新、删除的淡出（`card_removed` 事件），其余不闪、不重排。文章/卡片两视图同时生效（同一份资料）。
+③ 模拟层：最小版——hash 相同返回旧卡；不同则保留钉选卡、追加新内容卡、删掉「内容已消失」的未钉选卡。证明「钉选没被洗掉、该删的会删、Undo 能整批回来」。重点放④。
+④ Fly.io 层：`/ai/structure` 加 incremental 分支，实作块级 diff + patch 合并（含删除）+ 钉选三层保护 + 安全阀 + 快照。
 ⑤ 服务层：同 `AIService.structure(id,{mode:'incremental'},handlers)`；还原走 `SystemsService.undo/redo/restore`。
 ⑥ 验收点（对应 (c)·增量）：
-   - **钉选保护**：钉选某张卡 → 改原稿别处 → 再按结构化 → 钉选那张一字未动、其余该更新的更新。
-   - **删除跟着原稿走**：整段删掉原稿某段 → 再按结构化 → 对应卡被删（钉选的不删）。
+   - **钉选保护**：钉选某张卡 → 改文章别处 → 再按卡片结构化 → 钉选那张一字未动、其余该更新的更新。
+   - **删除跟着内容走**：在文章里整段删掉某段 → 再按卡片结构化 → 对应卡被删（钉选的不删）。
    - **版本还原**：按「上一步」→ 这次增量整批撤销；按「下一步」→ 再套用。
-   - **省钱**：原稿没改再按 → 提示「跳过 AI、没花钱」。
+   - **省钱**：内容没改再按 → 提示「跳过 AI、没花钱」。
    - `structure_incremental` 灯，附「钉选卡数 / 本次是否跳过 AI / 可还原版本数」。
 
 ### 第 9 章 · Step 6：全局 AI 跨笔记找回（RAG）
@@ -322,7 +329,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 
 ① 目标：问一句模糊描述，跨全部笔记找回、指出在哪则。
 ② 资料流：
-   - **写向量**（结构化后顺手，连 Step 3/5）：系统压成摘要（失败取前 400 字）→ `embed(text)→vector` → 存 `embeddings(kind='summary')`。
+   - **写向量**（v3：**任何 AI 操作完成后**都顺手做，优化也算，连 Step 3/5；另对从没按过 AI 按钮的纯手写笔记做兜底向量化，不然全局找回会漏掉它们）：系统压成摘要（失败取前 400 字）→ `embed(text)→vector` → 存 `embeddings(kind='summary')`。输入文本 = 当前活文件全文（带 hash gate 防重算）。
    - **查向量**：query → embed → pgvector 相似度搜（free 上限 50 系统）→ 可选 MMR 去冗 → top-k 摘要交 Claude → 回答 + 命中 systemId 列表（`hit_list` 事件）。
 ③ 模拟层：用关键字 includes 模拟命中（query 词出现在哪些系统摘要），回「在《X》这则」——验收命中体验不需真向量。
 ④ Fly.io 层：`POST /ai/search-similar` + `POST /ai/chat/global` + 写向量内部函数；`embed()` 抽象成接口，供应商可换（见附录 D2）。
@@ -350,14 +357,15 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 |---|---|---|---|
 | **(a) AI 流式响应** | 聊天框输入一句送出 | 回答逐字蹦出 + 显示 token 用量 + 出错显示 error | `ai_engine`+`chat_note` |
 | **(b) 单篇内容识别** | 加一张含关键字的卡，问「这则在讲什么」 | AI 复述出那张卡内容 | `chat_note`（附引用卡数） |
-| **(c1) 结构化** | 按「AI 结构化」 | 卡片逐张浮现 + 「回传 N 张卡」 | `structure` |
-| **(c2) 增量·钉选保护** | 钉选某卡→改原稿别处→再结构化 | 钉选卡一字未动；其余该更新的更新、对应原稿被删段落的卡被删 | `structure_incremental`（附钉选卡数） |
-| **(c3) 增量·省钱** | 原稿没改→再按结构化 | 提示「跳过 AI、没花钱」 | `structure_incremental`（附是否跳过 AI） |
+| **(c0) 优化文字** | 按「优化文字」 | 段落逐段变顺、钉选段与模组卡一字未动；没改内容再按→提示「没变、没花钱」 | `optimize`（附是否跳过 AI） |
+| **(c1) 卡片结构化** | 按「卡片结构化」 | 卡片逐张浮现 + 「回传 N 张卡」 | `structure` |
+| **(c2) 增量·钉选保护** | 钉选某卡→改文章别处→再结构化 | 钉选卡一字未动；其余该更新的更新、内容被删段落对应的卡被删 | `structure_incremental`（附钉选卡数） |
+| **(c3) 增量·省钱** | 内容没改→再按结构化 | 提示「跳过 AI、没花钱」 | `structure_incremental`（附是否跳过 AI） |
 | **(c4) 全局找回** | 首页输入模糊描述 | 命中正确系统、可点进去 | `global_recall`（附命中数） |
 | **(c5) GitHub 进度** | 绑 repo→分析进度 | 环形% + buildSteps 打勾 | `git_progress`（附完成度） |
-| **(c6) 两皮同步** | 优化散文皮点一段改一字 | 切到卡片皮，同张卡同步变（反向也成立） | `structure`（附两皮同步） |
-| **(c7) 原稿没被动** | 结构化/增量后切回原稿画面 | 原文一字未动（body hash 不变） | `structure` |
-| **(c8) 版本还原** | 按「上一步」「下一步」/版本列表还原 | 一次结构化整批撤销、整批重做 | `structure_incremental`（附可还原版本数） |
+| **(c6) 两视图同步** | 文章视图点一段改一字 | 切到卡片视图，同张卡同步变（反向也成立） | `structure`（附两视图同步） |
+| **(c7) 版本还原·无限退** | 连按「上一步」一路退到底 | 每步整批撤销（文章与卡片一起回去），最底能看到第 1 版原始乱稿 | `structure_incremental`（附可还原版本数） |
+| **(c8) 撤销/重做** | 按「上一步」再按「下一步」 | 一次 AI 操作整批撤销、整批重做 | `structure_incremental` |
 
 ---
 
@@ -366,8 +374,10 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 | # | 风险 | 降级 |
 |---|---|---|
 | 1 | 结构化 JSON 解析失败/AI 乱回 | tool_use + 5 层 parse 兜底 → 仍失败回退「不改任何卡 + 提示重试」，绝不写坏数据 |
-| 2 | **增量误删/误改不该动的卡（最严重）** | 钉选三层保护（资料 `pinned` + prompt + 合并层丢弃）；每次套用前快照，「上一步」整批撤销；安全阀：触碰钉选卡、删「原稿段落还在」的卡、或变动量超阈值，一律整批拒绝 |
-| 3 | 原文没变还呼叫 AI 烧钱 | sourceHash gate：相同直接返回旧卡 |
+| 2 | **增量误删/误改不该动的卡（最严重）** | 钉选三层保护（资料 `pinned` + prompt + 合并层丢弃）；每次套用前快照，「上一步」整批撤销；安全阀：触碰钉选卡、删「内容明明还在」的卡、或变动量超阈值，一律整批拒绝 |
+| 3 | 内容没变还呼叫 AI 烧钱 | hash gate：全文指纹 == `lastAiHash` 直接返回、不呼叫 AI |
+| 3b | **影印机效应**：连按优化让 AI 反复重写已优化段落，内容逐代走样且无人察觉 | 块级 `aiHash` 指纹：没变的块一个字不送、prompt 明令不准重写；安全阀挡「AI 动到没变块」 |
+| 3c | AI 串流套用时盖掉使用者刚打的字（竞态） | AI 操作进行中锁定编辑（显示进度条） |
 | 4 | AI 被无限刷烧帐单（SBIR 真实教训） | 限流 60/分 + 每日成本上限 shadow→canary→full + free 次数上限 + 金钥只在 Fly.io |
 | 5 | 全局找回召回率差（产品命脉） | 模拟阶段先用关键字验收体验；真阶段 MMR 去冗 + query 扩展 + top-k 调参 + free 50 控脉络 |
 | 6 | 长上下文 token 爆 | `cache_control:ephemeral` 快取静态层；摘要取前 400 字；单系统过大转检索式 |
@@ -386,11 +396,13 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 | 来源 | 来源 | `source` | manual/ai/notes/voice（只记出身，不代表保护） |
 | 钉选 | 钉选 | `pinned` | 使用者钉住的卡，AI 永不改/删/移（旧名 locked，语意已改版） |
 | 上一步/下一步 | 撤销/重做 | `undo` / `redo` | 整批撤销或重做一次操作（含一整次 AI 结构化） |
-| 优化散文皮 | 优化散文 | （渲染函式 renderProse） | 同一串卡串成一篇文章，不另存资料 |
-| 卡片皮 | 卡片 | （渲染函式 renderCards） | 同一串卡拆开一张张显示 |
-| 原文指纹（系统级） | 原文指纹 | `sourceHash` | 判断原文有没有变 |
-| 来源原文指纹（卡级） | 来源原文指纹 | `sourceAnchor` | 卡来自哪段原文 |
-| 结构化代数 | 结构化代数 | `structureGen` | 第几代结构化 |
+| 文章视图 | 文章 | （渲染函式 renderArticle） | 同一串块串成一篇文章，整篇可编辑，不另存资料 |
+| 卡片视图 | 卡片 | （渲染函式 renderCards） | 同一串块拆开一张张显示 |
+| 全文指纹（系统级） | 全文指纹 | `lastAiHash`（v3 取代 `sourceHash`） | 上次 AI 操作完成时的全文指纹，hash gate 用 |
+| 块指纹（块级） | 块指纹 | `aiHash`（v3 取代 `sourceAnchor`） | 上次 AI 处理完时这个块的指纹，diff 与「没变不重送」基准 |
+| 文件状态 | 文件状态 | `docState` | raw → optimized → carded（取代旧 mode 语意） |
+| 优化文字 | 优化文字 | `optimize` | AI 整理排版文笔，仍是文章 |
+| 结构化代数 | 结构化代数 | `structureGen` | 第几代 AI 操作 |
 | 重新结构化次数 | 重新结构化次数 | `ai_restructure_count` | 增量跑了几次 |
 | 增量结构化 | 增量结构化 | `structure({mode:'incremental'})` | 第二次只补变动 |
 | 差异侦测 | 差异侦测 | （diff 函数） | 新旧原文比对 |
@@ -406,14 +418,15 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 
 每张工单循环：侦察兵摸清→设计指令→工兵实作→验收兵点灯→你过目。建议派工顺序：
 
-1. 【地基】资料库补栏（blocks +source/pinned/sourceAnchor/structureGen；systems +sourceHash/structuredAt；新表 structure_versions）。→ 无灯，是前置。
-2. 【Step 1】AI 共用引擎 + `/ai/health`。→ 点 `ai_engine`。
-3. 【Step 2】单专案聊天 `chatNote`。→ 点 `chat_note`，验收 (a)(b)。
-4. 【Step 3】结构化 full + 两皮渲染（原稿/优化散文/卡片三段切换、点哪段改哪段）+ Undo/Redo 地基。→ 点 `structure`，验收 (c1)(c6)(c7)(c8 的撤销结构化)。
-5. 【Step 4】加模组（横排按钮）+ 来源标记 + 钉选开关。→ 验收手动卡数/钉选卡数。
-6. 【Step 5】增量结构化 + 钉选三层保护 + 删除规则 + 安全阀 + 快照/Undo。→ 点 `structure_incremental`，验收 (c2)(c3)(c8)。
-7. 【Step 6】全局找回 + 写/查向量。→ 点 `global_recall`，验收 (c4)。
-8. 【Step 7】GitHub 进度 + 找呼应开源。→ 点 `git_progress`，验收 (c5)。
+1. 【地基 A】资料库补栏（blocks +source/pinned/aiHash/structureGen；systems +lastAiHash/docState/structuredAt；新表 structure_versions 无限保留）+ 旧 body block 迁移成段落块。→ 无灯，是前置。
+2. 【地基 B】文章视图段落编辑器（点哪段改哪段＋文末续写区＋空行切块；取代 body 大 textarea）+ 顶部两段切换「文章/卡片」+ Undo/Redo 地基（无限）。→ 无灯，是前置（前端工作量最大的一块）。
+3. 【Step 1】AI 共用引擎 + `/ai/health`。→ 点 `ai_engine`。
+4. 【Step 2】单专案聊天 `chatNote`。→ 点 `chat_note`，验收 (a)(b)。
+5. 【Step 3】优化文字 `/ai/optimize`（hash gate＋块级 diff＋分主题询问＋安全阀）＋ 卡片结构化 full。→ 点 `optimize`+`structure`，验收 (c0)(c1)(c6)(c7)(c8)。
+6. 【Step 4】加模组（横排按钮）+ 来源标记 + 钉选开关。→ 验收手动卡数/钉选卡数。
+7. 【Step 5】增量结构化（基准 aiHash）+ 钉选三层保护 + 删除规则 + 安全阀 + 快照/Undo。→ 点 `structure_incremental`，验收 (c2)(c3)。
+8. 【Step 6】全局找回 + 写/查向量（触发扩为「任何 AI 操作完成后」＋纯手写笔记兜底向量化）。→ 点 `global_recall`，验收 (c4)。
+9. 【Step 7】GitHub 进度 + 找呼应开源。→ 点 `git_progress`，验收 (c5)。
 
 > 上架提醒：做到第 7 步（或第 6 步全局 AI）其实就是完整产品，可先上架收反馈，阶段三付费/私密之后补。
 
@@ -434,13 +447,18 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 9. **GitHub 进度算法？** 推荐：buildSteps 关键字 + AI 主观判断混合，标「粗略」。
 10. **资料真相归属？** 推荐：Supabase 是真相，Fly.io 只算 AI、读写 Supabase。
 
-### 2026-06-11 已拍板（不再是待定）
+### 2026-06-11 已拍板（不再是待定；v3 活文件模型）
 
-- **`locked` 改「钉选 `pinned`」**：保护权交给使用者自选；AI 可改可删一切未钉选的卡（使用者拍板）。
-- **AI 可以删卡**：原稿某段被删，对应卡可删（钉选的不删）；删前有快照（使用者拍板）。
-- **安全网要做经典 Undo/Redo**：不只版本快照列表，还要「上一步/下一步」整批撤销/重做（使用者拍板）。
-- **模组卡三视图同渲染**：表格/GitHub/进度环这类卡，在原稿、优化散文、卡片三个画面视觉呈现是同一个组件（使用者拍板）。
-- **优化散文皮编辑方式 = 点哪段改哪段**（段=卡，合并/拆分用专门按钮）——这条是**推荐默认**，使用者尚未明确确认，可再改。
+- **活文件模型**：不保留永久并存的原始手写层；一份笔记 = 一串块，文章/卡片两视图同一份资料（使用者提出、压力测试改良后拍板）。
+- **两个 AI 按钮**：「优化文字」（不卡片化）＋「卡片结构化」（共用优化管线）（使用者拍板）。
+- **分主题询问**：每次按优化都问一次「要不要分主题加小标」（使用者拍板）。
+- **`locked` 改「钉选 `pinned`」**：保护权交给使用者自选；AI 可改可删一切未钉选的块/卡（使用者拍板）。
+- **AI 可以删卡**：内容被使用者删掉的卡可删（钉选的不删）；删前有快照（使用者拍板）。
+- **Undo/Redo 无限退**：经典上一步/下一步、不限次数；版本快照无限保留（第 1 版=原始乱稿，永远找得回，所以不需要另外的「原稿备份」）（使用者拍板）。
+- **回旧版只做整篇还原**，不做「捡回片段」（使用者拍板）。
+- **模组卡两视图同渲染**：文章/卡片两个画面视觉呈现是同一个组件；AI 永不动模组卡内容（使用者拍板）。
+- **段落=块**：文章每一段底层就是一个块，「改卡=改文章」天生成立——已向使用者说明并采用（编辑器多花几天工的代价已告知）。
+- **文章视图编辑方式 = 点哪段改哪段**＋文末续写区；合并/拆分用专门按钮。
 
 ### 仍待拍板（沿用上面推荐默认即可开工）
 
