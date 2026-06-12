@@ -191,23 +191,6 @@ final class NotesRepository: NotesRepositoring {
 
     // MARK: - 版本
 
-    func snapshot(noteID: UUID, kind: RevisionKind, charDelta: Int, cardCount: Int?) throws {
-        guard let note = try fetchNote(id: noteID) else {
-            throw RepositoryError.noteNotFound
-        }
-        let entity = RevisionEntity(
-            id: UUID(),
-            kindRaw: kind.rawValue,
-            createdAt: .now,
-            charDelta: charDelta,
-            cardCount: cardCount
-        )
-        entity.note = note
-        context.insert(entity)
-        note.revisionNumber += 1
-        try context.save()
-    }
-
     func revisions(of noteID: UUID) throws -> [Revision] {
         guard let note = try fetchNote(id: noteID) else { return [] }
         return note.revisions

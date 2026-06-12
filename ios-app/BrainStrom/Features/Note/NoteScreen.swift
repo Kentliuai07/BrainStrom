@@ -1,27 +1,27 @@
 import SwiftUI
 
 // ============================================================
-// P2 · 筆記頁（活文件）—— 佈局 1:1 對齊 web note()：
+// P2 · 筆記頁（活文件）—— 佈局對齊 web note()：
 // nav(返回/文章卡片/undo/redo/可見性) → content(文章/卡片)
-// → dock(💬/✦/▦/🗑/已儲存) → fab → dial → chatpanel → ailock
-// 本地編輯可用；AI 三鈕未接後端時提示（照 web 非 real 行為）。工業橘皮不變。
+// → dock(💬/✦/▦/🗑/已儲存) → fab → dial → chatpanel(另檔) → ailock
+// AI 全接真後端（NoteViewModel/ChatViewModel）。工業橘皮不變。
 // ============================================================
 
 struct NoteScreen: View {
 
     let systemID: UUID
 
-    @Environment(CompositionRoot.self) private var root
-    @Environment(\.palette) private var palette
+    @Environment(CompositionRoot.self) var root
+    @Environment(\.palette) var palette
     @Environment(\.dismiss) private var dismiss
 
     @State private var doc: NoteDocument?
-    @State private var noteVM: NoteViewModel?
-    @State private var chatVM: ChatViewModel?
+    @State var noteVM: NoteViewModel?
+    @State var chatVM: ChatViewModel?
     @State private var showDial = false
-    @State private var showChat = false
-    @State private var chatInput = ""
-    @FocusState private var chatFocused: Bool
+    @State var showChat = false
+    @State var chatInput = ""
+    @FocusState var chatFocused: Bool
 
     var body: some View {
         Group {
@@ -118,12 +118,14 @@ struct NoteScreen: View {
             Spacer()
             viewSeg(doc)
             Spacer()
-            histButton("arrow.uturn.backward", enabled: doc.canUndo) {
+            histButton("arrow.uturn.backward", enabled: doc.canUndo && noteVM?.aiBusy != true) {
                 let ok = doc.undo(); root.toast.show(ok ? String(localized: "已撤銷一步") : String(localized: "沒有可撤銷的步驟"))
             }
-            histButton("arrow.uturn.forward", enabled: doc.canRedo) {
+            .accessibilityIdentifier("note.undo")
+            histButton("arrow.uturn.forward", enabled: doc.canRedo && noteVM?.aiBusy != true) {
                 let ok = doc.redo(); root.toast.show(ok ? String(localized: "已重做一步") : String(localized: "沒有可重做的步驟"))
             }
+            .accessibilityIdentifier("note.redo")
             Button { doc.toggleVisibility() } label: {
                 VisibilityPill(visibility: doc.visibility)
             }
@@ -288,159 +290,6 @@ struct NoteScreen: View {
         }
         .buttonStyle(.plain)
         .opacity(item.locked ? 0.55 : 1)
-    }
-
-    // MARK: - 聊天面板（佈局；送出先提示需真後端）
-
-    private func chatPanel(_ doc: NoteDocument) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Image(systemName: "bubble.left").font(.system(size: 14)).foregroundStyle(palette.orange)
-                Text(String(localized: "問 AI · 這則筆記"))
-                    .font(Tokens.Fonts.body(13, weight: .bold)).foregroundStyle(palette.print)
-                Spacer()
-                if doc.nudge.state != .pending {
-                    Button { chatVM?.sparkReplay(doc) } label: {
-                        Text(verbatim: "⚡").font(.system(size: 13))
-                            .frame(width: 26, height: 26)
-                            .background(Circle().fill(palette.orangeDim)
-                                .overlay(Circle().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
-                    }
-                    .buttonStyle(.plain)
-                }
-                Button { showChat = false } label: {
-                    Text(String(localized: "收合 ▾")).font(Tokens.Fonts.body(12, weight: .semibold)).foregroundStyle(palette.orange)
-                }
-            }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .overlay(alignment: .bottom) { Rectangle().fill(palette.line).frame(height: 1) }
-
-            chatList(doc)
-
-            HStack(spacing: 8) {
-                TextField(text: $chatInput, axis: .vertical) {
-                    Text(String(localized: "問這則筆記…"))
-                }
-                .font(Tokens.Fonts.body(14))
-                .foregroundStyle(palette.print)
-                .focused($chatFocused)
-                .lineLimit(1...4)
-                .padding(.horizontal, 11)
-                .frame(minHeight: 40, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: Tokens.Radius.input)
-                        .fill(palette.recess)
-                        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.input)
-                            .strokeBorder(palette.line, lineWidth: 1))
-                )
-                if chatVM?.streaming == true {
-                    Button { chatVM?.stop() } label: {
-                        Text(String(localized: "停止")).font(Tokens.Fonts.body(13, weight: .semibold))
-                            .frame(width: 56, height: 40)
-                    }
-                    .buttonStyle(.keycap(.danger, cornerRadius: 10))
-                } else {
-                    Button { sendChat(doc) } label: {
-                        Text(String(localized: "送出")).font(Tokens.Fonts.body(13, weight: .semibold))
-                            .frame(width: 56, height: 40)
-                    }
-                    .buttonStyle(.keycap(.orange, cornerRadius: 10))
-                }
-            }
-            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 16)
-            .overlay(alignment: .top) { Rectangle().fill(palette.line).frame(height: 1) }
-        }
-        .frame(height: 360)
-        .frame(maxWidth: .infinity)
-        .background(
-            UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)
-                .fill(palette.panel)
-                .shadow(color: .black.opacity(0.3), radius: 12, y: -4)
-        )
-        .transition(.move(edge: .bottom))
-    }
-
-    // MARK: - 動作
-
-    private func aiNeedsBackend() {
-        root.toast.show(String(localized: "此功能需要真後端（尚未整合）"))
-    }
-
-    private func sendChat(_ doc: NoteDocument) {
-        let text = chatInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        chatInput = ""
-        chatVM?.send(doc, text: text)
-    }
-
-    // 聊天訊息列
-    @ViewBuilder
-    private func chatList(_ doc: NoteDocument) -> some View {
-        let msgs = chatVM?.messages ?? []
-        ScrollView {
-            if msgs.isEmpty {
-                Text(String(localized: "問我這則筆記的內容，例如「這則在講什麼？」"))
-                    .font(Tokens.Fonts.body(12)).foregroundStyle(palette.print3)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 40)
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(msgs) { bubble in chatBubbleView(bubble, doc) }
-                }
-                .padding(12)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func chatBubbleView(_ bubble: ChatBubble, _ doc: NoteDocument) -> some View {
-        let isUser = bubble.role == .user
-        return VStack(alignment: isUser ? .trailing : .leading, spacing: 3) {
-            Text(bubble.text.isEmpty ? String(localized: "思考中…") : bubble.text)
-                .font(Tokens.Fonts.body(13.5))
-                .foregroundStyle(isUser ? palette.orangeInk : palette.print)
-                .padding(.horizontal, 11).padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 14)
-                    .fill(isUser ? palette.orange : palette.panel2))
-            if let tokens = bubble.tokens {
-                Text(tokens).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
-            }
-            if !bubble.proposals.isEmpty {
-                proposalRow(bubble.proposals, doc)
-            }
-            if bubble.stopped {
-                Text(String(localized: "（已停止）")).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
-    }
-
-    private func proposalRow(_ items: [ProposalItem], _ doc: NoteDocument) -> some View {
-        let locked: Set<String> = ["find_github", "find_youtube", "find_info"]
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(Array(items.prefix(4).enumerated()), id: \.offset) { _, item in
-                    let isLocked = locked.contains(item.action)
-                    Button {
-                        if isLocked { root.toast.show(String(localized: "即將推出")); return }
-                        switch item.action {
-                        case "structure": showChat = false; noteVM?.runStructure(doc)
-                        case "edit_text": noteVM?.runApplyEdit(doc, instruction: item.instruction ?? item.label)
-                        default: root.toast.show(String(localized: "即將推出"))
-                        }
-                    } label: {
-                        Text((isLocked ? "🔒 " : "") + item.label)
-                            .font(Tokens.Fonts.body(11.5, weight: .semibold))
-                            .foregroundStyle(isLocked ? palette.print3 : palette.orange)
-                            .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(Capsule().fill(palette.orangeDim)
-                                .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
     }
 
     private func deleteSystem() {

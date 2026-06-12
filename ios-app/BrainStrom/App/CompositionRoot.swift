@@ -73,6 +73,13 @@ final class CompositionRoot {
         session = .signedOut
     }
 
+    /// 刪除帳號（危險區）：刪帳→登出→回登入頁。
+    func deleteAccount() async {
+        try? await auth.deleteAccount()
+        await auth.signOut()
+        session = .signedOut
+    }
+
     /// 更新偏好（點子助攻總開關），同步回 session。
     func updatePrefs(ideaNudge: Bool) async {
         if let updated = await auth.updatePrefs(UserPrefs(ideaNudge: ideaNudge)) {

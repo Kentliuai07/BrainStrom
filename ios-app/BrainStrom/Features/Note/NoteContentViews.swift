@@ -192,13 +192,20 @@ struct BlockRow: View {
                     .lineLimit(2)
             }
         } else {
-            TextField(text: $text, axis: .vertical) {
-                Text(block.kind == .todo ? String(localized: "待辦…") : String(localized: "寫點什麼…"))
+            VStack(alignment: .leading, spacing: 2) {
+                if focused && text.count > 2000 {
+                    Text(String(localized: "⚠ 這段超過 2000 字，建議拆分"))
+                        .font(Tokens.Fonts.mono(10, weight: .semibold))
+                        .foregroundStyle(palette.danger)
+                }
+                TextField(text: $text, axis: .vertical) {
+                    Text(block.kind == .todo ? String(localized: "待辦…") : String(localized: "寫點什麼…"))
+                }
+                .font(font(for: block.kind))
+                .foregroundStyle(palette.print)
+                .strikethrough(block.kind == .todo && block.isDone, color: palette.print3)
+                .focused($focused)
             }
-            .font(font(for: block.kind))
-            .foregroundStyle(palette.print)
-            .strikethrough(block.kind == .todo && block.isDone, color: palette.print3)
-            .focused($focused)
         }
     }
 
@@ -270,7 +277,7 @@ struct CardsView: View {
     }
 }
 
-/// 卡片視圖的一張板卡（web .aicard；點內容就地編輯）。
+/// 卡片視圖的一張板卡（web .aicard；釘選/刪除工具、模組卡、就地編輯）。
 struct CardRow: View {
     @Bindable var doc: NoteDocument
     let block: Block
@@ -279,13 +286,34 @@ struct CardRow: View {
     @State private var text = ""
     @FocusState private var focused: Bool
 
+    private var isTextual: Bool {
+        block.kind == .paragraph || block.kind == .heading1 || block.kind == .heading2
+    }
+
     var body: some View {
+        Group {
+            if block.kind == .module { moduleCard } else { textCard }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .hardwareCard()
+        .overlay(alignment: .topTrailing) { tools }
+        .overlay {
+            if block.isPinned {
+                NotchedRectangle(notch: Tokens.Notch.card)
+                    .strokeBorder(palette.orange.opacity(0.4), lineWidth: 1.5)
+            }
+        }
+    }
+
+    private var textCard: some View {
         VStack(alignment: .leading, spacing: 5) {
             let title = block.cardTitle ?? (block.kind == .heading1 || block.kind == .heading2 ? block.text : nil)
             if let title, !title.isEmpty {
-                Text(title)
-                    .font(Tokens.Fonts.body(14, weight: .bold))
-                    .foregroundStyle(palette.print)
+                HStack(spacing: 4) {
+                    if block.isPinned { Text(verbatim: "📌").font(.system(size: 11)) }
+                    Text(title).font(Tokens.Fonts.body(14, weight: .bold)).foregroundStyle(palette.print)
+                }
             }
             if editing {
                 TextField(text: $text, axis: .vertical) { Text(verbatim: "") }
@@ -304,8 +332,35 @@ struct CardRow: View {
                     .onTapGesture { text = block.text; editing = true; focused = true }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(13)
-        .hardwareCard()
+        .padding(.trailing, 44)
+    }
+
+    private var moduleCard: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: "📌 \(String(localized: "模組")) · \(block.moduleKind?.rawValue ?? "module")")
+                .font(Tokens.Fonts.mono(11, weight: .bold)).foregroundStyle(palette.print2)
+            Text(block.modulePayload ?? "{}")
+                .font(Tokens.Fonts.mono(11)).foregroundStyle(palette.print3).lineLimit(2)
+        }
+        .padding(.trailing, 44)
+    }
+
+    private var tools: some View {
+        HStack(spacing: 2) {
+            if isTextual {
+                Button { doc.togglePin(block.id) } label: {
+                    Text(verbatim: "📌").font(.system(size: 11))
+                        .opacity(block.isPinned ? 1 : 0.4).grayscale(block.isPinned ? 0 : 1)
+                        .frame(width: 24, height: 22)
+                }
+                .buttonStyle(.plain)
+            }
+            Button { doc.delete(block.id) } label: {
+                Image(systemName: "trash").font(.system(size: 11)).foregroundStyle(palette.print3)
+                    .frame(width: 24, height: 22)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(8)
     }
 }

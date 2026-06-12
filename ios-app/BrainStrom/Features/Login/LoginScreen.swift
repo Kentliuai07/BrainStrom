@@ -59,7 +59,6 @@ struct LoginScreen: View {
             .buttonStyle(.keycap(.appleBlack, cornerRadius: 12))
             .accessibilityIdentifier("login.apple")
             .disabled(isSigningIn)
-            .opacity(isSigningIn ? 0.7 : 1)
 
             // 細說明（web faint，max 230）
             Text(String(localized: "收集 email 供登入、儲存你的筆記（示範用 dev 登入）"))

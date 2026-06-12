@@ -34,8 +34,6 @@ protocol NotesRepositoring: AnyObject {
     func saveCards(_ cards: [Card], noteID: UUID) throws
 
     // —— 版本（磁帶）——
-    /// AI 操作前必呼叫：自動快照。
-    func snapshot(noteID: UUID, kind: RevisionKind, charDelta: Int, cardCount: Int?) throws
     func revisions(of noteID: UUID) throws -> [Revision]
 
     // —— 版本指針法（undo/redo，《整合契約 §4》）——

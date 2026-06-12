@@ -41,7 +41,7 @@ struct SettingsScreen: View {
                             isPresented: $confirmDelete, titleVisibility: .visible) {
             Button(String(localized: "刪除帳號"), role: .destructive) {
                 Task {
-                    await root.signOut()
+                    await root.deleteAccount()
                     root.toast.show(String(localized: "帳號已刪除"))
                 }
             }
