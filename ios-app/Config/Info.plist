@@ -8,5 +8,7 @@
 	<string>$(AI_AUTH_TOKEN)</string>
 	<key>AIUseStub</key>
 	<string>$(AI_USE_STUB)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
