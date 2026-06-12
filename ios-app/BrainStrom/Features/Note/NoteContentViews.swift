@@ -303,6 +303,7 @@ struct CardsView: View {
                         .frame(width: 180, height: 46)
                 }
                 .buttonStyle(.keycap(.orange))
+                .accessibilityIdentifier("structure.run")
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 80)

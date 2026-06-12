@@ -54,14 +54,11 @@ struct NoteDetailScreen: View {
             navBar(doc)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if doc.view == .article {
-                        ArticleView(doc: doc, onKickoff: {
-                            showChat = true
-                            chatVM?.startKickoff(doc)
-                        })
-                    } else {
-                        CardsView(doc: doc, runStructure: { noteVM?.runStructure(doc) }, vm: noteVM)
-                    }
+                    // 階段三：筆記只負責純寫作；結構卡片移到「系統結構」分頁。
+                    ArticleView(doc: doc, onKickoff: {
+                        showChat = true
+                        chatVM?.startKickoff(doc)
+                    })
                 }
                 .padding(.horizontal, Tokens.Spacing.s4)
                 .padding(.top, Tokens.Spacing.s4)
@@ -111,12 +108,11 @@ struct NoteDetailScreen: View {
             } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
-                    Text(String(localized: "系統")).font(Tokens.Fonts.body(15, weight: .semibold))
+                    Text(String(localized: "筆記")).font(Tokens.Fonts.body(15, weight: .semibold))
                 }
                 .foregroundStyle(palette.orange)
             }
-            Spacer()
-            viewSeg(doc)
+            .accessibilityIdentifier("note.back")
             Spacer()
             histButton("arrow.uturn.backward", enabled: doc.canUndo && noteVM?.aiBusy != true) {
                 let ok = doc.undo(); root.toast.show(ok ? String(localized: "已撤銷一步") : String(localized: "沒有可撤銷的步驟"))
@@ -135,32 +131,6 @@ struct NoteDetailScreen: View {
         .frame(height: 48)
         .background(palette.panel.opacity(0.96))
         .overlay(alignment: .bottom) { Rectangle().fill(palette.line).frame(height: 1) }
-    }
-
-    private func viewSeg(_ doc: NoteDocument) -> some View {
-        HStack(spacing: 2) {
-            segButton(String(localized: "文章"), on: doc.view == .article) { doc.setView(.article) }
-            segButton(String(localized: "卡片"), on: doc.view == .cards, enabled: doc.docStateIsCarded) {
-                if doc.docStateIsCarded { doc.setView(.cards) } else { root.toast.show(String(localized: "先按 AI 結構化")) }
-            }
-        }
-        .padding(2)
-        .background(RoundedRectangle(cornerRadius: 10).fill(palette.recess)
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(palette.line, lineWidth: 1)))
-        .frame(maxWidth: 130)
-    }
-
-    private func segButton(_ label: String, on: Bool, enabled: Bool = true, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(Tokens.Fonts.body(12, weight: .bold))
-                .foregroundStyle(on ? palette.orangeInk : (enabled ? palette.print2 : palette.print3))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 8).fill(on ? palette.orange : .clear))
-        }
-        .buttonStyle(.plain)
-        .opacity(enabled ? 1 : 0.4)
     }
 
     private func histButton(_ symbol: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
@@ -186,8 +156,6 @@ struct NoteDetailScreen: View {
             .accessibilityIdentifier("dock.chat")
             dockKey("✦", disabled: doc.naming || noteVM?.aiBusy == true) { Haptics.press(); noteVM?.requestOptimize(doc) }
                 .accessibilityIdentifier("dock.optimize")
-            dockKey("▦", disabled: doc.naming || noteVM?.aiBusy == true) { Haptics.press(); noteVM?.runStructure(doc) }
-                .accessibilityIdentifier("dock.structure")
             dockIcon("trash", accent: false, disabled: false) {
                 deleteNote(doc)
             }

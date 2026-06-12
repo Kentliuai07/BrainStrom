@@ -54,12 +54,6 @@ final class CoreFlowUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap()
 
-        // ▦ 結構化（Stub 回 3 張卡，卡標「核心問題」）
-        let structure = el("dock.structure")
-        XCTAssertTrue(structure.waitForExistence(timeout: 5), "結構化鍵未出現")
-        structure.tap()
-        XCTAssertTrue(app.staticTexts["核心問題"].waitForExistence(timeout: 12), "結構化卡片未浮現")
-
         // 💬 聊天（Stub 串流回覆，含 markdown）
         let chat = el("dock.chat")
         XCTAssertTrue(chat.waitForExistence(timeout: 5), "聊天鍵未出現")
@@ -71,5 +65,24 @@ final class CoreFlowUITests: XCTestCase {
         el("chat.send").tap()
         // markdown 渲染驗證：Stub 回的「## 觀測建議」標題應被解析渲染成可見文字
         XCTAssertTrue(app.staticTexts["觀測建議"].waitForExistence(timeout: 10), "AI markdown 標題未渲染")
+
+        // 階段三：結構卡片移到「系統結構」分頁。返回專案首頁 → 系統結構 → ▦ 結構化
+        let back = el("note.back")
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "筆記返回鍵未出現")
+        back.tap()
+        let structureTab = el("systemDetail.tab.structure")
+        XCTAssertTrue(structureTab.waitForExistence(timeout: 8), "系統結構分頁未出現")
+        structureTab.tap()
+        let runStructure = el("structure.run")
+        XCTAssertTrue(runStructure.waitForExistence(timeout: 8), "結構化按鈕未出現")
+        runStructure.tap()
+        // Stub 回 3 張卡，卡標「核心問題」
+        XCTAssertTrue(app.staticTexts["核心問題"].waitForExistence(timeout: 12), "結構化卡片未浮現")
+
+        // 返回專案首頁仍可回到「我的系統」列表（修復：專案首頁有返回鍵）
+        let sysBack = el("systemDetail.back")
+        XCTAssertTrue(sysBack.waitForExistence(timeout: 5), "專案首頁返回鍵未出現")
+        sysBack.tap()
+        XCTAssertTrue(el("home.create").waitForExistence(timeout: 8), "未能返回我的系統列表")
     }
 }

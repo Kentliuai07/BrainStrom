@@ -15,8 +15,7 @@ struct SystemDetailScreen: View {
 
     @Environment(CompositionRoot.self) private var root
     @Environment(\.palette) private var palette
-
-    @State private var systemSpec = SystemSpec()
+    @Environment(\.dismiss) private var dismiss
 
     enum Tab: String, CaseIterable {
         case coach, notes, structure
@@ -40,6 +39,7 @@ struct SystemDetailScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            topBar
             tabBar
             ZStack {
                 AICoachView(systemID: systemID)
@@ -50,7 +50,7 @@ struct SystemDetailScreen: View {
                     .opacity(tab == .notes ? 1 : 0)
                     .allowsHitTesting(tab == .notes)
 
-                SystemStructureView(spec: systemSpec)
+                SystemStructureView(systemID: systemID, active: tab == .structure)
                     .opacity(tab == .structure ? 1 : 0)
                     .allowsHitTesting(tab == .structure)
             }
@@ -58,16 +58,27 @@ struct SystemDetailScreen: View {
         }
         .background(palette.bg)
         .navigationBarHidden(true)
-        .onAppear(perform: reloadSpec)
-        .onChange(of: tab) { _, new in
-            if new == .structure { reloadSpec() }   // 切到結構頁時重讀（筆記/教練可能剛記入）
-        }
     }
 
-    /// 從倉儲重讀身份證（update_spec 寫入後切回此頁即可見最新）。
-    private func reloadSpec() {
-        guard let repo = root.repository else { return }
-        systemSpec = (try? repo.systemSpec(systemID: systemID)) ?? SystemSpec()
+    // MARK: - 返回列（回「我的系統」列表）
+
+    private var topBar: some View {
+        HStack(spacing: 8) {
+            Button {
+                Haptics.tap(); dismiss()
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
+                    Text(String(localized: "我的系統")).font(Tokens.Fonts.body(15, weight: .semibold))
+                }
+                .foregroundStyle(palette.orange)
+            }
+            .accessibilityIdentifier("systemDetail.back")
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 42)
+        .background(palette.panel.opacity(0.96))
     }
 
     // MARK: - 三分頁切換條（沿用工業風 segButton 樣式）
