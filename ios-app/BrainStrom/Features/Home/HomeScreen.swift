@@ -6,9 +6,11 @@ import SwiftUI
 // （web 首頁沒有搜尋槽，已移除）。工業橘皮不變、不接後端。
 // ============================================================
 
-/// 導航路由（首頁推到設定 / 筆記）。
+/// 導航路由（首頁推到設定 / 專案首頁）。
+/// 階段三起改為唯一路由源——點系統卡推 `.systemDetail`（三分頁容器），不再直推 UUID。
 enum HomeRoute: Hashable {
     case settings
+    case systemDetail(id: UUID)
 }
 
 struct HomeScreen: View {
@@ -35,12 +37,10 @@ struct HomeScreen: View {
             }
             .background(palette.bg)
             .navigationBarHidden(true)
-            .navigationDestination(for: UUID.self) { id in
-                NoteScreen(systemID: id)
-            }
             .navigationDestination(for: HomeRoute.self) { route in
                 switch route {
                 case .settings: SettingsScreen()
+                case .systemDetail(let id): SystemDetailScreen(systemID: id)
                 }
             }
         }
@@ -146,7 +146,7 @@ struct HomeScreen: View {
                 ForEach(systems) { system in
                     Button {
                         Haptics.tap()
-                        path.append(system.id)
+                        path.append(HomeRoute.systemDetail(id: system.id))
                     } label: {
                         SystemCardView(system: system)
                     }
@@ -200,7 +200,7 @@ struct HomeScreen: View {
     private func createAndOpen() {
         guard let repository = root.repository else { return }
         guard let system = try? repository.createSystem(name: "") else { return }
-        path.append(system.id)
+        path.append(HomeRoute.systemDetail(id: system.id))
     }
 }
 
