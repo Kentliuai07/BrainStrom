@@ -55,15 +55,16 @@ final class CoreFlowUITests: XCTestCase {
         structure.tap()
         XCTAssertTrue(app.staticTexts["核心問題"].waitForExistence(timeout: 12), "結構化卡片未浮現")
 
-        // 💬 聊天（Stub 串流回覆）
+        // 💬 聊天（Stub 串流回覆，含 markdown）
         let chat = el("dock.chat")
-        if chat.waitForExistence(timeout: 5) {
-            chat.tap()
-            let chatInput = app.textViews.firstMatch
-            if chatInput.waitForExistence(timeout: 5) {
-                chatInput.tap()
-                chatInput.typeText("這則在講什麼？")
-            }
-        }
+        XCTAssertTrue(chat.waitForExistence(timeout: 5), "聊天鍵未出現")
+        chat.tap()
+        let chatInput = el("chat.input")
+        XCTAssertTrue(chatInput.waitForExistence(timeout: 5), "聊天輸入框未出現")
+        chatInput.tap()
+        chatInput.typeText("這則在講什麼？")
+        el("chat.send").tap()
+        // markdown 渲染驗證：Stub 回的「## 觀測建議」標題應被解析渲染成可見文字
+        XCTAssertTrue(app.staticTexts["觀測建議"].waitForExistence(timeout: 10), "AI markdown 標題未渲染")
     }
 }

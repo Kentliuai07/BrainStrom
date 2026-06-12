@@ -24,6 +24,11 @@ struct ArticleView: View {
         return true
     }
 
+    /// 命名態確認鍵的「可按」門檻：標題去頭尾空白 ≥ 2 字。
+    private var titleReady: Bool {
+        titleText.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // 標題（web .note-title）
@@ -91,17 +96,37 @@ struct ArticleView: View {
     @ViewBuilder
     private var titleAux: some View {
         if doc.naming {
-            Button {
-                _ = doc.quickName(); titleText = doc.title
-            } label: {
-                Text(String(localized: "先隨便取"))
-                    .font(Tokens.Fonts.body(11, weight: .semibold))
-                    .foregroundStyle(palette.print3)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().strokeBorder(palette.line, lineWidth: 1))
+            HStack(spacing: 8) {
+                // 次要：一鍵隨手命名
+                Button {
+                    _ = doc.quickName(); titleText = doc.title
+                } label: {
+                    Text(String(localized: "先隨便取"))
+                        .font(Tokens.Fonts.body(11, weight: .semibold))
+                        .foregroundStyle(palette.print3)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(Capsule().strokeBorder(palette.line, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("note.quickname")
+
+                // 主要：標題打進去就發亮可按（你的想法）
+                Button {
+                    titleFocused = false
+                    doc.commitTitle(titleText)
+                    titleText = doc.title
+                    Haptics.press()
+                } label: {
+                    Text(titleReady ? String(localized: "✓ 確認取名") : String(localized: "輸入名稱"))
+                        .font(Tokens.Fonts.body(12, weight: .semibold))
+                        .frame(minWidth: 96, minHeight: 32)
+                }
+                .buttonStyle(.keycap(titleReady ? .orange : .neutral, cornerRadius: 10))
+                .disabled(!titleReady)
+                .opacity(titleReady ? 1 : 0.5)
+                .animation(Motion.spring, value: titleReady)
+                .accessibilityIdentifier("note.confirmname")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("note.quickname")
         } else if !doc.title.isEmpty && nudgeEnabled && doc.nudge.state == .pending {
             // ⚡ 助攻膠囊：取名後浮現，點擊跑教練開場
             HStack(spacing: 2) {
@@ -287,7 +312,7 @@ struct CardsView: View {
                 Text(card.title).font(Tokens.Fonts.body(14, weight: .bold)).foregroundStyle(palette.print)
             }
             if let content = card.content {
-                Text(content).font(Tokens.Fonts.body(13.5)).foregroundStyle(palette.print2)
+                MarkdownView(blocks: MarkdownParser.parse(content))
             } else {
                 RoundedRectangle(cornerRadius: 6).fill(palette.panel2).frame(height: 28)   // 骨架占位
             }
@@ -348,10 +373,16 @@ struct CardRow: View {
                     .onChange(of: focused) { _, f in
                         if !f { doc.editBlockText(block.id, to: text); editing = false }
                     }
-            } else {
-                Text(block.text.isEmpty ? String(localized: "（空白，點擊編輯）") : block.text)
+            } else if block.text.isEmpty {
+                Text(String(localized: "（空白，點擊編輯）"))
                     .font(Tokens.Fonts.body(13.5))
-                    .foregroundStyle(palette.print2)
+                    .foregroundStyle(palette.print3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { text = block.text; editing = true; focused = true }
+            } else {
+                // 顯示態：markdown 排版；點一下進編輯（編輯時看原文）
+                MarkdownView(blocks: MarkdownParser.parse(block.text))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     .onTapGesture { text = block.text; editing = true; focused = true }

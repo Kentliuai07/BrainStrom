@@ -14,8 +14,8 @@ struct AIServiceStub: AIServicing {
 
     func chatNote(messages: [ChatMessage], note: NotePayload, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error> {
         let deltas = kickoff
-            ? ["看了你寫的「\(note.title)」：", "方向不錯，先想清楚要解決誰的什麼問題。", "我幫你列了幾個可以馬上動手的點。"]
-            : ["看了你的觀測表：", "河堤—公園只在週末有紀錄。", "建議改成早上通學前量，或這條線改隔日一次。"]
+            ? ["## 教練開場\n\n", "看了你寫的「\(note.title)」，", "**方向不錯**。先想清楚要解決誰的什麼問題。"]
+            : ["## 觀測建議\n\n", "你的表有 **兩個問題**：\n\n", "- 河堤—公園只在週末有紀錄\n", "- 平日 17:00 後常跳過\n\n", "建議改成 `早上通學前` 量。"]
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {

@@ -38,6 +38,7 @@ extension NoteScreen {
                 .font(Tokens.Fonts.body(14))
                 .foregroundStyle(palette.print)
                 .focused($chatFocused)
+                .accessibilityIdentifier("chat.input")
                 .lineLimit(1...4)
                 .padding(.horizontal, 11)
                 .frame(minHeight: 40, alignment: .leading)
@@ -59,6 +60,7 @@ extension NoteScreen {
                             .frame(width: 56, height: 40)
                     }
                     .buttonStyle(.keycap(.orange, cornerRadius: 10))
+                    .accessibilityIdentifier("chat.send")
                 }
             }
             .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 16)
@@ -104,12 +106,23 @@ extension NoteScreen {
     func chatBubbleView(_ bubble: ChatBubble, _ doc: NoteDocument) -> some View {
         let isUser = bubble.role == .user
         return VStack(alignment: isUser ? .trailing : .leading, spacing: 3) {
-            Text(bubble.text.isEmpty ? String(localized: "思考中…") : bubble.text)
-                .font(Tokens.Fonts.body(13.5))
-                .foregroundStyle(isUser ? palette.orangeInk : palette.print)
-                .padding(.horizontal, 11).padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 14)
-                    .fill(isUser ? palette.orange : palette.panel2))
+            Group {
+                if isUser {
+                    Text(bubble.text)
+                        .font(Tokens.Fonts.body(13.5))
+                        .foregroundStyle(palette.orangeInk)
+                } else if bubble.text.isEmpty {
+                    Text(String(localized: "思考中…"))
+                        .font(Tokens.Fonts.body(13.5))
+                        .foregroundStyle(palette.print2)
+                } else {
+                    // AI 回應：markdown 排版（像 Claude.ai）
+                    MarkdownView(blocks: MarkdownParser.parse(bubble.text))
+                }
+            }
+            .padding(.horizontal, 11).padding(.vertical, 9)
+            .background(RoundedRectangle(cornerRadius: 14)
+                .fill(isUser ? palette.orange : palette.panel2))
             if let tokens = bubble.tokens {
                 Text(tokens).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
             }
