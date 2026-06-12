@@ -197,7 +197,7 @@
 | `card_removed` | `{ cardId }` | 增量时 AI 删了一张卡（其内容已被使用者删掉；BrainStrom 自取的新名，SBIR_NEW 没有） |
 | `proposal` | `{ items:[{action,label,args}] }` | 对话式编辑（Step 3.5）：AI 在回答末尾抛出可执行提议按钮（edit_text/structure/find_github/find_youtube/find_info），等使用者点选才动手 |
 | `progress` | `{ current, total, message }` | 进度（如进度分析、增量合并阶段） |
-| `credit_update` | `{ balance, delta }` | 扣款后推新余额（阶段三才真用，先预留） |
+| `credit_update` | `{ balance, delta }` | 扣款后推新余额（阶段四・上线前开发才真用，先预留） |
 | `hit_list` | `{ systems:[{systemId,title,score}] }` | 全局找回命中的系统列表 |
 
 > `credit_update`、`card_start` 这类是后端主动注入的 meta 事件，不是 AI 生出来的。
@@ -226,7 +226,7 @@
 - model 白名单 `ALLOWED_CLIENT_MODELS` + `CLIENT_MAX_TOKENS_CAP=8192`（注意 `CLIENT_` 前缀，去 SBIR 搜要用全名），入口用 schema 校验挡外部乱传。
 - 每日成本上限三模式：`shadow`（只记录）→ `canary`（10% 用户挡）→ `full`（全挡）。
 - AI 端点限流 60/分（通用 API 在 SBIR 是 120/分，BrainStrom 按需自订）；free 用户每日 AI 次数上限（默认 100，见附录 D8）。
-- 每个 AI 呼叫点预留扣款挂钩（`makeCreditEmit` → `withCreditEmit({operation})`），阶段三付费才真扣。
+- 每个 AI 呼叫点预留扣款挂钩（`makeCreditEmit` → `withCreditEmit({operation})`），阶段四・上线前开发付费才真扣。
 
 ### 2.6 模拟引擎（模拟层等价物）
 
@@ -328,7 +328,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 **拓扑（现在 → 阶段二完成时）**：
 
 - 现在：`GitHub Pages 静态前端(web/)` → `mockClient.js`（localStorage，全假）。
-- 阶段二完成：`静态前端（GitHub Pages 照旧）` → ① AI 类触点打 `https://<app>.fly.dev`（Fly.io 常驻 AI 代理，锁全部金钥）；② CRUD 类触点仍打 mock（Supabase 是阶段三/真后端阶段才接，接上后 CRUD 触点再切）。
+- 阶段二完成：`静态前端（GitHub Pages 照旧）` → ① AI 类触点打 `https://<app>.fly.dev`（Fly.io 常驻 AI 代理，锁全部金钥）；② CRUD 类触点仍打 mock（Supabase 是阶段四・上线前开发/真后端阶段才接，接上后 CRUD 触点再切）。
 - **前端永远是静态页，不用搬家**；变的只有「服务层背后打谁」。
 
 **切换开关（唯一开关点 = 服务层注入的 client）**：
@@ -345,7 +345,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 **CORS 与鉴权**：
 
 - Fly.io 端 CORS 白名单只放前端正式域名（GitHub Pages 域）＋本地 dev（`localhost:*`）；`Access-Control-Allow-Headers: Authorization, Content-Type`。
-- 每个请求带 `Authorization: Bearer <token>`：阶段二先用 dev token（Fly.io 校验一个共享密钥即可，防裸奔被刷）；阶段三换 Supabase Auth JWT，**前端代码不变**（仍只是带 header）。
+- 每个请求带 `Authorization: Bearer <token>`：阶段二先用 dev token（Fly.io 校验一个共享密钥即可，防裸奔被刷）；阶段四・上线前开发换 Supabase Auth JWT，**前端代码不变**（仍只是带 header）。
 - **金钥分布**：前端 0 把金钥；Fly.io 持 `ANTHROPIC_API_KEY`、`GITHUB_TOKEN`、（未来）`SUPABASE_SERVICE_KEY`、embedding 供应商 key，全在 Fly.io secrets。
 
 **部署与健康检查**：
@@ -584,7 +584,7 @@ async restore(systemId, ver)    // 一键还原到指定版本（本身也算一
 8. 【Step 6】全局找回 + 写/查向量（触发扩为「任何 AI 操作完成后」＋纯手写笔记兜底向量化）。→ 点 `global_recall`，验收 (c4)。
 9. 【Step 7】GitHub 进度 + 找呼应开源。→ 点 `git_progress`，验收 (c5)。
 
-> 上架提醒：做到第 7 步（或第 6 步全局 AI）其实就是完整产品，可先上架收反馈，阶段三付费/私密之后补。
+> 上架提醒：做到第 7 步（或第 6 步全局 AI）其实就是完整产品，可先上架收反馈，阶段四・上线前开发的付费/私密之后补。（注：付费/私密原属「阶段三能上架」，2026-06-12 改名「阶段四上线前开发」并往后移，中间插入「阶段三结构大修」。）
 
 ---
 
