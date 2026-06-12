@@ -55,10 +55,7 @@ struct NoteDetailScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // 階段三：筆記只負責純寫作；結構卡片移到「系統結構」分頁。
-                    ArticleView(doc: doc, onKickoff: {
-                        showChat = true
-                        chatVM?.startKickoff(doc)
-                    })
+                    ArticleView(doc: doc)
                 }
                 .padding(.horizontal, Tokens.Spacing.s4)
                 .padding(.top, Tokens.Spacing.s4)
@@ -150,11 +147,11 @@ struct NoteDetailScreen: View {
 
     private func dock(_ doc: NoteDocument) -> some View {
         HStack(spacing: 10) {
-            dockIcon("bubble.left", accent: true, disabled: doc.naming || noteVM?.aiBusy == true) {
+            dockIcon("bubble.left", accent: true, disabled: noteVM?.aiBusy == true) {
                 Haptics.tap(); showChat.toggle()
             }
             .accessibilityIdentifier("dock.chat")
-            dockKey("✦", disabled: doc.naming || noteVM?.aiBusy == true) { Haptics.press(); noteVM?.requestOptimize(doc) }
+            dockKey("✦", disabled: noteVM?.aiBusy == true) { Haptics.press(); noteVM?.requestOptimize(doc) }
                 .accessibilityIdentifier("dock.optimize")
             dockIcon("trash", accent: false, disabled: false) {
                 deleteNote(doc)
@@ -206,8 +203,6 @@ struct NoteDetailScreen: View {
             Image(systemName: "plus").font(.system(size: 22, weight: .light)).frame(width: 52, height: 52)
         }
         .buttonStyle(.keycap(.orange, cornerRadius: 16))
-        .opacity(doc.naming ? 0.45 : 1)
-        .disabled(doc.naming)
         .padding(.trailing, 18)
         .padding(.bottom, 90)
     }

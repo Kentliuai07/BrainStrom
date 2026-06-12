@@ -31,7 +31,6 @@ final class NoteViewModel {
 
     func requestOptimize(_ doc: NoteDocument) {
         guard !aiBusy else { return }
-        if doc.naming { return }
         if doc.shouldSkipOptimize { toast.show(String(localized: "內容沒變，未消耗 AI")); return }
         if doc.changedBlockIds().isEmpty { toast.show(String(localized: "沒有可優化的變動段落，未消耗 AI")); return }
         showOptimizeConfirm = true
@@ -79,7 +78,7 @@ final class NoteViewModel {
     // MARK: - ▦ 結構化
 
     func runStructure(_ doc: NoteDocument) {
-        guard !aiBusy, !doc.naming else { return }
+        guard !aiBusy else { return }
         if doc.docStateIsCarded && doc.shouldSkipOptimize {
             toast.show(String(localized: "內容沒變，未消耗 AI")); return
         }
@@ -136,7 +135,7 @@ final class NoteViewModel {
     // MARK: - 對話式編輯（proposal edit_text → applyEdit）
 
     func runApplyEdit(_ doc: NoteDocument, instruction: String) {
-        guard !aiBusy, !doc.naming else { return }
+        guard !aiBusy else { return }
         let changed = doc.editableIds()
         lock(String(localized: "AI 幫你補內容中…"))
         let payload = doc.payload(changedIds: changed)
@@ -257,34 +256,19 @@ final class ChatViewModel {
                   kickoff: false, project: project)
     }
 
-    // MARK: - ⚡ 點子助攻
+    // MARK: - 🤖 AI 教練開場（階段三 v3，專案級；不依賴 nudge）
 
-    /// 教練開場：kickoff 串流，開場白＋proposals 存進 nudge.opening 快照。
-    func startKickoff(_ doc: NoteDocument, project: ProjectContext? = nil) {
-        guard !streaming else { return }
-        doc.updateNudge { $0.state = .opened; $0.hash = doc.nudgeFingerprint(); $0.at = Date() }
-        runStream(doc, history: [], kickoff: true, saveNudge: true, project: project)
-    }
-
-    /// 面板 ⚡：指紋同 → 零成本注入上次點評；不同 → 重新 kickoff。
-    func sparkReplay(_ doc: NoteDocument, project: ProjectContext? = nil) {
-        guard !streaming else { return }
-        let hash = doc.nudgeFingerprint()
-        if let opening = doc.nudge.openingText, doc.nudge.hash == hash {
-            var bubble = ChatBubble(role: .ai, text: opening)
-            bubble.tokens = String(localized: "上次的教練點評（內容沒變，未消耗 AI）")
-            bubble.proposals = doc.nudge.openingProposals.map {
-                ProposalItem(action: $0.action, label: $0.label, instruction: $0.instruction)
-            }
-            messages.append(bubble)
-        } else {
-            doc.updateNudge { $0.state = .opened; $0.hash = hash; $0.at = Date() }
-            runStream(doc, history: [], kickoff: true, saveNudge: true, project: project)
-        }
+    /// 拿「名稱/靈感」當第一句話開場：注入成首條 user 訊息 → kickoff 串流。messages 已有內容則不重複開場。
+    func coachOpen(_ doc: NoteDocument, seed: String, project: ProjectContext? = nil) {
+        guard !streaming, messages.isEmpty else { return }
+        let s = seed.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !s.isEmpty { messages.append(ChatBubble(role: .user, text: s)) }
+        let history = messages.map { ChatMessage(role: $0.role == .user ? .user : .ai, content: $0.text) }
+        runStream(doc, history: history, kickoff: true, project: project)
     }
 
     private func runStream(_ doc: NoteDocument, history: [ChatMessage], kickoff: Bool,
-                           saveNudge: Bool = false, project: ProjectContext? = nil) {
+                           project: ProjectContext? = nil) {
         streaming = true
         let aiIndex = messages.count
         messages.append(ChatBubble(role: .ai, text: ""))
@@ -310,14 +294,6 @@ final class ChatViewModel {
                 }
                 if aiIndex < messages.count && messages[aiIndex].text.isEmpty && captured.isEmpty {
                     messages.remove(at: aiIndex)   // 一個字都沒吐 → 不留空氣泡
-                }
-                if saveNudge && (!accumulated.isEmpty || !captured.isEmpty) {
-                    doc.updateNudge {
-                        $0.openingText = accumulated
-                        $0.openingProposals = captured.map {
-                            ProposalSnapshot(action: $0.action, label: $0.label, instruction: $0.instruction)
-                        }
-                    }
                 }
                 streaming = false
             } catch is CancellationError {

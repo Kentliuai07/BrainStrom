@@ -1,8 +1,9 @@
 import XCTest
 
 // ============================================================
-// 前端 E2E（XCUITest，Stub 軌）—— 模擬器內自動點按跑核心流程
-// 登入 → 建系統 → 命名解鎖 → 寫內文 → ▦ 結構化(Stub出卡) → 💬 聊天(Stub回覆)
+// 前端 E2E（XCUITest，Stub 軌）—— 階段三 v3 新流程
+// 登入 → ＋建專案(彈窗輸入名稱) → 預設教練分頁自動開場 → 📝加入筆記
+// → 系統結構 ▦結構化(Stub出卡) → 返回我的系統列表
 // ============================================================
 
 @MainActor
@@ -22,64 +23,43 @@ final class CoreFlowUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
-    func testCoreFlowLoginCreateEditStructureChat() {
+    func testCoreFlowCreateProjectCoachAddNoteStructure() {
         // 登入
         let login = el("login.apple")
         XCTAssertTrue(login.waitForExistence(timeout: 10), "登入頁未出現")
         login.tap()
 
-        // 建系統 → 進專案首頁（三分頁，預設「開發筆記」清單）
+        // ＋ 建專案 → 彈窗輸入名稱/靈感
         let create = el("home.create")
         XCTAssertTrue(create.waitForExistence(timeout: 10), "首頁加號未出現")
         create.tap()
 
-        // 階段三：開發筆記清單 → 新增第一篇筆記 → 進單篇編輯頁
-        let newNote = el("noteslist.create")
-        XCTAssertTrue(newNote.waitForExistence(timeout: 10), "筆記清單新增鍵未出現")
-        newNote.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 8), "建專案彈窗未出現")
+        let nameField = alert.textFields.firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "名稱輸入框未出現")
+        nameField.tap()
+        nameField.typeText("健身 App")
+        alert.buttons["開始"].tap()
 
-        // 命名態：先隨便取 → 解鎖編輯
-        let quick = el("note.quickname")
-        XCTAssertTrue(quick.waitForExistence(timeout: 10), "命名態快速命名鈕未出現")
-        quick.tap()
+        // 預設停在 AI 教練分頁並自動開場（Stub kickoff 回「## 教練開場」）
+        XCTAssertTrue(app.staticTexts["教練開場"].waitForExistence(timeout: 15), "AI 教練未自動開場")
 
-        // 寫內文
-        let cont = el("note.continue")
-        XCTAssertTrue(cont.waitForExistence(timeout: 10), "續寫欄未出現（命名未解鎖？）")
-        cont.tap()
-        cont.typeText("E2E 自動測試內文")
+        // 📝 加入筆記：把教練回覆加進主筆記
+        let addNote = el("coach.addnote")
+        XCTAssertTrue(addNote.waitForExistence(timeout: 5), "加入筆記鈕未出現")
+        addNote.tap()
 
-        // 點標題使續寫失焦提交
-        let title = el("note.title")
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.tap()
-
-        // 💬 聊天（Stub 串流回覆，含 markdown）
-        let chat = el("dock.chat")
-        XCTAssertTrue(chat.waitForExistence(timeout: 5), "聊天鍵未出現")
-        chat.tap()
-        let chatInput = el("chat.input")
-        XCTAssertTrue(chatInput.waitForExistence(timeout: 5), "聊天輸入框未出現")
-        chatInput.tap()
-        chatInput.typeText("這則在講什麼？")
-        el("chat.send").tap()
-        // markdown 渲染驗證：Stub 回的「## 觀測建議」標題應被解析渲染成可見文字
-        XCTAssertTrue(app.staticTexts["觀測建議"].waitForExistence(timeout: 10), "AI markdown 標題未渲染")
-
-        // 階段三：結構卡片移到「系統結構」分頁。返回專案首頁 → 系統結構 → ▦ 結構化
-        let back = el("note.back")
-        XCTAssertTrue(back.waitForExistence(timeout: 5), "筆記返回鍵未出現")
-        back.tap()
+        // 系統結構分頁 → ▦ 結構化（操作主筆記，Stub 回 3 張卡，卡標「核心問題」）
         let structureTab = el("systemDetail.tab.structure")
         XCTAssertTrue(structureTab.waitForExistence(timeout: 8), "系統結構分頁未出現")
         structureTab.tap()
         let runStructure = el("structure.run")
         XCTAssertTrue(runStructure.waitForExistence(timeout: 8), "結構化按鈕未出現")
         runStructure.tap()
-        // Stub 回 3 張卡，卡標「核心問題」
         XCTAssertTrue(app.staticTexts["核心問題"].waitForExistence(timeout: 12), "結構化卡片未浮現")
 
-        // 返回專案首頁仍可回到「我的系統」列表（修復：專案首頁有返回鍵）
+        // 返回「我的系統」列表（專案首頁返回鍵）
         let sysBack = el("systemDetail.back")
         XCTAssertTrue(sysBack.waitForExistence(timeout: 5), "專案首頁返回鍵未出現")
         sysBack.tap()

@@ -20,13 +20,16 @@ final class SystemEntity {
     var tagsData: Data?
     /// 系統身份證（階段三；JSON 編碼的 SystemSpec，nil=尚未填）。
     var systemSpecData: Data?
+    /// 主筆記錨點（階段三 v3；指向本系統的「主筆記」，置頂、裝身份證、結構/教練都錨定它；nil=舊資料，首次取用時回填）。
+    var primaryNoteID: UUID?
 
     @Relationship(deleteRule: .cascade, inverse: \NoteEntity.system)
     var notes: [NoteEntity] = []
 
     init(id: UUID, name: String, createdAt: Date, updatedAt: Date,
          visibilityRaw: String? = Visibility.private.rawValue,
-         ownerId: String? = nil, tagsData: Data? = nil, systemSpecData: Data? = nil) {
+         ownerId: String? = nil, tagsData: Data? = nil, systemSpecData: Data? = nil,
+         primaryNoteID: UUID? = nil) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
@@ -35,6 +38,7 @@ final class SystemEntity {
         self.ownerId = ownerId
         self.tagsData = tagsData
         self.systemSpecData = systemSpecData
+        self.primaryNoteID = primaryNoteID
     }
 }
 

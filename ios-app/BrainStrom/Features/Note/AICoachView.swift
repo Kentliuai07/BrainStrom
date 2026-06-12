@@ -10,6 +10,10 @@ import SwiftUI
 struct AICoachView: View {
 
     let systemID: UUID
+    /// 新建專案＝true：active 時自動開場。
+    var autoKickoff: Bool = false
+    /// 此分頁是否在前台（ZStack 三頁同掛載，靠這個避免非當前頁誤觸自動開場）。
+    var active: Bool = false
 
     @Environment(CompositionRoot.self) private var root
     @Environment(\.palette) private var palette
@@ -18,6 +22,7 @@ struct AICoachView: View {
     @State private var chatVM: ChatViewModel?
     @State private var noteVM: NoteViewModel?
     @State private var input = ""
+    @State private var didAutoKickoff = false
     @FocusState private var inputFocused: Bool
 
     var body: some View {
@@ -31,7 +36,9 @@ struct AICoachView: View {
         .onAppear {
             if chatVM == nil { chatVM = ChatViewModel(ai: root.ai, toast: root.toast) }
             if noteVM == nil { noteVM = NoteViewModel(ai: root.ai, toast: root.toast) }
+            maybeAutoKickoff()
         }
+        .onChange(of: active) { _, _ in maybeAutoKickoff() }
         .onDisappear { chatVM?.stop() }
     }
 
@@ -102,6 +109,19 @@ struct AICoachView: View {
                 Text(tokens).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
             }
             if !bubble.proposals.isEmpty { proposalRow(bubble) }
+            // 📝 加入筆記：把這則教練回覆追加進主筆記（前端就地，零後端）。
+            if !isUser && !bubble.text.isEmpty {
+                Button { addToNote(bubble.text) } label: {
+                    Text(String(localized: "📝 加入筆記"))
+                        .font(Tokens.Fonts.body(11.5, weight: .semibold))
+                        .foregroundStyle(palette.orange)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(Capsule().fill(palette.orangeDim)
+                            .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("coach.addnote")
+            }
             if bubble.stopped {
                 Text(String(localized: "（已停止）")).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
             }
@@ -182,9 +202,18 @@ struct AICoachView: View {
         return d
     }
 
+    /// 自動開場三重閘：要 autoKickoff、要在前台、還沒開過、且沒有對話歷史。
+    private func maybeAutoKickoff() {
+        guard autoKickoff, active, !didAutoKickoff,
+              chatVM?.streaming != true, (chatVM?.messages.isEmpty ?? true) else { return }
+        didAutoKickoff = true
+        kickoff()
+    }
+
     private func kickoff() {
         guard let d = ensureDoc() else { return }
-        chatVM?.startKickoff(d, project: d.projectContext())
+        // 拿專案名稱/靈感（＝主筆記標題）當第一句話開場。
+        chatVM?.coachOpen(d, seed: d.title, project: d.projectContext())
     }
 
     private func send() {
@@ -192,5 +221,12 @@ struct AICoachView: View {
         guard !text.isEmpty, let d = ensureDoc() else { return }
         input = ""
         chatVM?.send(d, text: text, project: d.projectContext())
+    }
+
+    /// 把教練回覆追加進主筆記（appendFromContinue 會自動切塊）。
+    private func addToNote(_ text: String) {
+        guard let d = ensureDoc() else { return }
+        d.appendFromContinue(text)
+        root.toast.show(String(localized: "已加入主筆記"))
     }
 }

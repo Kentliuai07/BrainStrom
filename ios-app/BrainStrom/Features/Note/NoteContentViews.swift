@@ -10,30 +10,18 @@ import SwiftUI
 struct ArticleView: View {
 
     @Bindable var doc: NoteDocument
-    var onKickoff: () -> Void = {}
 
     @Environment(\.palette) private var palette
-    @Environment(CompositionRoot.self) private var root
     @State private var titleText = ""
     @State private var continueText = ""
     @FocusState private var titleFocused: Bool
     @FocusState private var continueFocused: Bool
 
-    private var nudgeEnabled: Bool {
-        if case let .signedIn(account) = root.session { return account.prefs.ideaNudge }
-        return true
-    }
-
-    /// 命名態確認鍵的「可按」門檻：標題去頭尾空白 ≥ 2 字。
-    private var titleReady: Bool {
-        titleText.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 標題（web .note-title）
+            // 標題（階段三 v3：純改標題，無命名閘）
             TextField(text: $titleText, axis: .vertical) {
-                Text(doc.naming ? String(localized: "先給這個點子取個名字") : String(localized: "標題"))
+                Text(String(localized: "標題"))
             }
             .font(Tokens.Fonts.body(24, weight: .heavy))
             .foregroundStyle(palette.print)
@@ -44,110 +32,36 @@ struct ArticleView: View {
                 if !focused { doc.commitTitle(titleText); titleText = doc.title }
             }
 
-            // titleaux：命名態放「先隨便取」；命名後放 ⚡ 助攻膠囊
-            titleAux
-                .padding(.top, 6)
-
-            if doc.naming {
-                // 命名態（web .naminghint）
-                Text(String(localized: "✏️ 先給這個點子取個名字，就能開始寫"))
-                    .font(Tokens.Fonts.body(14))
-                    .foregroundStyle(palette.print3)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18).padding(.horizontal, 14)
-                    .overlay(RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(palette.line, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
-                    .padding(.top, 18)
-            } else {
-                // 塊串（web .blocks）
-                VStack(alignment: .leading, spacing: 8) {
-                    if doc.orderedBlocks.isEmpty {
-                        Text(String(localized: "空白筆記——直接在下方「繼續寫…」開始，或 ＋ 加模組"))
-                            .font(Tokens.Fonts.body(13))
-                            .foregroundStyle(palette.print3)
-                            .padding(.horizontal, 8).padding(.vertical, 6)
-                    }
-                    ForEach(doc.orderedBlocks) { block in
-                        BlockRow(doc: doc, block: block)
-                    }
-                }
-                .padding(.top, 14)
-
-                // 文末續寫（web .note-body）：失焦才提交、splitIntoBlocks 切塊（與網頁一致）
-                TextField(text: $continueText, axis: .vertical) {
-                    Text(String(localized: "繼續寫…（空行分段、# 開頭成標題）"))
-                }
-                .font(Tokens.Fonts.body(15))
-                .foregroundStyle(palette.print)
-                .lineSpacing(4)
-                .padding(.top, 10)
-                .focused($continueFocused)
-                .accessibilityIdentifier("note.continue")
-                .onChange(of: continueFocused) { _, focused in
-                    if !focused, !continueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        doc.appendFromContinue(continueText)
-                        continueText = ""
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var titleAux: some View {
-        if doc.naming {
-            HStack(spacing: 8) {
-                // 次要：一鍵隨手命名
-                Button {
-                    _ = doc.quickName(); titleText = doc.title
-                } label: {
-                    Text(String(localized: "先隨便取"))
-                        .font(Tokens.Fonts.body(11, weight: .semibold))
+            // 塊串（web .blocks）
+            VStack(alignment: .leading, spacing: 8) {
+                if doc.orderedBlocks.isEmpty {
+                    Text(String(localized: "空白筆記——直接在下方「繼續寫…」開始，或 ＋ 加模組"))
+                        .font(Tokens.Fonts.body(13))
                         .foregroundStyle(palette.print3)
-                        .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(Capsule().strokeBorder(palette.line, lineWidth: 1))
+                        .padding(.horizontal, 8).padding(.vertical, 6)
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("note.quickname")
+                ForEach(doc.orderedBlocks) { block in
+                    BlockRow(doc: doc, block: block)
+                }
+            }
+            .padding(.top, 14)
 
-                // 主要：標題打進去就發亮可按（你的想法）
-                Button {
-                    titleFocused = false
-                    doc.commitTitle(titleText)
-                    titleText = doc.title
-                    Haptics.press()
-                } label: {
-                    Text(titleReady ? String(localized: "✓ 確認取名") : String(localized: "輸入名稱"))
-                        .font(Tokens.Fonts.body(12, weight: .semibold))
-                        .frame(minWidth: 96, minHeight: 32)
-                }
-                .buttonStyle(.keycap(titleReady ? .orange : .neutral, cornerRadius: 10))
-                .disabled(!titleReady)
-                .opacity(titleReady ? 1 : 0.5)
-                .animation(Motion.spring, value: titleReady)
-                .accessibilityIdentifier("note.confirmname")
+            // 文末續寫（web .note-body）：失焦才提交、splitIntoBlocks 切塊（與網頁一致）
+            TextField(text: $continueText, axis: .vertical) {
+                Text(String(localized: "繼續寫…（空行分段、# 開頭成標題）"))
             }
-        } else if !doc.title.isEmpty && nudgeEnabled && doc.nudge.state == .pending {
-            // ⚡ 助攻膠囊：取名後浮現，點擊跑教練開場
-            HStack(spacing: 2) {
-                Button { onKickoff() } label: {
-                    Text(String(localized: "⚡ 讓 AI 教練看看這個點子"))
-                        .font(Tokens.Fonts.body(12, weight: .semibold))
-                        .foregroundStyle(palette.orange)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
+            .font(Tokens.Fonts.body(15))
+            .foregroundStyle(palette.print)
+            .lineSpacing(4)
+            .padding(.top, 10)
+            .focused($continueFocused)
+            .accessibilityIdentifier("note.continue")
+            .onChange(of: continueFocused) { _, focused in
+                if !focused, !continueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    doc.appendFromContinue(continueText)
+                    continueText = ""
                 }
-                .buttonStyle(.plain)
-                Button {
-                    doc.updateNudge { $0.state = .dismissed }
-                    root.toast.show(String(localized: "不再為這則筆記顯示（設定頁可關閉）"))
-                } label: {
-                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(palette.print3).frame(width: 22, height: 22)
-                }
-                .buttonStyle(.plain)
             }
-            .background(Capsule().fill(palette.orangeDim)
-                .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
         }
     }
 }

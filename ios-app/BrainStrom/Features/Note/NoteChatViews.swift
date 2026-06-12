@@ -13,15 +13,6 @@ extension NoteDetailScreen {
                 Text(String(localized: "問 AI · 這則筆記"))
                     .font(Tokens.Fonts.body(13, weight: .bold)).foregroundStyle(palette.print)
                 Spacer()
-                if doc.nudge.state != .pending {
-                    Button { chatVM?.sparkReplay(doc) } label: {
-                        Text(verbatim: "⚡").font(.system(size: 13))
-                            .frame(width: 26, height: 26)
-                            .background(Circle().fill(palette.orangeDim)
-                                .overlay(Circle().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
-                    }
-                    .buttonStyle(.plain)
-                }
                 Button { showChat = false } label: {
                     Text(String(localized: "收合 ▾")).font(Tokens.Fonts.body(12, weight: .semibold)).foregroundStyle(palette.orange)
                 }

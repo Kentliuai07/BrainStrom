@@ -31,7 +31,6 @@ final class NoteDocument {
     private(set) var systemSpec: SystemSpec
 
     var view: ViewMode = .article
-    private(set) var naming: Bool = false
     var savedFlash = false
 
     // AI 狀態（hash gate / 結構化 / 助攻）
@@ -60,7 +59,6 @@ final class NoteDocument {
         let system = (try? repository.systems())?.first { $0.id == note.systemID }
         self.visibility = system?.visibility ?? .private
         self.systemSpec = (try? repository.systemSpec(systemID: note.systemID)) ?? SystemSpec()
-        self.naming = Self.isNamingGate(title: note.title, blocks: liveBlocksOf(self.blocks))
         if view == .cards && docState != .carded { view = .article }
         seedInitialVersionIfNeeded()
         refreshVersionState()
@@ -71,38 +69,13 @@ final class NoteDocument {
 
     var docStateIsCarded: Bool { docState == .carded }
 
-    // MARK: - 命名態（F9 gate）
-
-    static func isNamingGate(title: String, blocks: [Block]) -> Bool {
-        let zero = blocks.isEmpty
-        let t = title.trimmingCharacters(in: .whitespaces)
-        return zero && (t.isEmpty || title == "未命名系統" || title == "未命名系统")
-    }
-
-    // MARK: - 標題
+    // MARK: - 標題（階段三 v3：命名閘已移除，純改標題）
 
     func commitTitle(_ raw: String) {
         let v = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let zero = orderedBlocks.isEmpty
-        if v.isEmpty {
-            if !zero {
-                if title != "未命名系統" { title = "未命名系統"; persist(trigger: "cardEdit") }
-            } else {
-                title = ""
-                if !naming { naming = true }
-                persist(trigger: nil)
-            }
-            return
-        }
-        if v != title { title = v; persist(trigger: "cardEdit") }
-        if naming { naming = false }
-    }
-
-    func quickName() -> String {
-        let f = DateFormatter(); f.dateFormat = "M/d"
-        let name = f.string(from: .now) + " " + String(localized: "隨手記")
-        commitTitle(name)
-        return name
+        guard v != title else { return }
+        title = v
+        persist(trigger: "cardEdit")
     }
 
     // MARK: - 塊編輯
@@ -216,7 +189,6 @@ final class NoteDocument {
         title = snap.title
         docState = DocState(rawValue: snap.docStateRaw) ?? .raw
         blocks = snap.blocks.sorted { $0.orderIndex < $1.orderIndex }   // 含軟刪塊：原 id 覆寫、復活
-        naming = Self.isNamingGate(title: title, blocks: orderedBlocks)
         if view == .cards && docState != .carded { view = .article }
         saveNote()
         refreshVersionState()
@@ -242,7 +214,6 @@ final class NoteDocument {
     /// trigger != nil 時同時落一個版本（commit-after-change）。
     private func persist(trigger: String?) {
         reindex()
-        naming = Self.isNamingGate(title: title, blocks: orderedBlocks)
         saveNote()
         if let trigger, let data = snapshotData() {
             try? repository.commitVersion(noteID: noteID, snapshot: data, trigger: trigger)
@@ -257,7 +228,10 @@ final class NoteDocument {
                         lastAiHash: lastAiHash, aiRestructureCount: aiRestructureCount,
                         structuredAt: structuredAt, nudge: nudge)
         try? repository.saveNote(note)
-        try? repository.renameSystem(id: systemID, name: title)
+        // 階段三 v3：只有「主筆記」的標題才同步成系統名；子筆記改標題不動系統名。
+        if (try? repository.primaryNoteID(for: systemID)) == noteID {
+            try? repository.renameSystem(id: systemID, name: title)
+        }
     }
 
     // MARK: - AI 套用（步驟7：ViewModel 收完串流後呼叫）

@@ -19,6 +19,13 @@ protocol NotesRepositoring: AnyObject {
     // —— 系統身份證（階段三）——
     func systemSpec(systemID: UUID) throws -> SystemSpec?
     func updateSystemSpec(systemID: UUID, spec: SystemSpec) throws
+
+    // —— 主筆記錨點（階段三 v3）——
+    /// 建系統並同時種下主筆記（原子）：回 (系統, 主筆記)。
+    @discardableResult
+    func createSystemWithPrimaryNote(name: String) throws -> (system: NoteSystem, note: Note)
+    /// 取該系統的主筆記 ID（nil=舊資料未設）。
+    func primaryNoteID(for systemID: UUID) throws -> UUID?
     /// 取出（或惰性建立）某 system 的唯一文件筆記。
     @discardableResult
     func documentNote(for systemID: UUID) throws -> Note

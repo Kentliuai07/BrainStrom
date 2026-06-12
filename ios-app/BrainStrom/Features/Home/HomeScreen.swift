@@ -10,7 +10,7 @@ import SwiftUI
 /// 階段三起改為唯一路由源——點系統卡推 `.systemDetail`（三分頁容器），不再直推 UUID。
 enum HomeRoute: Hashable {
     case settings
-    case systemDetail(id: UUID)
+    case systemDetail(id: UUID, autoKickoff: Bool)
     case noteDetail(noteID: UUID)
 }
 
@@ -23,6 +23,8 @@ struct HomeScreen: View {
     @State private var systems: [NoteSystem] = []
     @State private var loaded = false
     @State private var loadFailed = false
+    @State private var showCreateDialog = false
+    @State private var newProjectName = ""
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -41,7 +43,8 @@ struct HomeScreen: View {
             .navigationDestination(for: HomeRoute.self) { route in
                 switch route {
                 case .settings: SettingsScreen()
-                case .systemDetail(let id): SystemDetailScreen(systemID: id, path: $path)
+                case .systemDetail(let id, let autoKickoff):
+                    SystemDetailScreen(systemID: id, path: $path, autoKickoff: autoKickoff)
                 case .noteDetail(let id): NoteDetailScreen(noteID: id)
                 }
             }
@@ -49,6 +52,14 @@ struct HomeScreen: View {
         .onAppear(perform: reload)
         .onChange(of: path) { _, new in
             if new.isEmpty { reload() }  // 從筆記/設定返回 → 刷新清單
+        }
+        .alert(String(localized: "新增專案"), isPresented: $showCreateDialog) {
+            TextField(String(localized: "系統名稱，或一個靈感…"), text: $newProjectName)
+                .accessibilityIdentifier("home.projectNameInput")
+            Button(String(localized: "開始")) { createProject() }
+            Button(String(localized: "取消"), role: .cancel) { newProjectName = "" }
+        } message: {
+            Text(String(localized: "先給專案取個名字或丟一個靈感，AI 教練會接著陪你聊。"))
         }
     }
 
@@ -72,7 +83,7 @@ struct HomeScreen: View {
             .accessibilityIdentifier("home.settings")
             circleIcon(system: "plus", accent: true) {
                 Haptics.press()
-                createAndOpen()
+                newProjectName = ""; showCreateDialog = true
             }
             .accessibilityIdentifier("home.create")
         }
@@ -103,7 +114,7 @@ struct HomeScreen: View {
             Text(verbatim: "✦")
                 .font(.system(size: 14))
                 .foregroundStyle(palette.orange)
-            Text(String(localized: "新筆記先取名，按 ⚡ 讓 AI 教練點評，提議點了就落地"))
+            Text(String(localized: "＋ 建專案 → 輸入名稱或靈感 → 直接進 AI 教練開聊，邊聊邊加入筆記"))
                 .font(Tokens.Fonts.body(12))
                 .foregroundStyle(palette.print)
         }
@@ -148,7 +159,7 @@ struct HomeScreen: View {
                 ForEach(systems) { system in
                     Button {
                         Haptics.tap()
-                        path.append(HomeRoute.systemDetail(id: system.id))
+                        path.append(HomeRoute.systemDetail(id: system.id, autoKickoff: false))
                     } label: {
                         SystemCardView(system: system)
                     }
@@ -173,7 +184,7 @@ struct HomeScreen: View {
             )
             Button {
                 Haptics.press()
-                createAndOpen()
+                newProjectName = ""; showCreateDialog = true
             } label: {
                 Text(String(localized: "建立第一個系統"))
                     .font(Tokens.Fonts.body(14.5, weight: .semibold))
@@ -202,11 +213,14 @@ struct HomeScreen: View {
         loaded = true
     }
 
-    /// web $('#add')：建空名系統 → 直接開筆記頁（命名態）。
-    private func createAndOpen() {
+    /// 階段三 v3：弹窗輸入名稱/靈感 → 原子建系統+主筆記 → 進專案首頁(預設教練分頁)自動開場。
+    private func createProject() {
         guard let repository = root.repository else { return }
-        guard let system = try? repository.createSystem(name: "") else { return }
-        path.append(HomeRoute.systemDetail(id: system.id))
+        let name = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+        newProjectName = ""
+        let title = name.isEmpty ? String(localized: "未命名專案") : name
+        guard let result = try? repository.createSystemWithPrimaryNote(name: title) else { return }
+        path.append(HomeRoute.systemDetail(id: result.system.id, autoKickoff: true))
     }
 }
 

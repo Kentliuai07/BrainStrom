@@ -14,6 +14,7 @@ struct NotesListView: View {
     @Environment(\.palette) private var palette
 
     @State private var notes: [Note] = []
+    @State private var primaryID: UUID?
     @State private var loaded = false
 
     var body: some View {
@@ -71,6 +72,12 @@ struct NotesListView: View {
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 6) {
+                    if note.id == primaryID {
+                        Text(String(localized: "主")).font(Tokens.Fonts.mono(8, weight: .bold))
+                            .foregroundStyle(palette.orangeInk)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Capsule().fill(palette.orange))
+                    }
                     Text(note.title.isEmpty ? String(localized: "未命名筆記") : note.title)
                         .font(Tokens.Fonts.body(15, weight: .bold))
                         .foregroundStyle(palette.print)
@@ -130,7 +137,17 @@ struct NotesListView: View {
 
     private func reload() {
         guard let repo = root.repository else { notes = []; loaded = true; return }
-        notes = (try? repo.notes(in: systemID)) ?? []
+        let all = (try? repo.notes(in: systemID)) ?? []
+        // 舊系統(build 5 無 primaryNoteID)：有筆記才順手回填(documentNote 內部把最近那篇設為主筆記)；
+        // 新系統 primaryNoteID 已設→直返無副作用；0 筆記不呼叫，避免誤建。
+        if !all.isEmpty { _ = try? repo.documentNote(for: systemID) }
+        primaryID = try? repo.primaryNoteID(for: systemID)
+        // 主筆記置頂，其餘按更新時間。
+        notes = all.sorted { a, b in
+            if a.id == primaryID { return true }
+            if b.id == primaryID { return false }
+            return a.updatedAt > b.updatedAt
+        }
         loaded = true
     }
 

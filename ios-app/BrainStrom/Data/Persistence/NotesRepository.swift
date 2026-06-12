@@ -40,16 +40,45 @@ final class NotesRepository: NotesRepositoring {
         try context.save()
     }
 
-    /// 對齊 web 模型：一個 system = 一份文件。取出（或惰性建立）該 system 的唯一筆記。
+    /// 取該系統的「主筆記」（階段三 v3 錨點）：
+    /// 有 primaryNoteID → 直回；舊資料無 → 回最近編輯那篇並「回填」primaryNoteID（平順遷移）；全無 → 建一篇。
     @discardableResult
     func documentNote(for systemID: UUID) throws -> Note {
         guard let system = try fetchSystem(id: systemID) else {
             throw RepositoryError.systemNotFound
         }
-        if let first = system.notes.sorted(by: { $0.updatedAt > $1.updatedAt }).first {
-            return try toDomain(first)
+        if let pid = system.primaryNoteID, let primary = system.notes.first(where: { $0.id == pid }) {
+            return try toDomain(primary)
+        }
+        if let recent = system.notes.sorted(by: { $0.updatedAt > $1.updatedAt }).first {
+            system.primaryNoteID = recent.id   // 回填遷移（context.save 為 transaction，並發安全）
+            try context.save()
+            return try toDomain(recent)
         }
         return try createNote(in: systemID, title: system.name)
+    }
+
+    func primaryNoteID(for systemID: UUID) throws -> UUID? {
+        try fetchSystem(id: systemID)?.primaryNoteID
+    }
+
+    /// 建系統＋種主筆記（原子）：避免「只建系統沒建筆記」的空窗。
+    @discardableResult
+    func createSystemWithPrimaryNote(name: String) throws -> (system: NoteSystem, note: Note) {
+        let sysEntity = SystemEntity(id: UUID(), name: name, createdAt: .now, updatedAt: .now)
+        context.insert(sysEntity)
+        let note = Note(systemID: sysEntity.id, title: name)
+        let noteEntity = NoteEntity(
+            id: note.id, title: note.title, docStateRaw: note.docState.rawValue,
+            blocksData: try JSONEncoder().encode(note.blocks),
+            updatedAt: note.updatedAt, revisionNumber: note.revisionNumber)
+        noteEntity.system = sysEntity
+        context.insert(noteEntity)
+        sysEntity.primaryNoteID = note.id
+        try context.save()
+        let system = NoteSystem(id: sysEntity.id, name: sysEntity.name,
+                                createdAt: sysEntity.createdAt, updatedAt: sysEntity.updatedAt, noteCount: 1)
+        return (system, note)
     }
 
     // MARK: - 系統身份證（階段三）
