@@ -70,7 +70,7 @@ enum Algo {
             .map { normalizeText(blockContent($0)) }
             .joined(separator: "\n\n")
         let assembled = normalizeText(title) + "\n\n" + body
-        return fnv1a(assembled)
+        return fnvHash(assembled)   // 對齊 web services/index.js（契約 §3.6「→fnvHash」），node 實測一致 46126d44
     }
 
     // MARK: - §3.7 diffBlocks（changed 塊 id 集合）

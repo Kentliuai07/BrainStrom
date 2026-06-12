@@ -167,6 +167,7 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
     var aiHash: String?         // 該塊內容指紋（diff 省錢閘用）
     var structureGen: Int       // 結構化世代
     var deletedAt: Date?        // 軟刪時間戳（nil=存活）
+    var cardTitle: String?      // 結構化卡標（web payload={title,content} 的 title）
 
     var isDeleted: Bool { deletedAt != nil }
 
@@ -174,7 +175,7 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
          isDone: Bool = false, isPinned: Bool = false, moduleKind: ModuleKind? = nil,
          modulePayload: String? = nil, orderIndex: Int = 0,
          source: BlockSource = .manual, aiHash: String? = nil,
-         structureGen: Int = 0, deletedAt: Date? = nil) {
+         structureGen: Int = 0, deletedAt: Date? = nil, cardTitle: String? = nil) {
         self.id = id
         self.kind = kind
         self.text = text
@@ -187,12 +188,13 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
         self.aiHash = aiHash
         self.structureGen = structureGen
         self.deletedAt = deletedAt
+        self.cardTitle = cardTitle
     }
 
     // 向後相容解碼：舊資料缺新鍵時給預設值。
     enum CodingKeys: String, CodingKey {
         case id, kind, text, isDone, isPinned, moduleKind, modulePayload, orderIndex
-        case source, aiHash, structureGen, deletedAt
+        case source, aiHash, structureGen, deletedAt, cardTitle
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -208,6 +210,7 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
         aiHash = try c.decodeIfPresent(String.self, forKey: .aiHash)
         structureGen = try c.decodeIfPresent(Int.self, forKey: .structureGen) ?? 0
         deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
+        cardTitle = try c.decodeIfPresent(String.self, forKey: .cardTitle)
     }
 }
 

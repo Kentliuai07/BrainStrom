@@ -26,7 +26,9 @@
 - 樣本 4、5 有「連續空白／前後空白」，所以 `fnvHash`（先 normalize）與 `fnv1a`（原字串）不同——這正是要驗 normalize 行為是否兩端一致的點。
 - **請後端用網頁版同樣 5 個字串跑 `fnvHash` 與 `fnv1a`，逐格對照。** 任一格不同即兩端指紋不一致，回報我修。
 
-## 待後端確認的組裝口徑（非單字串，無法用上表涵蓋）
-- `fullHash(blocks)`：未軟刪塊按 position 排序 → 各塊 `normalizeText(blockContent)` → 以 `\n\n` 串接 → **fnv1a（不再 normalize 整串）**。
-- `nudgeHash(title,blocks)`：同上但只取 DIFF_TYPES 塊，前面接 `normalizeText(title) + "\n\n"` → **fnv1a**。
-- 契約 §3.6 寫的是「→ fnvHash」，但若對整串再 normalize 會把 `\n\n` 分隔折成空格、破壞邊界，故我採「組裝後 fnv1a」與 fullHash 一致。**請後端確認網頁版 nudgeHash 是 `fnv1a(assembled)` 還是 `fnvHash(assembled)`**，若不同我立即改。
+## 組裝口徑（已與 web 逐行比對確認，2026-06-12）
+- `fullHash(blocks)`：未軟刪塊按 position 排序 → 各塊 `normalizeText(blockContent)` → 以 `\n\n` 串接 → **fnv1a**。與 web 一致。
+- `nudgeHash(title,blocks)`：只取 DIFF_TYPES 塊，前接 `normalizeText(title)+"\n\n"` → **fnvHash（= 對組裝串再 normalize 後 fnv1a）**。
+  - 已修正：iOS 原本用 `fnv1a(assembled)`，與 web `fnvHash(assembled)` 不符；已改齊。
+  - 跨端驗證樣本：`title="點子"`、blocks=`[text("Hello World"), heading("標題")]` → **web=`46126d44` / iOS=`46126d44`（一致）**。
+- 結論：指紋全層（fnv1a/normalize/fnvHash/fullHash/nudgeHash/diffBlocks）兩端一致，可接真後端。

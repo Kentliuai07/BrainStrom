@@ -260,8 +260,9 @@ struct CardRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            if block.kind == .heading1 || block.kind == .heading2 {
-                Text(block.text)
+            let title = block.cardTitle ?? (block.kind == .heading1 || block.kind == .heading2 ? block.text : nil)
+            if let title, !title.isEmpty {
+                Text(title)
                     .font(Tokens.Fonts.body(14, weight: .bold))
                     .foregroundStyle(palette.print)
             }
