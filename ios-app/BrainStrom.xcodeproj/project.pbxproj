@@ -14,6 +14,13 @@
 			remoteGlobalIDString = A10000000000000000000006;
 			remoteInfo = BrainStrom;
 		};
+		A3000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000006;
+			remoteInfo = BrainStrom;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +31,7 @@
 		A10000000000000000000013 /* Config.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.example.xcconfig; sourceTree = "<group>"; };
 		A10000000000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A20000000000000000000002 /* BrainStromTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BrainStromTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A30000000000000000000002 /* BrainStromUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BrainStromUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -35,6 +43,11 @@
 		A20000000000000000000001 /* BrainStromTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = BrainStromTests;
+			sourceTree = "<group>";
+		};
+		A30000000000000000000001 /* BrainStromUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BrainStromUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -54,6 +67,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A30000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -62,6 +82,7 @@
 			children = (
 				A10000000000000000000002 /* BrainStrom */,
 				A20000000000000000000001 /* BrainStromTests */,
+				A30000000000000000000001 /* BrainStromUITests */,
 				A10000000000000000000003 /* Config */,
 				A10000000000000000000004 /* Products */,
 			);
@@ -84,6 +105,7 @@
 			children = (
 				A10000000000000000000005 /* BrainStrom.app */,
 				A20000000000000000000002 /* BrainStromTests.xctest */,
+				A30000000000000000000002 /* BrainStromUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -136,6 +158,29 @@
 			productReference = A20000000000000000000002 /* BrainStromTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		A30000000000000000000003 /* BrainStromUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A30000000000000000000007 /* Build configuration list for PBXNativeTarget "BrainStromUITests" */;
+			buildPhases = (
+				A30000000000000000000004 /* Sources */,
+				A30000000000000000000005 /* Frameworks */,
+				A30000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A3000000000000000000000B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A30000000000000000000001 /* BrainStromUITests */,
+			);
+			name = BrainStromUITests;
+			packageProductDependencies = (
+			);
+			productName = BrainStromUITests;
+			productReference = A30000000000000000000002 /* BrainStromUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -150,6 +195,10 @@
 						CreatedOnToolsVersion = 16.4;
 					};
 					A20000000000000000000003 = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = A10000000000000000000006;
+					};
+					A30000000000000000000003 = {
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = A10000000000000000000006;
 					};
@@ -171,6 +220,7 @@
 			targets = (
 				A10000000000000000000006 /* BrainStrom */,
 				A20000000000000000000003 /* BrainStromTests */,
+				A30000000000000000000003 /* BrainStromUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -184,6 +234,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A20000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A30000000000000000000006 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -207,6 +264,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A30000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -214,6 +278,11 @@
 			isa = PBXTargetDependency;
 			target = A10000000000000000000006 /* BrainStrom */;
 			targetProxy = A2000000000000000000000A /* PBXContainerItemProxy */;
+		};
+		A3000000000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000006 /* BrainStrom */;
+			targetProxy = A3000000000000000000000A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -286,6 +355,46 @@
 			};
 			name = Release;
 		};
+		A30000000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGNING_ALLOWED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.0;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.brainstrom.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = BrainStrom;
+			};
+			name = Debug;
+		};
+		A30000000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.brainstrom.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = BrainStrom;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -312,6 +421,15 @@
 			buildConfigurations = (
 				A20000000000000000000008 /* Debug */,
 				A20000000000000000000009 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A30000000000000000000007 /* Build configuration list for PBXNativeTarget "BrainStromUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A30000000000000000000008 /* Debug */,
+				A30000000000000000000009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

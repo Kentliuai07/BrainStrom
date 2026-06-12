@@ -66,10 +66,12 @@ struct HomeScreen: View {
                 Haptics.tap()
                 path.append(HomeRoute.settings)
             }
+            .accessibilityIdentifier("home.settings")
             circleIcon(system: "plus", accent: true) {
                 Haptics.press()
                 createAndOpen()
             }
+            .accessibilityIdentifier("home.create")
         }
         .padding(.bottom, Tokens.Spacing.s4)
     }

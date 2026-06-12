@@ -39,6 +39,16 @@
                ReferencedContainer = "container:BrainStrom.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A30000000000000000000003"
+               BuildableName = "BrainStromUITests.xctest"
+               BlueprintName = "BrainStromUITests"
+               ReferencedContainer = "container:BrainStrom.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

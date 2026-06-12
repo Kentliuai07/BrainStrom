@@ -33,6 +33,7 @@ struct ArticleView: View {
             .font(Tokens.Fonts.body(24, weight: .heavy))
             .foregroundStyle(palette.print)
             .focused($titleFocused)
+            .accessibilityIdentifier("note.title")
             .onAppear { titleText = doc.title }
             .onChange(of: titleFocused) { _, focused in
                 if !focused { doc.commitTitle(titleText); titleText = doc.title }
@@ -76,6 +77,7 @@ struct ArticleView: View {
                 .lineSpacing(4)
                 .padding(.top, 10)
                 .focused($continueFocused)
+                .accessibilityIdentifier("note.continue")
                 .onChange(of: continueFocused) { _, focused in
                     if !focused, !continueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         doc.appendFromContinue(continueText)
@@ -99,6 +101,7 @@ struct ArticleView: View {
                     .background(Capsule().strokeBorder(palette.line, lineWidth: 1))
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("note.quickname")
         } else if !doc.title.isEmpty && nudgeEnabled && doc.nudge.state == .pending {
             // ⚡ 助攻膠囊：取名後浮現，點擊跑教練開場
             HStack(spacing: 2) {

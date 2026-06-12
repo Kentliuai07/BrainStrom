@@ -57,6 +57,7 @@ struct LoginScreen: View {
                 .frame(width: 240, height: 50)
             }
             .buttonStyle(.keycap(.appleBlack, cornerRadius: 12))
+            .accessibilityIdentifier("login.apple")
             .disabled(isSigningIn)
             .opacity(isSigningIn ? 0.7 : 1)
 

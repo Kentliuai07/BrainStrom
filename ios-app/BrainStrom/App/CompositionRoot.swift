@@ -28,8 +28,10 @@ final class CompositionRoot {
     private(set) var session: SessionState = .checking
 
     init() {
+        // UI 測試：-uiTestStub → 強制罐頭 AI（確定性、不打網路）
+        let forceStub = ProcessInfo.processInfo.arguments.contains("-uiTestStub")
         let config = AIConfig.fromBundle()
-        if let config, !config.useStub {
+        if let config, !config.useStub, !forceStub {
             self.ai = AIServiceLive(config: config)
         } else {
             self.ai = AIServiceStub()
@@ -45,6 +47,12 @@ final class CompositionRoot {
 
     /// 冷啟動憑證檢查（P0 自檢層）。
     func restoreSession() async {
+        // UI 測試重置：清會話、從登入頁起跑（確定性）
+        if ProcessInfo.processInfo.arguments.contains("-uiTestReset") {
+            await auth.signOut()
+            session = .signedOut
+            return
+        }
         let account = await auth.restoreSession()
         session = account.map(SessionState.signedIn) ?? .signedOut
     }

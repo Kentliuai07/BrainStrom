@@ -181,8 +181,11 @@ struct NoteScreen: View {
             dockIcon("bubble.left", accent: true, disabled: doc.naming || noteVM?.aiBusy == true) {
                 Haptics.tap(); showChat.toggle()
             }
+            .accessibilityIdentifier("dock.chat")
             dockKey("✦", disabled: doc.naming || noteVM?.aiBusy == true) { Haptics.press(); noteVM?.requestOptimize(doc) }
+                .accessibilityIdentifier("dock.optimize")
             dockKey("▦", disabled: doc.naming || noteVM?.aiBusy == true) { Haptics.press(); noteVM?.runStructure(doc) }
+                .accessibilityIdentifier("dock.structure")
             dockIcon("trash", accent: false, disabled: false) {
                 deleteSystem()
             }
