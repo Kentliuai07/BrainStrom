@@ -242,6 +242,15 @@ struct BlockRow: View {
                         .opacity(block.isPinned ? 1 : 0.4).grayscale(block.isPinned ? 0 : 1)
                         .frame(width: 22, height: 18)
                 }.buttonStyle(.plain)
+                // 🔒 智能排除：鎖上 = AI 看不到這塊（階段三）
+                Button { doc.toggleExcluded(block.id) } label: {
+                    Image(systemName: block.excludedFromAI ? "lock.fill" : "lock.open")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(block.excludedFromAI ? palette.orange : palette.print3)
+                        .frame(width: 22, height: 16)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("block.lock")
             }
             Button { doc.move(block.id, by: -1) } label: {
                 Image(systemName: "chevron.up").font(.system(size: 9)).foregroundStyle(palette.print3).frame(width: 22, height: 14)

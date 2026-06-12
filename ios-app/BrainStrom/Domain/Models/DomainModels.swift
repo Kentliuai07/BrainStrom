@@ -79,6 +79,76 @@ enum Visibility: String, Codable, Sendable {
     case `public`
 }
 
+/// 系統身份證（階段三）：專案硬規格，全選填、AI 維護、人只能看。
+/// 字段對齊 `docs/系统身份证-设计文档.md`：名稱／前端／後端／API／資料庫／伺服器／部署方式。
+struct SystemSpec: Equatable, Hashable, Codable, Sendable {
+    var name: String?
+    var frontend: String?
+    var backend: String?
+    var apis: [String]
+    var database: String?
+    var server: String?
+    var deployMethod: String?
+
+    init(name: String? = nil, frontend: String? = nil, backend: String? = nil,
+         apis: [String] = [], database: String? = nil,
+         server: String? = nil, deployMethod: String? = nil) {
+        self.name = name
+        self.frontend = frontend
+        self.backend = backend
+        self.apis = apis
+        self.database = database
+        self.server = server
+        self.deployMethod = deployMethod
+    }
+
+    /// 全空（沒有任何已填字段）→ 結構頁顯示空態。
+    var isEmpty: Bool {
+        [name, frontend, backend, database, server, deployMethod].allSatisfy {
+            ($0 ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } && apis.isEmpty
+    }
+
+    // 向後相容解碼：缺鍵給預設。
+    enum CodingKeys: String, CodingKey {
+        case name, frontend, backend, apis, database, server, deployMethod
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decodeIfPresent(String.self, forKey: .name)
+        frontend = try c.decodeIfPresent(String.self, forKey: .frontend)
+        backend = try c.decodeIfPresent(String.self, forKey: .backend)
+        apis = try c.decodeIfPresent([String].self, forKey: .apis) ?? []
+        database = try c.decodeIfPresent(String.self, forKey: .database)
+        server = try c.decodeIfPresent(String.self, forKey: .server)
+        deployMethod = try c.decodeIfPresent(String.self, forKey: .deployMethod)
+    }
+}
+
+/// 系統身份證的「部分更新補丁」（update_spec 通道用；null/缺鍵=不動該字段）。
+struct SpecPatch: Decodable, Sendable {
+    var name: String?
+    var frontend: String?
+    var backend: String?
+    var apis: [String]?
+    var database: String?
+    var server: String?
+    var deployMethod: String?
+
+    /// 合併進現有 spec：非 nil 才覆蓋；apis 給了就整陣列替換。
+    func merged(into base: SystemSpec) -> SystemSpec {
+        var s = base
+        if let v = name { s.name = v }
+        if let v = frontend { s.frontend = v }
+        if let v = backend { s.backend = v }
+        if let v = apis { s.apis = v }
+        if let v = database { s.database = v }
+        if let v = server { s.server = v }
+        if let v = deployMethod { s.deployMethod = v }
+        return s
+    }
+}
+
 /// 系統（＝一份活文件；首頁機架上的一塊模組）。
 /// 對齊 web 模型：一個 system 就是一份可開的文件，沒有「系統內筆記列表」中間層。
 struct NoteSystem: Identifiable, Hashable, Codable, Sendable {
@@ -168,6 +238,7 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
     var structureGen: Int       // 結構化世代
     var deletedAt: Date?        // 軟刪時間戳（nil=存活）
     var cardTitle: String?      // 結構化卡標（web payload={title,content} 的 title）
+    var excludedFromAI: Bool    // 🔒 智能排除：true 時不送給 AI（階段三）
 
     var isDeleted: Bool { deletedAt != nil }
 
@@ -175,7 +246,8 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
          isDone: Bool = false, isPinned: Bool = false, moduleKind: ModuleKind? = nil,
          modulePayload: String? = nil, orderIndex: Int = 0,
          source: BlockSource = .manual, aiHash: String? = nil,
-         structureGen: Int = 0, deletedAt: Date? = nil, cardTitle: String? = nil) {
+         structureGen: Int = 0, deletedAt: Date? = nil, cardTitle: String? = nil,
+         excludedFromAI: Bool = false) {
         self.id = id
         self.kind = kind
         self.text = text
@@ -189,12 +261,13 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
         self.structureGen = structureGen
         self.deletedAt = deletedAt
         self.cardTitle = cardTitle
+        self.excludedFromAI = excludedFromAI
     }
 
     // 向後相容解碼：舊資料缺新鍵時給預設值。
     enum CodingKeys: String, CodingKey {
         case id, kind, text, isDone, isPinned, moduleKind, modulePayload, orderIndex
-        case source, aiHash, structureGen, deletedAt, cardTitle
+        case source, aiHash, structureGen, deletedAt, cardTitle, excludedFromAI
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -211,6 +284,7 @@ struct Block: Identifiable, Hashable, Codable, Sendable {
         structureGen = try c.decodeIfPresent(Int.self, forKey: .structureGen) ?? 0
         deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
         cardTitle = try c.decodeIfPresent(String.self, forKey: .cardTitle)
+        excludedFromAI = try c.decodeIfPresent(Bool.self, forKey: .excludedFromAI) ?? false
     }
 }
 

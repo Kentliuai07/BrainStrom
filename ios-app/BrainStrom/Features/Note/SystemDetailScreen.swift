@@ -11,8 +11,12 @@ import SwiftUI
 struct SystemDetailScreen: View {
 
     let systemID: UUID
+    @Binding var path: NavigationPath
 
+    @Environment(CompositionRoot.self) private var root
     @Environment(\.palette) private var palette
+
+    @State private var systemSpec = SystemSpec()
 
     enum Tab: String, CaseIterable {
         case coach, notes, structure
@@ -38,21 +42,15 @@ struct SystemDetailScreen: View {
         VStack(spacing: 0) {
             tabBar
             ZStack {
-                placeholder(
-                    title: String(localized: "AI 教練"),
-                    glyph: "🤖",
-                    desc: String(localized: "陪你發想、幫你想清楚，看得到整個專案。階段三第 4 刀上線。"))
+                AICoachView(systemID: systemID)
                     .opacity(tab == .coach ? 1 : 0)
                     .allowsHitTesting(tab == .coach)
 
-                NoteScreen(systemID: systemID)
+                NotesListView(systemID: systemID, path: $path)
                     .opacity(tab == .notes ? 1 : 0)
                     .allowsHitTesting(tab == .notes)
 
-                placeholder(
-                    title: String(localized: "系統結構"),
-                    glyph: "🪪",
-                    desc: String(localized: "專案身份證：名稱／技術棧／資料庫／上線。只有 AI 能寫，你只能看。階段三第 2 刀上線。"))
+                SystemStructureView(spec: systemSpec)
                     .opacity(tab == .structure ? 1 : 0)
                     .allowsHitTesting(tab == .structure)
             }
@@ -60,6 +58,16 @@ struct SystemDetailScreen: View {
         }
         .background(palette.bg)
         .navigationBarHidden(true)
+        .onAppear(perform: reloadSpec)
+        .onChange(of: tab) { _, new in
+            if new == .structure { reloadSpec() }   // 切到結構頁時重讀（筆記/教練可能剛記入）
+        }
+    }
+
+    /// 從倉儲重讀身份證（update_spec 寫入後切回此頁即可見最新）。
+    private func reloadSpec() {
+        guard let repo = root.repository else { return }
+        systemSpec = (try? repo.systemSpec(systemID: systemID)) ?? SystemSpec()
     }
 
     // MARK: - 三分頁切換條（沿用工業風 segButton 樣式）
@@ -102,39 +110,11 @@ struct SystemDetailScreen: View {
         .accessibilityIdentifier("systemDetail.tab.\(t.rawValue)")
     }
 
-    // MARK: - 占位頁（教練／結構）
-
-    private func placeholder(title: String, glyph: String, desc: String) -> some View {
-        VStack(spacing: 14) {
-            Text(verbatim: glyph).font(.system(size: 40))
-            Text(title)
-                .font(Tokens.Fonts.display(20, weight: .heavy))
-                .foregroundStyle(palette.print)
-            Text(desc)
-                .font(Tokens.Fonts.body(13))
-                .foregroundStyle(palette.print2)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-            HStack(spacing: 5) {
-                Text(verbatim: "🚧").font(.system(size: 11))
-                Text(String(localized: "規劃中 · 階段三結構大修"))
-                    .font(Tokens.Fonts.mono(10, weight: .semibold))
-                    .kerning(1)
-                    .foregroundStyle(palette.print3)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(Capsule().fill(palette.orangeDim)
-                .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
-        .background(palette.bg)
-    }
 }
 
 #Preview("P2 專案首頁(三分頁)") {
     NavigationStack {
-        SystemDetailScreen(systemID: UUID())
+        SystemDetailScreen(systemID: UUID(), path: .constant(NavigationPath()))
     }
     .environment(CompositionRoot())
     .environment(\.palette, .matteBlack)

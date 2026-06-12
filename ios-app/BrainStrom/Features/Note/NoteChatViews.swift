@@ -4,7 +4,7 @@ import SwiftUI
 // 筆記頁 · 聊天面板（NoteScreen 的拆分）—— 氣泡串流／token／proposal／⚡重播
 // ============================================================
 
-extension NoteScreen {
+extension NoteDetailScreen {
 
     func chatPanel(_ doc: NoteDocument) -> some View {
         VStack(spacing: 0) {
@@ -148,6 +148,7 @@ extension NoteScreen {
                         switch item.action {
                         case "structure": showChat = false; noteVM?.runStructure(doc)
                         case "edit_text": noteVM?.runApplyEdit(doc, instruction: item.instruction ?? item.label)
+                        case "update_spec": noteVM?.applySpecPatch(doc, instructionJSON: item.instruction)
                         default: root.toast.show(String(localized: "即將推出"))
                         }
                     } label: {

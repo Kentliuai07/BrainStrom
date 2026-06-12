@@ -27,6 +27,8 @@ final class NoteDocument {
     private(set) var blocks: [Block]          // 全部塊（含軟刪，供快照）
     private(set) var docState: DocState
     private(set) var visibility: Visibility
+    /// 系統身份證（階段三；AI 透過 update_spec 寫入，人只能看）。
+    private(set) var systemSpec: SystemSpec
 
     var view: ViewMode = .article
     private(set) var naming: Bool = false
@@ -42,10 +44,11 @@ final class NoteDocument {
     private(set) var canUndo = false
     private(set) var canRedo = false
 
-    init?(systemID: UUID, repository: any NotesRepositoring) {
-        self.systemID = systemID
+    /// 階段三：依 noteID 開單篇筆記（多筆記）。systemID 由筆記自身帶出。
+    init?(noteID: UUID, repository: any NotesRepositoring) {
         self.repository = repository
-        guard let note = try? repository.documentNote(for: systemID) else { return nil }
+        guard let note = try? repository.note(id: noteID) else { return nil }
+        self.systemID = note.systemID
         self.noteID = note.id
         self.title = note.title
         self.blocks = note.blocks.sorted { $0.orderIndex < $1.orderIndex }
@@ -54,8 +57,9 @@ final class NoteDocument {
         self.aiRestructureCount = note.aiRestructureCount
         self.structuredAt = note.structuredAt
         self.nudge = note.nudge
-        let system = (try? repository.systems())?.first { $0.id == systemID }
+        let system = (try? repository.systems())?.first { $0.id == note.systemID }
         self.visibility = system?.visibility ?? .private
+        self.systemSpec = (try? repository.systemSpec(systemID: note.systemID)) ?? SystemSpec()
         self.naming = Self.isNamingGate(title: note.title, blocks: liveBlocksOf(self.blocks))
         if view == .cards && docState != .carded { view = .article }
         seedInitialVersionIfNeeded()
@@ -180,6 +184,12 @@ final class NoteDocument {
         try? repository.setVisibility(systemID: systemID, to: visibility)
     }
 
+    /// 系統身份證寫入（唯一通道＝AI 的 update_spec 提議經使用者點確認後呼叫）。
+    func updateSystemSpec(_ spec: SystemSpec) {
+        systemSpec = spec
+        try? repository.updateSystemSpec(systemID: systemID, spec: spec)
+    }
+
     func setView(_ v: ViewMode) {
         if v == .cards && docState != .carded { return }
         view = v
@@ -259,8 +269,9 @@ final class NoteDocument {
     var shouldSkipOptimize: Bool { Algo.shouldSkipAi(lastAiHash: lastAiHash, blocks: blocks) }
 
     /// 組 AI 傳輸 payload（changed 標記＝diff 結果或 instruction 全未釘選 DIFF）。
+    /// 階段三：🔒 排除的塊一律不送給 AI。
     func payload(changedIds: Set<UUID>) -> NotePayload {
-        NotePayload(title: title, blocks: orderedBlocks.map { block in
+        NotePayload(title: title, blocks: orderedBlocks.filter { !$0.excludedFromAI }.map { block in
             NotePayload.BlockPayload(
                 id: block.id.uuidString,
                 type: payloadType(block),
@@ -269,6 +280,27 @@ final class NoteDocument {
                 changed: changedIds.contains(block.id),
                 module: block.kind == .module)
         })
+    }
+
+    /// 組 AI 教練的「整個專案」上下文（階段三 第 4 刀）：
+    /// L1 身份證（空則 nil）＋ L3 其他筆記摘要（更新時間倒序、最多 8 篇、各取前 120 字）。
+    /// L2 當前筆記沿用 payload(changedIds:)，不在這裡重複。
+    func projectContext() -> ProjectContext {
+        let others = ((try? repository.notes(in: systemID)) ?? [])
+            .filter { $0.id != noteID }
+            .prefix(8)
+            .map { note -> ProjectContext.NoteDigest in
+                let first = note.liveBlocks.first {
+                    ($0.kind == .paragraph || $0.kind == .heading1 || $0.kind == .heading2)
+                        && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+                let raw = (first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let summary = raw.count > 120 ? String(raw.prefix(120)) + "…" : raw
+                return ProjectContext.NoteDigest(id: note.id.uuidString,
+                                                 title: note.title.isEmpty ? "未命名筆記" : note.title,
+                                                 summary: summary)
+            }
+        return ProjectContext(spec: systemSpec.isEmpty ? nil : systemSpec, otherNotes: Array(others))
     }
 
     /// applyEdit 用：全部未釘選 DIFF_TYPES 塊 id。
@@ -314,12 +346,19 @@ final class NoteDocument {
 
     // MARK: - 點子助攻 nudge
 
-    /// 離開清理（F9）：空名且零塊 → 軟刪該系統（回 true 讓呼叫端 toast）。
+    /// 離開清理（F9，洞3 修正）：空名且零塊 → 刪「這篇筆記」（不再誤刪整個系統）。
     @discardableResult
     func cleanupEmptyOnLeave() -> Bool {
         guard title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, orderedBlocks.isEmpty else { return false }
-        try? repository.deleteSystem(id: systemID)
+        try? repository.deleteNote(id: noteID)
         return true
+    }
+
+    /// 🔒 智能排除切換：該塊要不要送給 AI（階段三；不落版本）。
+    func toggleExcluded(_ id: UUID) {
+        guard let i = blocks.firstIndex(where: { $0.id == id }) else { return }
+        blocks[i].excludedFromAI.toggle()
+        persist(trigger: nil)
     }
 
     func nudgeFingerprint() -> String { Algo.nudgeHash(title: title, blocks: blocks) }

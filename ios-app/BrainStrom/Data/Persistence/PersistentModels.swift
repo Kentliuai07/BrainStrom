@@ -18,13 +18,15 @@ final class SystemEntity {
     var ownerId: String?
     /// 標籤（JSON 編碼的 [String]）。
     var tagsData: Data?
+    /// 系統身份證（階段三；JSON 編碼的 SystemSpec，nil=尚未填）。
+    var systemSpecData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \NoteEntity.system)
     var notes: [NoteEntity] = []
 
     init(id: UUID, name: String, createdAt: Date, updatedAt: Date,
          visibilityRaw: String? = Visibility.private.rawValue,
-         ownerId: String? = nil, tagsData: Data? = nil) {
+         ownerId: String? = nil, tagsData: Data? = nil, systemSpecData: Data? = nil) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
@@ -32,6 +34,7 @@ final class SystemEntity {
         self.visibilityRaw = visibilityRaw
         self.ownerId = ownerId
         self.tagsData = tagsData
+        self.systemSpecData = systemSpecData
     }
 }
 

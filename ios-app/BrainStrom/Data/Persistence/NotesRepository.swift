@@ -52,6 +52,20 @@ final class NotesRepository: NotesRepositoring {
         return try createNote(in: systemID, title: system.name)
     }
 
+    // MARK: - 系統身份證（階段三）
+
+    func systemSpec(systemID: UUID) throws -> SystemSpec? {
+        guard let entity = try fetchSystem(id: systemID), let data = entity.systemSpecData else { return nil }
+        return try? JSONDecoder().decode(SystemSpec.self, from: data)
+    }
+
+    func updateSystemSpec(systemID: UUID, spec: SystemSpec) throws {
+        guard let entity = try fetchSystem(id: systemID) else { return }
+        entity.systemSpecData = try JSONEncoder().encode(spec)
+        entity.updatedAt = .now
+        try context.save()
+    }
+
     /// 改系統名稱（＝文件標題；首頁卡片標題同源）。
     func renameSystem(id: UUID, name: String) throws {
         guard let entity = try fetchSystem(id: id) else { return }

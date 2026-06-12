@@ -169,6 +169,18 @@ final class NoteViewModel {
         }
     }
 
+    // MARK: - 記入系統身份證（proposal update_spec → 部分合併）
+
+    /// 解析 instruction 內的 JSON 補丁 → 合併進現有身份證（null/缺鍵不動）。
+    func applySpecPatch(_ doc: NoteDocument, instructionJSON: String?) {
+        guard let json = instructionJSON?.data(using: .utf8),
+              let patch = try? JSONDecoder().decode(SpecPatch.self, from: json) else {
+            toast.show(String(localized: "身份證資料讀取失敗")); return
+        }
+        doc.updateSystemSpec(patch.merged(into: doc.systemSpec))
+        toast.show(String(localized: "已記入系統結構"))
+    }
+
     // MARK: - 控制
 
     func abort() { task?.cancel(); task = nil; unlock() }
@@ -237,25 +249,25 @@ final class ChatViewModel {
     /// 切筆記清空（聊天歷史只存記憶體，附錄 D7）。
     func reset() { task?.cancel(); task = nil; messages = []; streaming = false }
 
-    func send(_ doc: NoteDocument, text: String) {
+    func send(_ doc: NoteDocument, text: String, project: ProjectContext? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !streaming else { return }
         messages.append(ChatBubble(role: .user, text: trimmed))
         runStream(doc, history: messages.map { ChatMessage(role: $0.role == .user ? .user : .ai, content: $0.text) },
-                  kickoff: false)
+                  kickoff: false, project: project)
     }
 
     // MARK: - ⚡ 點子助攻
 
     /// 教練開場：kickoff 串流，開場白＋proposals 存進 nudge.opening 快照。
-    func startKickoff(_ doc: NoteDocument) {
+    func startKickoff(_ doc: NoteDocument, project: ProjectContext? = nil) {
         guard !streaming else { return }
         doc.updateNudge { $0.state = .opened; $0.hash = doc.nudgeFingerprint(); $0.at = Date() }
-        runStream(doc, history: [], kickoff: true, saveNudge: true)
+        runStream(doc, history: [], kickoff: true, saveNudge: true, project: project)
     }
 
     /// 面板 ⚡：指紋同 → 零成本注入上次點評；不同 → 重新 kickoff。
-    func sparkReplay(_ doc: NoteDocument) {
+    func sparkReplay(_ doc: NoteDocument, project: ProjectContext? = nil) {
         guard !streaming else { return }
         let hash = doc.nudgeFingerprint()
         if let opening = doc.nudge.openingText, doc.nudge.hash == hash {
@@ -267,11 +279,12 @@ final class ChatViewModel {
             messages.append(bubble)
         } else {
             doc.updateNudge { $0.state = .opened; $0.hash = hash; $0.at = Date() }
-            runStream(doc, history: [], kickoff: true, saveNudge: true)
+            runStream(doc, history: [], kickoff: true, saveNudge: true, project: project)
         }
     }
 
-    private func runStream(_ doc: NoteDocument, history: [ChatMessage], kickoff: Bool, saveNudge: Bool = false) {
+    private func runStream(_ doc: NoteDocument, history: [ChatMessage], kickoff: Bool,
+                           saveNudge: Bool = false, project: ProjectContext? = nil) {
         streaming = true
         let aiIndex = messages.count
         messages.append(ChatBubble(role: .ai, text: ""))
@@ -281,7 +294,7 @@ final class ChatViewModel {
             var accumulated = ""
             var captured: [ProposalItem] = []
             do {
-                for try await event in ai.chatNote(messages: history, note: payload, kickoff: kickoff) {
+                for try await event in ai.chatNote(messages: history, note: payload, project: project, kickoff: kickoff) {
                     guard aiIndex < messages.count else { break }
                     switch event {
                     case .delta(let t):

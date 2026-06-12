@@ -28,10 +28,15 @@ final class CoreFlowUITests: XCTestCase {
         XCTAssertTrue(login.waitForExistence(timeout: 10), "登入頁未出現")
         login.tap()
 
-        // 建系統
+        // 建系統 → 進專案首頁（三分頁，預設「開發筆記」清單）
         let create = el("home.create")
         XCTAssertTrue(create.waitForExistence(timeout: 10), "首頁加號未出現")
         create.tap()
+
+        // 階段三：開發筆記清單 → 新增第一篇筆記 → 進單篇編輯頁
+        let newNote = el("noteslist.create")
+        XCTAssertTrue(newNote.waitForExistence(timeout: 10), "筆記清單新增鍵未出現")
+        newNote.tap()
 
         // 命名態：先隨便取 → 解鎖編輯
         let quick = el("note.quickname")

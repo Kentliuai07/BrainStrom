@@ -16,6 +16,9 @@ protocol NotesRepositoring: AnyObject {
     func deleteSystem(id: UUID) throws
     func setVisibility(systemID: UUID, to visibility: Visibility) throws
     func renameSystem(id: UUID, name: String) throws
+    // —— 系統身份證（階段三）——
+    func systemSpec(systemID: UUID) throws -> SystemSpec?
+    func updateSystemSpec(systemID: UUID, spec: SystemSpec) throws
     /// 取出（或惰性建立）某 system 的唯一文件筆記。
     @discardableResult
     func documentNote(for systemID: UUID) throws -> Note

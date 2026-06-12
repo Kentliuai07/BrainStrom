@@ -22,13 +22,14 @@ struct AIServiceLive: AIServicing {
         }
     }
 
-    func chatNote(messages: [ChatMessage], note: NotePayload, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error> {
+    func chatNote(messages: [ChatMessage], note: NotePayload, project: ProjectContext?, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error> {
         struct Body: Encodable {
             let messages: [ChatMessage]
             let note: NotePayload
+            let project: ProjectContext?
             let kickoff: Bool
         }
-        return stream(path: "ai/chat/note", body: Body(messages: messages, note: note, kickoff: kickoff))
+        return stream(path: "ai/chat/note", body: Body(messages: messages, note: note, project: project, kickoff: kickoff))
     }
 
     func optimize(note: NotePayload, groupTopics: Bool, instruction: String?) -> AsyncThrowingStream<AIEvent, any Error> {

@@ -7,9 +7,9 @@ import SwiftUI
 // AI 全接真後端（NoteViewModel/ChatViewModel）。工業橘皮不變。
 // ============================================================
 
-struct NoteScreen: View {
+struct NoteDetailScreen: View {
 
-    let systemID: UUID
+    let noteID: UUID
 
     @Environment(CompositionRoot.self) var root
     @Environment(\.palette) var palette
@@ -42,7 +42,7 @@ struct NoteScreen: View {
 
     private func load() {
         guard doc == nil, let repo = root.repository else { return }
-        doc = NoteDocument(systemID: systemID, repository: repo)
+        doc = NoteDocument(noteID: noteID, repository: repo)
         noteVM = NoteViewModel(ai: root.ai, toast: root.toast)
         chatVM = ChatViewModel(ai: root.ai, toast: root.toast)
     }
@@ -189,7 +189,7 @@ struct NoteScreen: View {
             dockKey("▦", disabled: doc.naming || noteVM?.aiBusy == true) { Haptics.press(); noteVM?.runStructure(doc) }
                 .accessibilityIdentifier("dock.structure")
             dockIcon("trash", accent: false, disabled: false) {
-                deleteSystem()
+                deleteNote(doc)
             }
             Spacer()
             if doc.savedFlash {
@@ -292,17 +292,17 @@ struct NoteScreen: View {
         .opacity(item.locked ? 0.55 : 1)
     }
 
-    private func deleteSystem() {
+    private func deleteNote(_ doc: NoteDocument) {
         Haptics.warning()
-        try? root.repository?.deleteSystem(id: systemID)
-        root.toast.show(String(localized: "已刪除系統"))
+        try? root.repository?.deleteNote(id: doc.noteID)
+        root.toast.show(String(localized: "已刪除筆記"))
         dismiss()
     }
 }
 
 #Preview("P2 筆記頁") {
     NavigationStack {
-        NoteScreen(systemID: UUID())
+        NoteDetailScreen(noteID: UUID())
     }
     .environment(CompositionRoot())
     .environment(\.palette, .matteBlack)

@@ -68,8 +68,9 @@ struct RootView: View {
     private var previewScreen: some View {
         let arg = ProcessInfo.processInfo.arguments
         if arg.contains("note"), let repo = root.repository,
-           let sys = (try? repo.systems())?.first ?? (try? repo.createSystem(name: "")) {
-            NavigationStack { NoteScreen(systemID: sys.id) }
+           let sys = (try? repo.systems())?.first ?? (try? repo.createSystem(name: "")),
+           let note = try? repo.documentNote(for: sys.id) {
+            NavigationStack { NoteDetailScreen(noteID: note.id) }
         } else if arg.contains("settings") {
             NavigationStack { SettingsScreen() }
         } else if arg.contains("login") {

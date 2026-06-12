@@ -86,6 +86,19 @@ extension NotePayload {
     }
 }
 
+/// AI 教練的「整個專案」上下文切片（階段三 第 4 刀）。
+/// L1 身份證 + L3 其他筆記摘要；L2「當前筆記」沿用既有 `note` 參數，不重複塞。
+struct ProjectContext: Equatable, Codable, Sendable {
+    /// 一篇其他筆記的極簡切片（標題＋前 120 字摘要）。
+    struct NoteDigest: Equatable, Codable, Sendable {
+        let id: String
+        let title: String
+        let summary: String
+    }
+    let spec: SystemSpec?            // L1（nil＝身份證全空，省略）
+    let otherNotes: [NoteDigest]     // L3（按更新時間倒序，已裁剪，最多 8 篇）
+}
+
 /// 聊天訊息（role 對齊後端：user | ai）。
 struct ChatMessage: Equatable, Codable, Sendable {
     enum Role: String, Codable, Sendable {
@@ -103,7 +116,8 @@ protocol AIServicing: Sendable {
     func health() async -> Bool
 
     /// 跟筆記對話（kickoff=true 時 messages 可空，教練主動開口）。
-    func chatNote(messages: [ChatMessage], note: NotePayload, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error>
+    /// project 非 nil＝AI 教練模式（看得到身份證＋其他筆記摘要）；nil＝單筆記聊天（行為不變）。
+    func chatNote(messages: [ChatMessage], note: NotePayload, project: ProjectContext?, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error>
 
     /// ✦ 優化文字。
     func optimize(note: NotePayload, groupTopics: Bool, instruction: String?) -> AsyncThrowingStream<AIEvent, any Error>

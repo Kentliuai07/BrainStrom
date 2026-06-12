@@ -11,6 +11,7 @@ import SwiftUI
 enum HomeRoute: Hashable {
     case settings
     case systemDetail(id: UUID)
+    case noteDetail(noteID: UUID)
 }
 
 struct HomeScreen: View {
@@ -40,7 +41,8 @@ struct HomeScreen: View {
             .navigationDestination(for: HomeRoute.self) { route in
                 switch route {
                 case .settings: SettingsScreen()
-                case .systemDetail(let id): SystemDetailScreen(systemID: id)
+                case .systemDetail(let id): SystemDetailScreen(systemID: id, path: $path)
+                case .noteDetail(let id): NoteDetailScreen(noteID: id)
                 }
             }
         }
@@ -188,6 +190,10 @@ struct HomeScreen: View {
     private func reload() {
         guard let repo = root.repository else { systems = []; loaded = true; return }
         do {
+            // 階段三：清掉沒有任何筆記的空系統（建了沒寫就走的殘留；在首頁清最安全，不會誤刪正在編輯的）
+            for s in (try? repo.systems()) ?? [] where s.noteCount == 0 {
+                try? repo.deleteSystem(id: s.id)
+            }
             systems = try repo.systems()
             loadFailed = false
         } catch {
