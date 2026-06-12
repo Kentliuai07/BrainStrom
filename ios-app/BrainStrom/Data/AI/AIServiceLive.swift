@@ -22,14 +22,31 @@ struct AIServiceLive: AIServicing {
         }
     }
 
-    func chatNote(messages: [ChatMessage], note: NotePayload, project: ProjectContext?, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error> {
+    func chatNote(messages: [ChatMessage], note: NotePayload, project: ProjectContext?, mode: String?, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error> {
         struct Body: Encodable {
             let messages: [ChatMessage]
             let note: NotePayload
             let project: ProjectContext?
+            let mode: String?
             let kickoff: Bool
         }
-        return stream(path: "ai/chat/note", body: Body(messages: messages, note: note, project: project, kickoff: kickoff))
+        return stream(path: "ai/chat/note", body: Body(messages: messages, note: note, project: project, mode: mode, kickoff: kickoff))
+    }
+
+    func findCompetitors(brief: String) async throws -> [CompetitorItem] {
+        struct Body: Encodable { let brief: String }
+        struct Resp: Decodable { let items: [CompetitorItem] }
+        var request = URLRequest(url: config.baseURL.appending(path: "find/competitors"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(config.authToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(Body(brief: brief))
+        request.timeoutInterval = 20
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return (try? JSONDecoder().decode(Resp.self, from: data).items) ?? []
     }
 
     func optimize(note: NotePayload, groupTopics: Bool, instruction: String?) -> AsyncThrowingStream<AIEvent, any Error> {

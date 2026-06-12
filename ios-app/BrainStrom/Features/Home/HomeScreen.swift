@@ -8,9 +8,12 @@ import SwiftUI
 
 /// 導航路由（首頁推到設定 / 專案首頁）。
 /// 階段三起改為唯一路由源——點系統卡推 `.systemDetail`（三分頁容器），不再直推 UUID。
+/// 建專案的兩條路（弹窗②選）。
+enum CreationMode: Hashable { case kickoff, notes }
+
 enum HomeRoute: Hashable {
     case settings
-    case systemDetail(id: UUID, autoKickoff: Bool)
+    case systemDetail(id: UUID, mode: CreationMode)
     case noteDetail(noteID: UUID)
 }
 
@@ -24,6 +27,7 @@ struct HomeScreen: View {
     @State private var loaded = false
     @State private var loadFailed = false
     @State private var showCreateDialog = false
+    @State private var showModeDialog = false
     @State private var newProjectName = ""
 
     var body: some View {
@@ -43,8 +47,8 @@ struct HomeScreen: View {
             .navigationDestination(for: HomeRoute.self) { route in
                 switch route {
                 case .settings: SettingsScreen()
-                case .systemDetail(let id, let autoKickoff):
-                    SystemDetailScreen(systemID: id, path: $path, autoKickoff: autoKickoff)
+                case .systemDetail(let id, let mode):
+                    SystemDetailScreen(systemID: id, path: $path, mode: mode)
                 case .noteDetail(let id): NoteDetailScreen(noteID: id)
                 }
             }
@@ -53,13 +57,25 @@ struct HomeScreen: View {
         .onChange(of: path) { _, new in
             if new.isEmpty { reload() }  // 從筆記/設定返回 → 刷新清單
         }
+        // 弹窗①：输入名称/灵感
         .alert(String(localized: "新增專案"), isPresented: $showCreateDialog) {
             TextField(String(localized: "系統名稱，或一個靈感…"), text: $newProjectName)
                 .accessibilityIdentifier("home.projectNameInput")
-            Button(String(localized: "開始")) { createProject() }
+            Button(String(localized: "下一步")) {
+                // 接力弹窗②（稍延一拍让弹窗①先收）
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { showModeDialog = true }
+            }
             Button(String(localized: "取消"), role: .cancel) { newProjectName = "" }
         } message: {
-            Text(String(localized: "先給專案取個名字或丟一個靈感，AI 教練會接著陪你聊。"))
+            Text(String(localized: "先給專案取個名字或丟一個靈感。"))
+        }
+        // 弹窗②：选「进 AI 引导」或「之后慢慢填」
+        .confirmationDialog(String(localized: "要怎麼開始？"), isPresented: $showModeDialog, titleVisibility: .visible) {
+            Button(String(localized: "🤖 進 AI 引導（建議）")) { createProject(mode: .kickoff) }
+            Button(String(localized: "📝 之後慢慢填，自己寫")) { createProject(mode: .notes) }
+            Button(String(localized: "取消"), role: .cancel) { newProjectName = "" }
+        } message: {
+            Text(String(localized: "進引導：AI 一題一題帶你把專案想清楚。慢慢填：先自由寫，AI 在旁邊偵測幫你記。"))
         }
     }
 
@@ -114,7 +130,7 @@ struct HomeScreen: View {
             Text(verbatim: "✦")
                 .font(.system(size: 14))
                 .foregroundStyle(palette.orange)
-            Text(String(localized: "＋ 建專案 → 輸入名稱或靈感 → 直接進 AI 教練開聊，邊聊邊加入筆記（雲端部署測試 ✓）"))
+            Text(String(localized: "＋ 建專案 → 輸入名稱或靈感 → AI 引導你想清楚痛點/用戶/功能，邊聊邊填身份證"))
                 .font(Tokens.Fonts.body(12))
                 .foregroundStyle(palette.print)
         }
@@ -159,7 +175,7 @@ struct HomeScreen: View {
                 ForEach(systems) { system in
                     Button {
                         Haptics.tap()
-                        path.append(HomeRoute.systemDetail(id: system.id, autoKickoff: false))
+                        path.append(HomeRoute.systemDetail(id: system.id, mode: .notes))
                     } label: {
                         SystemCardView(system: system)
                     }
@@ -213,14 +229,14 @@ struct HomeScreen: View {
         loaded = true
     }
 
-    /// 階段三 v3：弹窗輸入名稱/靈感 → 原子建系統+主筆記 → 進專案首頁(預設教練分頁)自動開場。
-    private func createProject() {
+    /// build7：弹窗②选模式后 → 原子建系統+主筆記 → 進專案首頁（kickoff→教練自动开场；notes→开发笔记）。
+    private func createProject(mode: CreationMode) {
         guard let repository = root.repository else { return }
         let name = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
         newProjectName = ""
         let title = name.isEmpty ? String(localized: "未命名專案") : name
         guard let result = try? repository.createSystemWithPrimaryNote(name: title) else { return }
-        path.append(HomeRoute.systemDetail(id: result.system.id, autoKickoff: true))
+        path.append(HomeRoute.systemDetail(id: result.system.id, mode: mode))
     }
 }
 

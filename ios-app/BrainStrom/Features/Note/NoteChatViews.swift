@@ -71,7 +71,8 @@ extension NoteDetailScreen {
         let text = chatInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         chatInput = ""
-        chatVM?.send(doc, text: text)
+        // build7 · B 模式：单笔记聊天也带 spec 上下文，後端偵測到身份證資訊就抛「記入結構」鈕。
+        chatVM?.send(doc, text: text, project: doc.projectContext())
     }
 
     @ViewBuilder

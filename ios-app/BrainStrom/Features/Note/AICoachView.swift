@@ -23,12 +23,15 @@ struct AICoachView: View {
     @State private var noteVM: NoteViewModel?
     @State private var input = ""
     @State private var didAutoKickoff = false
+    @State private var competitorResults: [CompetitorItem] = []
+    @State private var findingCompetitors = false
     @FocusState private var inputFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             header
             chatList
+            competitorBar
             inputBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -50,14 +53,16 @@ struct AICoachView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(String(localized: "AI 教練"))
                     .font(Tokens.Fonts.display(19, weight: .heavy)).foregroundStyle(palette.print)
-                Text(String(localized: "看得到整個專案 · 陪你想清楚"))
-                    .font(Tokens.Fonts.body(11)).foregroundStyle(palette.print3)
+                // 進度「X/核心4」——核心4=一句話/目標用戶/痛點/核心功能
+                let filled = doc?.systemSpec.coreFilledCount ?? 0
+                Text(String(format: String(localized: "身份證核心 %d/4 · 引導你想清楚"), filled))
+                    .font(Tokens.Fonts.body(11)).foregroundStyle(filled >= 4 ? palette.ledGreen : palette.print3)
             }
             Spacer()
             Button {
                 Haptics.press(); kickoff()
             } label: {
-                Text(String(localized: "⚡ 開場"))
+                Text((chatVM?.messages.isEmpty ?? true) ? String(localized: "⚡ 開始引導") : String(localized: "↻ 重新引導"))
                     .font(Tokens.Fonts.body(12.5, weight: .semibold))
                     .padding(.horizontal, 12).frame(height: 34)
             }
@@ -160,6 +165,73 @@ struct AICoachView: View {
         }
     }
 
+    // MARK: - 競品條（資訊夠時浮現；找競品 + 點卡記入）
+
+    @ViewBuilder
+    private var competitorBar: some View {
+        if let d = doc, d.systemSpec.infoEnoughForCompetitors {
+            VStack(alignment: .leading, spacing: 6) {
+                if competitorResults.isEmpty {
+                    Button { findCompetitors() } label: {
+                        HStack(spacing: 6) {
+                            if findingCompetitors { ProgressView().controlSize(.mini).tint(palette.orange) }
+                            Text(findingCompetitors ? String(localized: "搜尋競品中…")
+                                 : String(localized: "🔍 幫你找競品（App Store + GitHub）"))
+                                .font(Tokens.Fonts.body(12, weight: .semibold)).foregroundStyle(palette.orange)
+                        }
+                        .padding(.horizontal, 12).frame(height: 34)
+                        .background(Capsule().fill(palette.orangeDim)
+                            .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+                    }
+                    .buttonStyle(.plain).disabled(findingCompetitors)
+                    .accessibilityIdentifier("coach.findcompetitors")
+                } else {
+                    Text(String(localized: "點一張記入身份證的「競品」："))
+                        .font(Tokens.Fonts.mono(10)).foregroundStyle(palette.print3)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(competitorResults, id: \.url) { c in competitorChip(c, d) }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 12).padding(.top, 8)
+        }
+    }
+
+    private func competitorChip(_ c: CompetitorItem, _ d: NoteDocument) -> some View {
+        Button {
+            d.addCompetitors([c]); competitorResults.removeAll { $0.url == c.url }
+            root.toast.show(String(localized: "已記入競品"))
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(verbatim: c.source == "github" ? "🐙" : "").font(.system(size: 11))
+                    Text(c.title).font(Tokens.Fonts.body(11.5, weight: .semibold)).foregroundStyle(palette.print).lineLimit(1)
+                }
+                Text(c.subtitle ?? "").font(Tokens.Fonts.body(9.5)).foregroundStyle(palette.print3).lineLimit(1)
+            }
+            .frame(width: 150, alignment: .leading)
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 10).fill(palette.panel2)
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func findCompetitors() {
+        guard let d = doc, !findingCompetitors else { return }
+        let brief = [d.systemSpec.oneLiner, d.systemSpec.targetUser, d.title]
+            .compactMap { $0 }.first { !$0.isEmpty } ?? d.title
+        findingCompetitors = true
+        Task {
+            let items = (try? await root.ai.findCompetitors(brief: brief)) ?? []
+            findingCompetitors = false
+            if items.isEmpty { root.toast.show(String(localized: "暫時沒找到，稍後再試")) }
+            else { competitorResults = items }
+        }
+    }
+
     // MARK: - 輸入列
 
     private var inputBar: some View {
@@ -212,15 +284,16 @@ struct AICoachView: View {
 
     private func kickoff() {
         guard let d = ensureDoc() else { return }
-        // 拿專案名稱/靈感（＝主筆記標題）當第一句話開場。
-        chatVM?.coachOpen(d, seed: d.title, project: d.projectContext())
+        if chatVM?.messages.isEmpty == false { chatVM?.reset() }   // 重新引導：先清空再開
+        // 引導式訪談：拿專案名稱/靈感（＝主筆記標題）當第一句話開場。
+        chatVM?.coachOpen(d, seed: d.title, project: d.projectContext(), mode: "guided")
     }
 
     private func send() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, let d = ensureDoc() else { return }
         input = ""
-        chatVM?.send(d, text: text, project: d.projectContext())
+        chatVM?.send(d, text: text, project: d.projectContext(), mode: "guided")
     }
 
     /// 把教練回覆追加進主筆記（appendFromContinue 會自動切塊）。

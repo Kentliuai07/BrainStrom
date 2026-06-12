@@ -12,8 +12,8 @@ struct SystemDetailScreen: View {
 
     let systemID: UUID
     @Binding var path: NavigationPath
-    /// 新建專案進來＝true：預設停教練分頁並自動開場。
-    var autoKickoff: Bool = false
+    /// 建專案模式：kickoff→預設教練分頁+自動引導開場；notes→開發筆記。既有系統卡點入＝.notes。
+    var mode: CreationMode = .notes
 
     @Environment(CompositionRoot.self) private var root
     @Environment(\.palette) private var palette
@@ -39,11 +39,11 @@ struct SystemDetailScreen: View {
 
     @State private var tab: Tab
 
-    init(systemID: UUID, path: Binding<NavigationPath>, autoKickoff: Bool = false) {
+    init(systemID: UUID, path: Binding<NavigationPath>, mode: CreationMode = .notes) {
         self.systemID = systemID
         self._path = path
-        self.autoKickoff = autoKickoff
-        self._tab = State(initialValue: autoKickoff ? .coach : .notes)   // 新建專案直接進教練
+        self.mode = mode
+        self._tab = State(initialValue: mode == .kickoff ? .coach : .notes)   // 引導模式直接進教練
     }
 
     var body: some View {
@@ -51,7 +51,7 @@ struct SystemDetailScreen: View {
             topBar
             tabBar
             ZStack {
-                AICoachView(systemID: systemID, autoKickoff: autoKickoff, active: tab == .coach)
+                AICoachView(systemID: systemID, autoKickoff: mode == .kickoff, active: tab == .coach)
                     .opacity(tab == .coach ? 1 : 0)
                     .allowsHitTesting(tab == .coach)
 

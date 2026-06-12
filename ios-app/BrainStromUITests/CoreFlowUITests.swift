@@ -29,21 +29,26 @@ final class CoreFlowUITests: XCTestCase {
         XCTAssertTrue(login.waitForExistence(timeout: 10), "登入頁未出現")
         login.tap()
 
-        // ＋ 建專案 → 彈窗輸入名稱/靈感
+        // ＋ 建專案 → 弹窗①输入名稱/靈感
         let create = el("home.create")
         XCTAssertTrue(create.waitForExistence(timeout: 10), "首頁加號未出現")
         create.tap()
 
         let alert = app.alerts.firstMatch
-        XCTAssertTrue(alert.waitForExistence(timeout: 8), "建專案彈窗未出現")
+        XCTAssertTrue(alert.waitForExistence(timeout: 8), "建專案彈窗①未出現")
         let nameField = alert.textFields.firstMatch
         XCTAssertTrue(nameField.waitForExistence(timeout: 5), "名稱輸入框未出現")
         nameField.tap()
         nameField.typeText("健身 App")
-        alert.buttons["開始"].tap()
+        alert.buttons["下一步"].tap()
 
-        // 預設停在 AI 教練分頁並自動開場（Stub kickoff 回「## 教練開場」）
-        XCTAssertTrue(app.staticTexts["教練開場"].waitForExistence(timeout: 15), "AI 教練未自動開場")
+        // 弹窗②：选「进 AI 引导」
+        let guidedBtn = app.buttons["🤖 進 AI 引導（建議）"]
+        XCTAssertTrue(guidedBtn.waitForExistence(timeout: 8), "建專案彈窗②（選模式）未出現")
+        guidedBtn.tap()
+
+        // 預設停在 AI 教練分頁並自動引導開場（Stub kickoff 回「## 教練開場」）
+        XCTAssertTrue(app.staticTexts["教練開場"].waitForExistence(timeout: 15), "AI 教練未自動引導開場")
 
         // 📝 加入筆記：把教練回覆加進主筆記
         let addNote = el("coach.addnote")

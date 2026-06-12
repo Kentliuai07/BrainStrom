@@ -12,7 +12,12 @@ struct AIServiceStub: AIServicing {
 
     func health() async -> Bool { true }
 
-    func chatNote(messages: [ChatMessage], note: NotePayload, project: ProjectContext?, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error> {
+    func findCompetitors(brief: String) async throws -> [CompetitorItem] {
+        [CompetitorItem(source: "app_store", title: "Fitbod", url: "https://apps.apple.com", subtitle: "Fitbod Inc. · 免費", note: nil),
+         CompetitorItem(source: "github", title: "open/fitness-ai", url: "https://github.com", subtitle: "AI workout planner", note: nil)]
+    }
+
+    func chatNote(messages: [ChatMessage], note: NotePayload, project: ProjectContext?, mode: String?, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error> {
         let deltas = kickoff
             ? ["## 教練開場\n\n", "看了你寫的「\(note.title)」，", "**方向不錯**。先想清楚要解決誰的什麼問題。"]
             : ["## 觀測建議\n\n", "你的表有 **兩個問題**：\n\n", "- 河堤—公園只在週末有紀錄\n", "- 平日 17:00 後常跳過\n\n", "建議改成 `早上通學前` 量。"]

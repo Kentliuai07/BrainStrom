@@ -116,12 +116,16 @@ protocol AIServicing: Sendable {
     func health() async -> Bool
 
     /// 跟筆記對話（kickoff=true 時 messages 可空，教練主動開口）。
-    /// project 非 nil＝AI 教練模式（看得到身份證＋其他筆記摘要）；nil＝單筆記聊天（行為不變）。
-    func chatNote(messages: [ChatMessage], note: NotePayload, project: ProjectContext?, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error>
+    /// project 非 nil＝AI 教練模式（看得到身份證＋其他筆記摘要）；nil＝單筆記聊天。
+    /// mode="guided"＝引導式訪談（一次一題出選項）；nil/"free"＝一般對談/單筆記聊天。
+    func chatNote(messages: [ChatMessage], note: NotePayload, project: ProjectContext?, mode: String?, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error>
 
     /// ✦ 優化文字。
     func optimize(note: NotePayload, groupTopics: Bool, instruction: String?) -> AsyncThrowingStream<AIEvent, any Error>
 
     /// ▦ 卡片結構化（mode=full）。
     func structure(note: NotePayload) -> AsyncThrowingStream<AIEvent, any Error>
+
+    /// build7 · 找競品（免費 iTunes + GitHub Search，後端聚合，非串流）。
+    func findCompetitors(brief: String) async throws -> [CompetitorItem]
 }

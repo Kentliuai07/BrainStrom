@@ -163,6 +163,16 @@ final class NoteDocument {
         try? repository.updateSystemSpec(systemID: systemID, spec: spec)
     }
 
+    /// build7：把使用者點選的競品記入身份證（去重，依 url）。
+    func addCompetitors(_ items: [CompetitorItem]) {
+        var s = systemSpec
+        for it in items where !s.competitors.contains(where: { $0.url == it.url }) {
+            s.competitors.append(it)
+        }
+        if !s.confirmedFields.contains("competitors") { s.confirmedFields.append("competitors") }
+        updateSystemSpec(s)
+    }
+
     func setView(_ v: ViewMode) {
         if v == .cards && docState != .carded { return }
         view = v

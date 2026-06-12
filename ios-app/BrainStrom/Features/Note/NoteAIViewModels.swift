@@ -248,27 +248,27 @@ final class ChatViewModel {
     /// 切筆記清空（聊天歷史只存記憶體，附錄 D7）。
     func reset() { task?.cancel(); task = nil; messages = []; streaming = false }
 
-    func send(_ doc: NoteDocument, text: String, project: ProjectContext? = nil) {
+    func send(_ doc: NoteDocument, text: String, project: ProjectContext? = nil, mode: String? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !streaming else { return }
         messages.append(ChatBubble(role: .user, text: trimmed))
         runStream(doc, history: messages.map { ChatMessage(role: $0.role == .user ? .user : .ai, content: $0.text) },
-                  kickoff: false, project: project)
+                  kickoff: false, project: project, mode: mode)
     }
 
     // MARK: - 🤖 AI 教練開場（階段三 v3，專案級；不依賴 nudge）
 
     /// 拿「名稱/靈感」當第一句話開場：注入成首條 user 訊息 → kickoff 串流。messages 已有內容則不重複開場。
-    func coachOpen(_ doc: NoteDocument, seed: String, project: ProjectContext? = nil) {
+    func coachOpen(_ doc: NoteDocument, seed: String, project: ProjectContext? = nil, mode: String? = nil) {
         guard !streaming, messages.isEmpty else { return }
         let s = seed.trimmingCharacters(in: .whitespacesAndNewlines)
         if !s.isEmpty { messages.append(ChatBubble(role: .user, text: s)) }
         let history = messages.map { ChatMessage(role: $0.role == .user ? .user : .ai, content: $0.text) }
-        runStream(doc, history: history, kickoff: true, project: project)
+        runStream(doc, history: history, kickoff: true, project: project, mode: mode)
     }
 
     private func runStream(_ doc: NoteDocument, history: [ChatMessage], kickoff: Bool,
-                           project: ProjectContext? = nil) {
+                           project: ProjectContext? = nil, mode: String? = nil) {
         streaming = true
         let aiIndex = messages.count
         messages.append(ChatBubble(role: .ai, text: ""))
@@ -278,7 +278,7 @@ final class ChatViewModel {
             var accumulated = ""
             var captured: [ProposalItem] = []
             do {
-                for try await event in ai.chatNote(messages: history, note: payload, project: project, kickoff: kickoff) {
+                for try await event in ai.chatNote(messages: history, note: payload, project: project, mode: mode, kickoff: kickoff) {
                     guard aiIndex < messages.count else { break }
                     switch event {
                     case .delta(let t):
