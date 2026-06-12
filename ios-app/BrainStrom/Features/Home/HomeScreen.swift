@@ -114,7 +114,7 @@ struct HomeScreen: View {
             Text(verbatim: "✦")
                 .font(.system(size: 14))
                 .foregroundStyle(palette.orange)
-            Text(String(localized: "＋ 建專案 → 輸入名稱或靈感 → 直接進 AI 教練開聊，邊聊邊加入筆記"))
+            Text(String(localized: "＋ 建專案 → 輸入名稱或靈感 → 直接進 AI 教練開聊，邊聊邊加入筆記（雲端部署測試 ✓）"))
                 .font(Tokens.Fonts.body(12))
                 .foregroundStyle(palette.print)
         }
