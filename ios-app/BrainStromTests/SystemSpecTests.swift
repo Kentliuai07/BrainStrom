@@ -61,4 +61,55 @@ final class SystemSpecTests: XCTestCase {
         let back = try JSONDecoder().decode(SystemSpec.self, from: data)
         XCTAssertEqual(spec, back)
     }
+
+    // ===== build7：5 区扩充 =====
+
+    func testNewIdeaFieldsMerge() {
+        let merged = patch(#"{"oneLiner":"给健身新手的AI排课","painPoint":"不会排课","coreFeatures":"排课/纠错/营养"}"#)
+            .merged(into: SystemSpec())
+        XCTAssertEqual(merged.oneLiner, "给健身新手的AI排课")
+        XCTAssertEqual(merged.painPoint, "不会排课")
+        XCTAssertEqual(merged.coreFeatures, "排课/纠错/营养")
+    }
+
+    func testCoreFilledCountAndComplete() {
+        var s = SystemSpec()
+        XCTAssertEqual(s.coreFilledCount, 0); XCTAssertFalse(s.coreComplete)
+        s.oneLiner = "x"; s.targetUser = "y"; s.painPoint = "z"
+        XCTAssertEqual(s.coreFilledCount, 3)
+        XCTAssertTrue(s.infoEnoughForCompetitors)   // 一句话+痛点+目标用户齐 → 可找竞品
+        XCTAssertFalse(s.coreComplete)
+        s.coreFeatures = "f"
+        XCTAssertEqual(s.coreFilledCount, 4); XCTAssertTrue(s.coreComplete)
+    }
+
+    func testMergeMarksConfirmed() {
+        let merged = patch(#"{"oneLiner":"a","frontend":"SwiftUI"}"#).merged(into: SystemSpec())
+        XCTAssertTrue(merged.confirmedFields.contains("oneLiner"))
+        XCTAssertTrue(merged.confirmedFields.contains("frontend"))
+        XCTAssertFalse(merged.confirmedFields.contains("painPoint"))
+    }
+
+    func testBackwardCompatDecodeOld7FieldJSON() throws {
+        // 旧资料(build6 之前)只有 7 技术字段 → 新字段应安全默认 nil/[]
+        let oldJSON = #"{"name":"旧专案","frontend":"React","apis":["Stripe"]}"#
+        let s = try JSONDecoder().decode(SystemSpec.self, from: Data(oldJSON.utf8))
+        XCTAssertEqual(s.name, "旧专案")
+        XCTAssertEqual(s.frontend, "React")
+        XCTAssertEqual(s.apis, ["Stripe"])
+        XCTAssertNil(s.oneLiner); XCTAssertNil(s.painPoint)
+        XCTAssertTrue(s.competitors.isEmpty); XCTAssertTrue(s.confirmedFields.isEmpty)
+    }
+
+    func testCompetitorItemRoundTrip() throws {
+        let c = CompetitorItem(source: "app_store", title: "Fitbod", url: "https://x", subtitle: "Fitbod Inc.")
+        let back = try JSONDecoder().decode(CompetitorItem.self, from: JSONEncoder().encode(c))
+        XCTAssertEqual(c, back)
+    }
+
+    func testIsEmptyConsidersNewFields() {
+        XCTAssertTrue(SystemSpec().isEmpty)
+        XCTAssertFalse(SystemSpec(oneLiner: "x").isEmpty)
+        XCTAssertFalse(SystemSpec(competitors: [CompetitorItem(source: "github", title: "r", url: "u")]).isEmpty)
+    }
 }
