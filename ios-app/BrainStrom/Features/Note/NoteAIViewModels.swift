@@ -221,7 +221,33 @@ final class ChatViewModel {
                   kickoff: false)
     }
 
-    private func runStream(_ doc: NoteDocument, history: [ChatMessage], kickoff: Bool) {
+    // MARK: - ⚡ 點子助攻
+
+    /// 教練開場：kickoff 串流，開場白＋proposals 存進 nudge.opening 快照。
+    func startKickoff(_ doc: NoteDocument) {
+        guard !streaming else { return }
+        doc.updateNudge { $0.state = .opened; $0.hash = doc.nudgeFingerprint(); $0.at = Date() }
+        runStream(doc, history: [], kickoff: true, saveNudge: true)
+    }
+
+    /// 面板 ⚡：指紋同 → 零成本注入上次點評；不同 → 重新 kickoff。
+    func sparkReplay(_ doc: NoteDocument) {
+        guard !streaming else { return }
+        let hash = doc.nudgeFingerprint()
+        if let opening = doc.nudge.openingText, doc.nudge.hash == hash {
+            var bubble = ChatBubble(role: .ai, text: opening)
+            bubble.tokens = String(localized: "上次的教練點評（內容沒變，未消耗 AI）")
+            bubble.proposals = doc.nudge.openingProposals.map {
+                ProposalItem(action: $0.action, label: $0.label, instruction: $0.instruction)
+            }
+            messages.append(bubble)
+        } else {
+            doc.updateNudge { $0.state = .opened; $0.hash = hash; $0.at = Date() }
+            runStream(doc, history: [], kickoff: true, saveNudge: true)
+        }
+    }
+
+    private func runStream(_ doc: NoteDocument, history: [ChatMessage], kickoff: Bool, saveNudge: Bool = false) {
         streaming = true
         let aiIndex = messages.count
         messages.append(ChatBubble(role: .ai, text: ""))
@@ -229,6 +255,7 @@ final class ChatViewModel {
         task = Task { [weak self] in
             guard let self else { return }
             var accumulated = ""
+            var captured: [ProposalItem] = []
             do {
                 for try await event in ai.chatNote(messages: history, note: payload, kickoff: kickoff) {
                     guard aiIndex < messages.count else { break }
@@ -238,14 +265,22 @@ final class ChatViewModel {
                     case .usage(let u):
                         messages[aiIndex].tokens = "tokens: in \(u.inputTokens) / out \(u.outputTokens)"
                     case .proposal(let items):
-                        messages[aiIndex].proposals = items
+                        captured = items; messages[aiIndex].proposals = items
                     case .error(let code, _):
                         messages[aiIndex].text = accumulated.isEmpty ? String(localized: "AI 出錯：\(code)") : accumulated
                     default: break
                     }
                 }
-                if aiIndex < messages.count && messages[aiIndex].text.isEmpty {
+                if aiIndex < messages.count && messages[aiIndex].text.isEmpty && captured.isEmpty {
                     messages.remove(at: aiIndex)   // 一個字都沒吐 → 不留空氣泡
+                }
+                if saveNudge && (!accumulated.isEmpty || !captured.isEmpty) {
+                    doc.updateNudge {
+                        $0.openingText = accumulated
+                        $0.openingProposals = captured.map {
+                            ProposalSnapshot(action: $0.action, label: $0.label, instruction: $0.instruction)
+                        }
+                    }
                 }
                 streaming = false
             } catch is CancellationError {

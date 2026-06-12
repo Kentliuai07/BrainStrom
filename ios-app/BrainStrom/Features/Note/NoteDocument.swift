@@ -314,6 +314,14 @@ final class NoteDocument {
 
     // MARK: - 點子助攻 nudge
 
+    /// 離開清理（F9）：空名且零塊 → 軟刪該系統（回 true 讓呼叫端 toast）。
+    @discardableResult
+    func cleanupEmptyOnLeave() -> Bool {
+        guard title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, orderedBlocks.isEmpty else { return false }
+        try? repository.deleteSystem(id: systemID)
+        return true
+    }
+
     func nudgeFingerprint() -> String { Algo.nudgeHash(title: title, blocks: blocks) }
 
     func updateNudge(_ transform: (inout Nudge) -> Void) {

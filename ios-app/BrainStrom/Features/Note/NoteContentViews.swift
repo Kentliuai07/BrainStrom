@@ -10,6 +10,7 @@ import SwiftUI
 struct ArticleView: View {
 
     @Bindable var doc: NoteDocument
+    var onKickoff: () -> Void = {}
 
     @Environment(\.palette) private var palette
     @Environment(CompositionRoot.self) private var root
@@ -17,6 +18,11 @@ struct ArticleView: View {
     @State private var continueText = ""
     @FocusState private var titleFocused: Bool
     @FocusState private var continueFocused: Bool
+
+    private var nudgeEnabled: Bool {
+        if case let .signedIn(account) = root.session { return account.prefs.ideaNudge }
+        return true
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -93,19 +99,27 @@ struct ArticleView: View {
                     .background(Capsule().strokeBorder(palette.line, lineWidth: 1))
             }
             .buttonStyle(.plain)
-        } else if !doc.title.isEmpty {
-            // ⚡ 助攻膠囊（佈局；點擊先提示需後端）
-            Button {
-                root.toast.show(String(localized: "此功能需要真後端（尚未整合）"))
-            } label: {
-                Text(String(localized: "⚡ 讓 AI 教練看看這個點子"))
-                    .font(Tokens.Fonts.body(12, weight: .semibold))
-                    .foregroundStyle(palette.orange)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(Capsule().fill(palette.orangeDim)
-                        .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+        } else if !doc.title.isEmpty && nudgeEnabled && doc.nudge.state == .pending {
+            // ⚡ 助攻膠囊：取名後浮現，點擊跑教練開場
+            HStack(spacing: 2) {
+                Button { onKickoff() } label: {
+                    Text(String(localized: "⚡ 讓 AI 教練看看這個點子"))
+                        .font(Tokens.Fonts.body(12, weight: .semibold))
+                        .foregroundStyle(palette.orange)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                }
+                .buttonStyle(.plain)
+                Button {
+                    doc.updateNudge { $0.state = .dismissed }
+                    root.toast.show(String(localized: "不再為這則筆記顯示（設定頁可關閉）"))
+                } label: {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(palette.print3).frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .background(Capsule().fill(palette.orangeDim)
+                .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
         }
     }
 }
@@ -246,17 +260,21 @@ struct CardsView: View {
         } else {
             VStack(spacing: 11) {
                 ForEach(doc.orderedBlocks) { block in
-                    CardRow(block: block)
+                    CardRow(doc: doc, block: block)
                 }
             }
         }
     }
 }
 
-/// 卡片視圖的一張板卡（web .aicard）。
+/// 卡片視圖的一張板卡（web .aicard；點內容就地編輯）。
 struct CardRow: View {
+    @Bindable var doc: NoteDocument
     let block: Block
     @Environment(\.palette) private var palette
+    @State private var editing = false
+    @State private var text = ""
+    @FocusState private var focused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -266,9 +284,22 @@ struct CardRow: View {
                     .font(Tokens.Fonts.body(14, weight: .bold))
                     .foregroundStyle(palette.print)
             }
-            Text(block.text.isEmpty ? String(localized: "（空白，點擊編輯）") : block.text)
-                .font(Tokens.Fonts.body(13.5))
-                .foregroundStyle(palette.print2)
+            if editing {
+                TextField(text: $text, axis: .vertical) { Text(verbatim: "") }
+                    .font(Tokens.Fonts.body(13.5))
+                    .foregroundStyle(palette.print)
+                    .focused($focused)
+                    .onChange(of: focused) { _, f in
+                        if !f { doc.editBlockText(block.id, to: text); editing = false }
+                    }
+            } else {
+                Text(block.text.isEmpty ? String(localized: "（空白，點擊編輯）") : block.text)
+                    .font(Tokens.Fonts.body(13.5))
+                    .foregroundStyle(palette.print2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { text = block.text; editing = true; focused = true }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)

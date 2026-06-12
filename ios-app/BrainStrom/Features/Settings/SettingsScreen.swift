@@ -36,6 +36,7 @@ struct SettingsScreen: View {
         }
         .background(palette.bg)
         .navigationBarHidden(true)
+        .onAppear { nudgeOn = root.ideaNudgeEnabled }
         .confirmationDialog(String(localized: "確定刪除帳號？資料將立即永久刪除、無法復原。"),
                             isPresented: $confirmDelete, titleVisibility: .visible) {
             Button(String(localized: "刪除帳號"), role: .destructive) {
@@ -136,6 +137,7 @@ struct SettingsScreen: View {
                     .labelsHidden()
                     .toggleStyle(.hardware)
                     .onChange(of: nudgeOn) { _, on in
+                        Task { await root.updatePrefs(ideaNudge: on) }
                         root.toast.show(on ? String(localized: "已開啟點子助攻") : String(localized: "已關閉點子助攻"))
                     }
             }

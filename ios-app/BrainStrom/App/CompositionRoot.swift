@@ -64,4 +64,17 @@ final class CompositionRoot {
         await auth.signOut()
         session = .signedOut
     }
+
+    /// 更新偏好（點子助攻總開關），同步回 session。
+    func updatePrefs(ideaNudge: Bool) async {
+        if let updated = await auth.updatePrefs(UserPrefs(ideaNudge: ideaNudge)) {
+            session = .signedIn(updated)
+        }
+    }
+
+    /// 目前點子助攻偏好。
+    var ideaNudgeEnabled: Bool {
+        if case let .signedIn(account) = session { return account.prefs.ideaNudge }
+        return true
+    }
 }
