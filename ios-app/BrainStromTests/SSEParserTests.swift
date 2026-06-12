@@ -29,8 +29,14 @@ final class SSEParserTests: XCTestCase {
     }
 
     func testCardStart() {
-        let e = SSEEventMapper.map(jsonString: #"{"type":"card_start","index":0,"title":"核心問題"}"#)
-        XCTAssertEqual(e, .cardStart(index: 0, title: "核心問題", type: ""))
+        let e = SSEEventMapper.map(jsonString: #"{"type":"card_start","index":0,"cardType":"text","title":"核心問題"}"#)
+        XCTAssertEqual(e, .cardStart(index: 0, title: "核心問題", type: "text"))
+    }
+
+    func testCardStartDualTrackTypeName() {
+        // 真後端目前：開始事件 type=卡片型別名（非 card_start），有 index+title → 當 card_start
+        let e = SSEEventMapper.map(jsonString: #"{"type":"systemName","index":2,"title":"命名建議"}"#)
+        XCTAssertEqual(e, .cardStart(index: 2, title: "命名建議", type: "systemName"))
     }
 
     func testCardDoneOptimizeAdd() {

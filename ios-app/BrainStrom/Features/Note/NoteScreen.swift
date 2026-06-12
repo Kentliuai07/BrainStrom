@@ -16,6 +16,8 @@ struct NoteScreen: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var doc: NoteDocument?
+    @State private var noteVM: NoteViewModel?
+    @State private var chatVM: ChatViewModel?
     @State private var showDial = false
     @State private var showChat = false
     @State private var chatInput = ""
@@ -32,11 +34,14 @@ struct NoteScreen: View {
         .background(palette.bg)
         .navigationBarHidden(true)
         .onAppear(perform: load)
+        .onDisappear { noteVM?.abort(); chatVM?.reset() }
     }
 
     private func load() {
         guard doc == nil, let repo = root.repository else { return }
         doc = NoteDocument(systemID: systemID, repository: repo)
+        noteVM = NoteViewModel(ai: root.ai, toast: root.toast)
+        chatVM = ChatViewModel(ai: root.ai, toast: root.toast)
     }
 
     // MARK: - 主體
@@ -49,7 +54,7 @@ struct NoteScreen: View {
                     if doc.view == .article {
                         ArticleView(doc: doc)
                     } else {
-                        CardsView(doc: doc, runStructure: aiNeedsBackend)
+                        CardsView(doc: doc, runStructure: { noteVM?.runStructure(doc) })
                     }
                 }
                 .padding(.horizontal, Tokens.Spacing.s4)
@@ -62,7 +67,32 @@ struct NoteScreen: View {
             if !showChat { fab(doc) }
         }
         .overlay { if showDial { dialLayer(doc) } }
-        .overlay(alignment: .bottom) { if showChat { chatPanel } }
+        .overlay { if noteVM?.aiBusy == true { aiLockOverlay } }
+        .overlay(alignment: .bottom) { if showChat { chatPanel(doc) } }
+        .confirmationDialog(String(localized: "要不要順便分主題、加小標題？"),
+                            isPresented: Binding(get: { noteVM?.showOptimizeConfirm ?? false },
+                                                 set: { if !$0 { noteVM?.cancelOptimize() } }),
+                            titleVisibility: .visible) {
+            Button(String(localized: "要")) { noteVM?.confirmOptimize(doc, groupTopics: true) }
+            Button(String(localized: "不要")) { noteVM?.confirmOptimize(doc, groupTopics: false) }
+            Button(String(localized: "取消"), role: .cancel) { noteVM?.cancelOptimize() }
+        }
+    }
+
+    /// AI 進行中鎖定遮罩（半透明＋頂部進度條＋訊息）。
+    private var aiLockOverlay: some View {
+        ZStack(alignment: .top) {
+            palette.bg.opacity(0.58).ignoresSafeArea()
+            ProgressView().frame(maxWidth: .infinity).padding(.top, 2)
+                .tint(palette.orange)
+            Text(noteVM?.aiLockMessage ?? "")
+                .font(Tokens.Fonts.body(13, weight: .bold))
+                .foregroundStyle(palette.print)
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .background(Capsule().fill(palette.panel).overlay(Capsule().strokeBorder(palette.line, lineWidth: 1)))
+                .frame(maxHeight: .infinity)
+        }
+        .transition(.opacity)
     }
 
     // MARK: - 頂欄 nav
@@ -142,11 +172,11 @@ struct NoteScreen: View {
 
     private func dock(_ doc: NoteDocument) -> some View {
         HStack(spacing: 10) {
-            dockIcon("bubble.left", accent: true, disabled: doc.naming) {
+            dockIcon("bubble.left", accent: true, disabled: doc.naming || noteVM?.aiBusy == true) {
                 Haptics.tap(); showChat.toggle()
             }
-            dockKey("✦", disabled: doc.naming) { aiNeedsBackend() }
-            dockKey("▦", disabled: doc.naming) { aiNeedsBackend() }
+            dockKey("✦", disabled: doc.naming || noteVM?.aiBusy == true) { Haptics.press(); noteVM?.requestOptimize(doc) }
+            dockKey("▦", disabled: doc.naming || noteVM?.aiBusy == true) { Haptics.press(); noteVM?.runStructure(doc) }
             dockIcon("trash", accent: false, disabled: false) {
                 deleteSystem()
             }
@@ -253,7 +283,7 @@ struct NoteScreen: View {
 
     // MARK: - 聊天面板（佈局；送出先提示需真後端）
 
-    private var chatPanel: some View {
+    private func chatPanel(_ doc: NoteDocument) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
                 Image(systemName: "bubble.left").font(.system(size: 14)).foregroundStyle(palette.orange)
@@ -267,14 +297,7 @@ struct NoteScreen: View {
             .padding(.horizontal, 14).padding(.vertical, 12)
             .overlay(alignment: .bottom) { Rectangle().fill(palette.line).frame(height: 1) }
 
-            VStack {
-                Spacer()
-                Text(String(localized: "問我這則筆記的內容，例如「這則在講什麼？」"))
-                    .font(Tokens.Fonts.body(12)).foregroundStyle(palette.print3)
-                    .multilineTextAlignment(.center)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity)
+            chatList(doc)
 
             HStack(spacing: 8) {
                 TextField(text: $chatInput, axis: .vertical) {
@@ -292,11 +315,19 @@ struct NoteScreen: View {
                         .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.input)
                             .strokeBorder(palette.line, lineWidth: 1))
                 )
-                Button { sendChat() } label: {
-                    Text(String(localized: "送出")).font(Tokens.Fonts.body(13, weight: .semibold))
-                        .frame(width: 56, height: 40)
+                if chatVM?.streaming == true {
+                    Button { chatVM?.stop() } label: {
+                        Text(String(localized: "停止")).font(Tokens.Fonts.body(13, weight: .semibold))
+                            .frame(width: 56, height: 40)
+                    }
+                    .buttonStyle(.keycap(.danger, cornerRadius: 10))
+                } else {
+                    Button { sendChat(doc) } label: {
+                        Text(String(localized: "送出")).font(Tokens.Fonts.body(13, weight: .semibold))
+                            .frame(width: 56, height: 40)
+                    }
+                    .buttonStyle(.keycap(.orange, cornerRadius: 10))
                 }
-                .buttonStyle(.keycap(.orange, cornerRadius: 10))
             }
             .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 16)
             .overlay(alignment: .top) { Rectangle().fill(palette.line).frame(height: 1) }
@@ -317,13 +348,81 @@ struct NoteScreen: View {
         root.toast.show(String(localized: "此功能需要真後端（尚未整合）"))
     }
 
-    private func sendChat() {
+    private func sendChat(_ doc: NoteDocument) {
         let text = chatInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         chatInput = ""
-        chatFocused = false
-        // 步驟 7 接真後端後改為串流；目前先提示
-        root.toast.show(String(localized: "聊天於接真後端後啟用（步驟 7）"))
+        chatVM?.send(doc, text: text)
+    }
+
+    // 聊天訊息列
+    @ViewBuilder
+    private func chatList(_ doc: NoteDocument) -> some View {
+        let msgs = chatVM?.messages ?? []
+        ScrollView {
+            if msgs.isEmpty {
+                Text(String(localized: "問我這則筆記的內容，例如「這則在講什麼？」"))
+                    .font(Tokens.Fonts.body(12)).foregroundStyle(palette.print3)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 40)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(msgs) { bubble in chatBubbleView(bubble, doc) }
+                }
+                .padding(12)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func chatBubbleView(_ bubble: ChatBubble, _ doc: NoteDocument) -> some View {
+        let isUser = bubble.role == .user
+        return VStack(alignment: isUser ? .trailing : .leading, spacing: 3) {
+            Text(bubble.text.isEmpty ? String(localized: "思考中…") : bubble.text)
+                .font(Tokens.Fonts.body(13.5))
+                .foregroundStyle(isUser ? palette.orangeInk : palette.print)
+                .padding(.horizontal, 11).padding(.vertical, 8)
+                .background(RoundedRectangle(cornerRadius: 14)
+                    .fill(isUser ? palette.orange : palette.panel2))
+            if let tokens = bubble.tokens {
+                Text(tokens).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
+            }
+            if !bubble.proposals.isEmpty {
+                proposalRow(bubble.proposals, doc)
+            }
+            if bubble.stopped {
+                Text(String(localized: "（已停止）")).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+    }
+
+    private func proposalRow(_ items: [ProposalItem], _ doc: NoteDocument) -> some View {
+        let locked: Set<String> = ["find_github", "find_youtube", "find_info"]
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(Array(items.prefix(4).enumerated()), id: \.offset) { _, item in
+                    let isLocked = locked.contains(item.action)
+                    Button {
+                        if isLocked { root.toast.show(String(localized: "即將推出")); return }
+                        switch item.action {
+                        case "structure": showChat = false; noteVM?.runStructure(doc)
+                        case "edit_text": noteVM?.runApplyEdit(doc, instruction: item.instruction ?? item.label)
+                        default: root.toast.show(String(localized: "即將推出"))
+                        }
+                    } label: {
+                        Text((isLocked ? "🔒 " : "") + item.label)
+                            .font(Tokens.Fonts.body(11.5, weight: .semibold))
+                            .foregroundStyle(isLocked ? palette.print3 : palette.orange)
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Capsule().fill(palette.orangeDim)
+                                .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 
     private func deleteSystem() {

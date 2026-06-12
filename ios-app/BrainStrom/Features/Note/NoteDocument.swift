@@ -32,6 +32,12 @@ final class NoteDocument {
     private(set) var naming: Bool = false
     var savedFlash = false
 
+    // AI 狀態（hash gate / 結構化 / 助攻）
+    private(set) var lastAiHash: String?
+    private(set) var aiRestructureCount = 0
+    private(set) var structuredAt: Date?
+    private(set) var nudge = Nudge()
+
     // 版本指針法 → ↶↷ 可用狀態（由倉儲驅動）。
     private(set) var canUndo = false
     private(set) var canRedo = false
@@ -44,6 +50,10 @@ final class NoteDocument {
         self.title = note.title
         self.blocks = note.blocks.sorted { $0.orderIndex < $1.orderIndex }
         self.docState = note.docState
+        self.lastAiHash = note.lastAiHash
+        self.aiRestructureCount = note.aiRestructureCount
+        self.structuredAt = note.structuredAt
+        self.nudge = note.nudge
         let system = (try? repository.systems())?.first { $0.id == systemID }
         self.visibility = system?.visibility ?? .private
         self.naming = Self.isNamingGate(title: note.title, blocks: liveBlocksOf(self.blocks))
@@ -233,9 +243,93 @@ final class NoteDocument {
 
     private func saveNote() {
         let note = Note(id: noteID, systemID: systemID, title: title,
-                        docState: docState, blocks: blocks, updatedAt: .now)
+                        docState: docState, blocks: blocks, updatedAt: .now,
+                        lastAiHash: lastAiHash, aiRestructureCount: aiRestructureCount,
+                        structuredAt: structuredAt, nudge: nudge)
         try? repository.saveNote(note)
         try? repository.renameSystem(id: systemID, name: title)
+    }
+
+    // MARK: - AI 套用（步驟7：ViewModel 收完串流後呼叫）
+
+    /// 目前可整理的變動塊（diff 省錢閘）。
+    func changedBlockIds() -> Set<UUID> { Algo.diffBlocks(blocks) }
+
+    /// hash gate：整篇沒變 → 跳過 AI。
+    var shouldSkipOptimize: Bool { Algo.shouldSkipAi(lastAiHash: lastAiHash, blocks: blocks) }
+
+    /// 組 AI 傳輸 payload（changed 標記＝diff 結果或 instruction 全未釘選 DIFF）。
+    func payload(changedIds: Set<UUID>) -> NotePayload {
+        NotePayload(title: title, blocks: orderedBlocks.map { block in
+            NotePayload.BlockPayload(
+                id: block.id.uuidString,
+                type: payloadType(block),
+                content: block.text,
+                pinned: block.isPinned,
+                changed: changedIds.contains(block.id),
+                module: block.kind == .module)
+        })
+    }
+
+    /// applyEdit 用：全部未釘選 DIFF_TYPES 塊 id。
+    func editableIds() -> Set<UUID> {
+        Set(orderedBlocks.filter { Algo.isDiffType($0.kind) && !$0.isPinned }.map(\.id))
+    }
+
+    /// 套用優化 patch；拒絕回原因（零變動），成功回 nil。
+    @discardableResult
+    func applyOptimize(patch: OptimizePatch, changedIds: Set<UUID>, mode: OptimizeMode) -> PatchRejection? {
+        switch Algo.applyOptimizePatch(blocks: blocks, patch: patch, changedIds: changedIds,
+                                       mode: mode, docState: docState, now: Date()) {
+        case .rejected(let reason):
+            return reason
+        case .applied(let newBlocks, let hash, let state):
+            blocks = newBlocks
+            docState = state
+            lastAiHash = hash
+            aiRestructureCount += 1
+            structuredAt = Date()
+            persist(trigger: mode == .instruction ? "instruction" : "optimize")
+            return nil
+        }
+    }
+
+    /// 套用結構化卡片；拒絕回原因（零變動），成功回 nil 並切卡片視圖。
+    @discardableResult
+    func applyStructure(cards: [StructureCard]) -> StructureRejection? {
+        switch Algo.applyStructureCards(blocks: blocks, cards: cards) {
+        case .rejected(let reason):
+            return reason
+        case .applied(let newBlocks, let hash):
+            blocks = newBlocks
+            docState = .carded
+            lastAiHash = hash
+            aiRestructureCount += 1
+            structuredAt = Date()
+            persist(trigger: "structure")
+            view = .cards
+            return nil
+        }
+    }
+
+    // MARK: - 點子助攻 nudge
+
+    func nudgeFingerprint() -> String { Algo.nudgeHash(title: title, blocks: blocks) }
+
+    func updateNudge(_ transform: (inout Nudge) -> Void) {
+        var n = nudge
+        transform(&n)
+        nudge = n
+        saveNote()
+    }
+
+    private func payloadType(_ block: Block) -> String {
+        switch block.kind {
+        case .paragraph: "text"
+        case .heading1, .heading2: "heading"
+        case .todo: "todo"
+        case .module: block.moduleKind?.rawValue ?? "module"
+        }
     }
 
     private func snapshotData() -> Data? {

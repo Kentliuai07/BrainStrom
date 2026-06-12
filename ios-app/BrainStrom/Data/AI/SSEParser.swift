@@ -103,7 +103,12 @@ enum SSEEventMapper {
             )
 
         default:
-            return nil   // 未知事件：容忍前進，不炸
+            // 真後端 structure 雙軌容錯：每張卡的「開始」事件 type 是卡片型別名而非 "card_start"
+            // （後端 card_start 修正部署前的實際 wire 格式）。有 index+title 即視為 card_start。
+            if object["index"] != nil, let title = object["title"] as? String {
+                return .cardStart(index: intValue(object["index"]), title: title, type: type)
+            }
+            return nil   // 其餘未知事件：容忍前進，不炸
         }
     }
 
