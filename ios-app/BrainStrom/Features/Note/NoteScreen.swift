@@ -60,7 +60,7 @@ struct NoteScreen: View {
                             chatVM?.startKickoff(doc)
                         })
                     } else {
-                        CardsView(doc: doc, runStructure: { noteVM?.runStructure(doc) })
+                        CardsView(doc: doc, runStructure: { noteVM?.runStructure(doc) }, vm: noteVM)
                     }
                 }
                 .padding(.horizontal, Tokens.Spacing.s4)

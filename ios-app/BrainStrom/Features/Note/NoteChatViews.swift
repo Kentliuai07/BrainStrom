@@ -114,7 +114,7 @@ extension NoteScreen {
                 Text(tokens).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
             }
             if !bubble.proposals.isEmpty {
-                proposalRow(bubble.proposals, doc)
+                proposalRow(bubble, doc)
             }
             if bubble.stopped {
                 Text(String(localized: "（已停止）")).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
@@ -123,14 +123,15 @@ extension NoteScreen {
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
     }
 
-    func proposalRow(_ items: [ProposalItem], _ doc: NoteDocument) -> some View {
+    func proposalRow(_ bubble: ChatBubble, _ doc: NoteDocument) -> some View {
         let locked: Set<String> = ["find_github", "find_youtube", "find_info"]
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(Array(items.prefix(4).enumerated()), id: \.offset) { _, item in
+                ForEach(Array(bubble.proposals.prefix(4).enumerated()), id: \.offset) { _, item in
                     let isLocked = locked.contains(item.action)
                     Button {
                         if isLocked { root.toast.show(String(localized: "即將推出")); return }
+                        chatVM?.markProposalsUsed(bubble.id)   // 點過整列禁用
                         switch item.action {
                         case "structure": showChat = false; noteVM?.runStructure(doc)
                         case "edit_text": noteVM?.runApplyEdit(doc, instruction: item.instruction ?? item.label)
@@ -143,8 +144,10 @@ extension NoteScreen {
                             .padding(.horizontal, 10).padding(.vertical, 6)
                             .background(Capsule().fill(palette.orangeDim)
                                 .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+                            .opacity(bubble.proposalsUsed && !isLocked ? 0.45 : 1)
                     }
                     .buttonStyle(.plain)
+                    .disabled(bubble.proposalsUsed && !isLocked)   // 鎖定項仍可點(只 toast)
                 }
             }
         }

@@ -246,11 +246,16 @@ struct CardsView: View {
 
     @Bindable var doc: NoteDocument
     let runStructure: () -> Void
+    var vm: NoteViewModel?
 
     @Environment(\.palette) private var palette
 
     var body: some View {
-        if !doc.docStateIsCarded {
+        if let vm, vm.structuring {
+            VStack(spacing: 11) {
+                ForEach(vm.streamingCards) { card in streamingCard(card) }
+            }
+        } else if !doc.docStateIsCarded {
             VStack(spacing: 14) {
                 Text(String(localized: "還沒結構化\n—— 按下面的按鈕，AI 會把筆記整理成一張張主題卡"))
                     .font(Tokens.Fonts.body(14))
@@ -273,6 +278,26 @@ struct CardsView: View {
                     CardRow(doc: doc, block: block)
                 }
             }
+        }
+    }
+
+    private func streamingCard(_ card: NoteViewModel.StreamingCard) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if !card.title.isEmpty {
+                Text(card.title).font(Tokens.Fonts.body(14, weight: .bold)).foregroundStyle(palette.print)
+            }
+            if let content = card.content {
+                Text(content).font(Tokens.Fonts.body(13.5)).foregroundStyle(palette.print2)
+            } else {
+                RoundedRectangle(cornerRadius: 6).fill(palette.panel2).frame(height: 28)   // 骨架占位
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .hardwareCard()
+        .overlay {
+            NotchedRectangle(notch: Tokens.Notch.card)
+                .strokeBorder(palette.orange.opacity(card.content == nil ? 0.5 : 0.2), lineWidth: 1)
         }
     }
 }

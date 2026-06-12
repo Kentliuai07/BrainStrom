@@ -19,6 +19,7 @@ struct HomeScreen: View {
     @State private var path = NavigationPath()
     @State private var systems: [NoteSystem] = []
     @State private var loaded = false
+    @State private var loadFailed = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -125,6 +126,19 @@ struct HomeScreen: View {
                 .font(Tokens.Fonts.body(14))
                 .foregroundStyle(palette.print2)
                 .padding(.vertical, 20)
+        } else if loadFailed {
+            VStack(spacing: 12) {
+                Text(String(localized: "載入失敗"))
+                    .font(Tokens.Fonts.body(14)).foregroundStyle(palette.print2)
+                Button { Haptics.tap(); reload() } label: {
+                    Text(String(localized: "重試"))
+                        .font(Tokens.Fonts.body(14, weight: .semibold))
+                        .frame(width: 120, height: 44)
+                }
+                .buttonStyle(.keycap())
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 70)
         } else if systems.isEmpty {
             emptyRack
         } else {
@@ -172,7 +186,13 @@ struct HomeScreen: View {
     // MARK: - 資料
 
     private func reload() {
-        systems = (try? root.repository?.systems()) ?? []
+        guard let repo = root.repository else { systems = []; loaded = true; return }
+        do {
+            systems = try repo.systems()
+            loadFailed = false
+        } catch {
+            loadFailed = true
+        }
         loaded = true
     }
 
@@ -208,6 +228,18 @@ struct SystemCardView: View {
                 .foregroundStyle(palette.print2)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
+            if !system.tags.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(system.tags, id: \.self) { tag in
+                        Text(tag)
+                            .font(Tokens.Fonts.mono(9))
+                            .foregroundStyle(palette.print3)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().strokeBorder(palette.line, lineWidth: 1))
+                    }
+                }
+                .padding(.top, 3)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)

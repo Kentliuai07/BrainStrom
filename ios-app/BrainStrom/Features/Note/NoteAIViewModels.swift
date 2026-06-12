@@ -15,6 +15,9 @@ final class NoteViewModel {
     var aiBusy = false
     var aiLockMessage = ""
     var showOptimizeConfirm = false
+    /// 結構化串流中逐張浮現的卡（骨架→填內容）。
+    var streamingCards: [StreamingCard] = []
+    var structuring = false
     private var task: Task<Void, Never>?
 
     init(ai: any AIServicing, toast: ToastModel) {
@@ -81,6 +84,8 @@ final class NoteViewModel {
             toast.show(String(localized: "內容沒變，未消耗 AI")); return
         }
         doc.setView(.cards)
+        structuring = true
+        streamingCards = []
         lock(String(localized: "AI 整理中…"))
         let payload = doc.payload(changedIds: [])
         task = Task { [weak self] in
@@ -89,13 +94,23 @@ final class NoteViewModel {
             do {
                 for try await event in ai.structure(note: payload) {
                     switch event {
-                    case .cardDone(_, let card):
+                    case .cardStart(let index, let title, _):
+                        streamingCards.append(StreamingCard(index: index, title: title, content: nil))
+                    case .cardDone(let index, let card):
                         cards.append(StructureCard(type: card.type, title: card.title,
                                                    content: card.content, absorbed: card.absorbed))
-                    case .error(let code, _): unlock(); aiErrorToast(code); return
+                        if let i = streamingCards.firstIndex(where: { $0.index == index }) {
+                            streamingCards[i].title = card.title ?? streamingCards[i].title
+                            streamingCards[i].content = card.content ?? ""
+                        } else {
+                            streamingCards.append(StreamingCard(index: index, title: card.title ?? "",
+                                                                content: card.content ?? ""))
+                        }
+                    case .error(let code, _): structuring = false; unlock(); aiErrorToast(code); return
                     default: break
                     }
                 }
+                structuring = false
                 unlock()
                 if let reason = doc.applyStructure(cards: cards) {
                     structureToast(reason)
@@ -103,11 +118,19 @@ final class NoteViewModel {
                     toast.show(String(format: String(localized: "回傳 %d 張卡"), cards.count))
                 }
             } catch is CancellationError {
-                unlock()
+                structuring = false; unlock()
             } catch {
-                unlock(); toast.show(String(localized: "AI 連線出錯，請稍後再試"))
+                structuring = false; unlock(); toast.show(String(localized: "AI 連線出錯，請稍後再試"))
             }
         }
+    }
+
+    /// 結構化串流中的一張卡（content==nil → 骨架）。
+    struct StreamingCard: Identifiable, Equatable {
+        let id = UUID()
+        let index: Int
+        var title: String
+        var content: String?
     }
 
     // MARK: - 對話式編輯（proposal edit_text → applyEdit）
@@ -191,6 +214,7 @@ struct ChatBubble: Identifiable, Equatable {
     var text: String
     var tokens: String?
     var proposals: [ProposalItem] = []
+    var proposalsUsed = false
     var stopped = false
 }
 
@@ -294,4 +318,9 @@ final class ChatViewModel {
     }
 
     func stop() { task?.cancel() }
+
+    /// proposal 列點過一項 → 整列禁用（防重複）。
+    func markProposalsUsed(_ id: UUID) {
+        if let i = messages.firstIndex(where: { $0.id == id }) { messages[i].proposalsUsed = true }
+    }
 }
