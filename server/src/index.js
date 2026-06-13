@@ -376,22 +376,28 @@ async function handleChatNote(req, res, payload) {
 const EXA_API_KEY = process.env.EXA_API_KEY || '';
 
 // Exa 神经搜寻(语意,中文也准)。失败/无 key 回 null。
-async function exaSearch(query, { type = 'auto', category, numResults = 8, summaryQuery } = {}) {
+// 取消：12s 超时 + 可接外部 signal(persona 客户端断线时取消)。零版本依赖(不用 AbortSignal.any,避免 Node<20.3 崩)。
+async function exaSearch(query, { type = 'auto', category, numResults = 8, summaryQuery, signal } = {}) {
   if (!EXA_API_KEY) return null;
   const body = { query, type, numResults };
   if (category) body.category = category;
   if (summaryQuery) body.contents = { summary: { query: summaryQuery } };
+  const ctrl = new AbortController();
+  const onAbort = () => ctrl.abort();
+  signal?.addEventListener('abort', onAbort, { once: true });
+  const timer = setTimeout(() => ctrl.abort(), 12000);
   try {
     const r = await fetch('https://api.exa.ai/search', {
       method: 'POST',
       headers: { 'x-api-key': EXA_API_KEY, 'content-type': 'application/json' },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(12000),
+      signal: ctrl.signal,
     });
     if (!r.ok) return null;
     const d = await r.json();
     return Array.isArray(d.results) ? d.results : [];
   } catch { return null; }
+  finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); }
 }
 const hostOf = (u) => { try { return new URL(u).host.replace(/^www\./, ''); } catch { return ''; } };
 const repoName = (u) => { const m = String(u).match(/github\.com\/([^/]+\/[^/?#]+)/); return m ? m[1] : null; };
@@ -419,29 +425,39 @@ async function githubKeywordSearch(term, seen) {
 }
 
 // build11：竞品/开源改用 Exa 神经搜寻。竞品轨=Exa web+一句话简介(source 'web')；开源轨=Exa github，失败 fallback GitHub 关键字。
-async function handleFindCompetitors(req, res, payload) {
-  const kw = String(payload?.keywords || payload?.brief || '').trim();
-  if (!kw) {
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'bad_request', detail: 'need {keywords|brief}' }));
-  }
-  const term = kw.slice(0, 60);
+// 目标国家 → 搜寻语言/后缀/摘要语言(影响 Exa 召回与生成在地化)。缺省=台湾繁中(与 build12 逐字一致)。
+const COUNTRY_MAP = {
+  _default: { marketName: '台灣', lang: '繁體中文', articleSuffix: '評測',
+    productSummaryQuery: '這個產品/App 一句話在做什麼？用繁體中文，30字內', articleSummaryQuery: '這篇文章在講什麼？用繁體中文一句話' },
+  TW: { marketName: '台灣', lang: '繁體中文', articleSuffix: '評測',
+    productSummaryQuery: '這個產品/App 一句話在做什麼？用繁體中文，30字內', articleSummaryQuery: '這篇文章在講什麼？用繁體中文一句話' },
+  CN: { marketName: '中国大陆', lang: '简体中文', articleSuffix: '测评',
+    productSummaryQuery: '这个产品/App 一句话在做什么？用简体中文，30字内', articleSummaryQuery: '这篇文章在讲什么？用简体中文一句话' },
+  US: { marketName: 'United States', lang: 'English', articleSuffix: 'review',
+    productSummaryQuery: 'What does this product/app do? One sentence in English.', articleSummaryQuery: 'What is this article about? One sentence in English.' },
+  JP: { marketName: '日本', lang: '日本語', articleSuffix: 'レビュー',
+    productSummaryQuery: 'この製品/アプリは何をしますか？日本語で一文。', articleSummaryQuery: 'この記事は何について？日本語で一文。' },
+};
+const countryConf = (c) => COUNTRY_MAP[String(c || '').trim().toUpperCase()] || COUNTRY_MAP._default;
+
+// 三轨搜寻纯函数(竞品产品/相关文章/相关开源)——剥离 res,供 /find/competitors 与 /ai/personas 共用。
+// opts.signal 透传给 exaSearch(客户端断线即取消);opts.country 走 COUNTRY_MAP 在地化。
+async function runThreeTrackSearch(term, { signal, country } = {}) {
   const seen = new Set();
   const competitors = [], articles = [], openSource = [];
   let partial = false;
+  const cm = countryConf(country);
 
-  // build12：拆 3 轨。query 直接用产品词本身(Exa 神经搜=找相似产品);文章轨才加「評測」偏向评测文。
   // 解构名 [company, articlesRes, repos]——刻意与收集阵列 articles 不同名,否则同作用域重复宣告会 SyntaxError。
   const [company, articlesRes, repos] = await Promise.allSettled([
-    exaSearch(term, { type: 'auto', numResults: 8, summaryQuery: '這個產品/App 一句話在做什麼？用繁體中文，30字內' }),
-    exaSearch(term + ' 評測', { type: 'auto', numResults: 8, summaryQuery: '這篇文章在講什麼？用繁體中文一句話' }),
-    exaSearch(term, { category: 'github', type: 'auto', numResults: 8, summaryQuery: '這個開源專案在做什麼？用繁體中文，30字內' }),
+    exaSearch(term, { type: 'auto', numResults: 8, summaryQuery: cm.productSummaryQuery, signal }),
+    exaSearch(term + ' ' + cm.articleSuffix, { type: 'auto', numResults: 8, summaryQuery: cm.articleSummaryQuery, signal }),
+    exaSearch(term, { category: 'github', type: 'auto', numResults: 8, summaryQuery: '這個開源專案在做什麼？用繁體中文，30字內', signal }),
   ]);
 
   // 竞品轨噪声过滤:百科/wiki 页永远不是竞品产品,直接跳过(笼统关键字时 Exa 易召回这些)。
   const isReferenceNoise = (u) => /wikipedia\.org|baike\.baidu|\.wikipedia\.|百科/.test(String(u));
 
-  // 轨1 竞品产品轨(Exa company/neural) source 'web'
   if (company.status === 'fulfilled' && Array.isArray(company.value)) {
     for (const r of company.value) {
       if (!r.url || seen.has(r.url)) continue;
@@ -453,7 +469,6 @@ async function handleFindCompetitors(req, res, payload) {
     }
   } else { partial = true; }
 
-  // 轨2 相关文章轨(Exa neural) source 'article'——跳过 github 链接(交给开源轨)
   if (articlesRes.status === 'fulfilled' && Array.isArray(articlesRes.value)) {
     for (const r of articlesRes.value) {
       if (!r.url || seen.has(r.url)) continue;
@@ -465,7 +480,6 @@ async function handleFindCompetitors(req, res, payload) {
     }
   } else { partial = true; }
 
-  // 轨3 相关开源轨(Exa github)——按 repo 名去重(避免 repo 页+README 页重复)。summary 来自轨3 的 summaryQuery。
   if (repos.status === 'fulfilled' && Array.isArray(repos.value)) {
     for (const r of repos.value) {
       const rn = repoName(r.url);
@@ -477,14 +491,22 @@ async function handleFindCompetitors(req, res, payload) {
       if (openSource.length >= 5) break;
     }
   }
-  // 开源保底:Exa github 空/失败 → GitHub 关键字搜
   if (openSource.length === 0) {
     if (repos.status !== 'fulfilled' || !repos.value) partial = true;
     openSource.push(...(await githubKeywordSearch(term, seen)));
   }
+  return { competitors, articles, openSource, partial };
+}
 
+async function handleFindCompetitors(req, res, payload) {
+  const kw = String(payload?.keywords || payload?.brief || '').trim();
+  if (!kw) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'bad_request', detail: 'need {keywords|brief}' }));
+  }
+  const r = await runThreeTrackSearch(kw.slice(0, 60), { country: payload?.country });
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ items: [...competitors, ...articles, ...openSource], competitors, articles, openSource, partial }));
+  res.end(JSON.stringify({ items: [...r.competitors, ...r.articles, ...r.openSource], ...r }));
 }
 
 // build11：findSimilar — 给一个竞品网址，找更多类似的(Exa)。
@@ -519,6 +541,166 @@ async function handleFindSimilar(req, res, payload) {
   res.end(JSON.stringify({ items }));
 }
 
+// ============================================================
+// 第3模式 · 批量生成 N 种系统身份证(Persona) —— 反向「先搜后生成」+ 串流
+// 契约：progress(心跳) → search_done → 每张 card_start{cardType:'persona'} + delta{index,text} → card_done{index,card} → usage → done
+// ============================================================
+const PERSONA_N = 4;
+const PERSONA_MAX_TOKENS = Math.min(Number(process.env.PERSONA_MAX_TOKENS_CAP || 16000), 16000); // 独立 cap，绕开共用的 MAX_TOKENS(8192)
+const PERSONA_CARD_KEYS = ['oneLiner', 'targetUser', 'painPoint', 'coreValue', 'marketStrategy', 'businessModel', 'coreFeatures', 'tagline'];
+const pickKeys = (obj, keys) => { const o = {}; for (const k of keys) if (obj && obj[k] != null) o[k] = String(obj[k]); return o; };
+const makePersonasTool = (n) => ({
+  name: 'emit_personas',
+  description: `輸出 ${n} 種互不相同的系統定位（身份證）`,
+  input_schema: { type: 'object', required: ['personas'], properties: {
+    personas: { type: 'array', minItems: n, maxItems: n, items: {
+      type: 'object', required: PERSONA_CARD_KEYS,
+      properties: Object.fromEntries(PERSONA_CARD_KEYS.map(k => [k, { type: 'string' }])),
+    } },
+  } },
+});
+const PERSONAS_TOOL = makePersonasTool(PERSONA_N);
+
+// 专业度小抄(只借框架「思考维度」，公共方法论；够长才命中 prompt 缓存)——挂 cache_control。
+const PERSONA_SKILL = `你是資深產品策略顧問，用以下業界框架的「思考維度」設計定位（只借思路，不照抄、不宣稱官方）：
+
+【精益畫布 Lean Canvas 九格】問題 / 解法 / 獨特價值主張 / 不公平優勢(護城河) / 目標客群 / 關鍵指標 / 獲客渠道 / 成本結構 / 營收來源。設計每個定位時，腦中都要走過這九格，尤其「客群 × 痛點 × 營收模式」三者要自洽。
+
+【價值主張畫布 + JTBD】客戶想完成的任務(Jobs)、痛點(Pains)、期待收益(Gains)，要對上你提供的「痛點解除」與「收益創造」。確保每張卡的『痛點』與『核心價值』是因果自洽的：有這個痛 → 才有這個價值，不是各寫各的。
+
+【Amazon 逆向工作法 5 問】誰是客戶？客戶最大的問題是什麼？最重要的價值是什麼？如何描述使用體驗？如何衡量成功？——逼自己從客戶視角倒推，而不是堆功能。
+
+【YC 一句話定位公式】「為了__(客群)，__(產品)是一個__(品類)，它能__(關鍵價值)，不像__(現有替代)。」每張卡的 tagline 用這個骨架，但 N 張要用不同 pitch 角度拉開(例：最小可行 / 高端垂直 / 大眾平台 / 社群驅動 / 在地化)。
+
+【差異化紀律】同一個靈感生出的 N 張定位，必須沿不同「差異化軸」彼此拉開：目標客群、商業模式、使用場景、市場進入策略、價格帶——任兩張不可在主軸上重複。先在心中擬一個『總局策略』說明這 N 張為何如此切分、彼此差在哪(此總局策略只用於約束你的輸出，不要寫進結果)。`;
+
+const PERSONA_CONTRACT = (n, market) => `任務：針對使用者的 App 靈感 + 下方真實市場資料(競品/文章/開源)，設計 ${n} 種「互不相同」的系統定位。
+目標市場：${market}。所有欄位用該市場的語言書寫。
+
+每張定位填滿這 8 個欄位（皆字串、皆必填）：
+- oneLiner：一句話簡介
+- targetUser：目標用戶（要具體到人群）
+- painPoint：解決的痛點
+- coreValue：核心價值
+- marketStrategy：市場進入策略
+- businessModel：商業模式（怎麼賺錢）
+- coreFeatures：核心功能（2-4 點）
+- tagline：≤20 字的定位標籤
+
+硬規則：
+1. ${n} 張必須沿不同差異化軸彼此拉開，任兩張不得在主軸重複。
+2. targetUser 與 painPoint 至少各引用一條下方真實搜尋結果（競品/文章/開源）當依據，不要憑空捏造市場數據。
+3. 每個欄位 ≤2 句；tagline ≤20 字。技術棧不在此輸出（之後由使用者確認）。
+4. 你必須且只能呼叫 emit_personas 工具輸出，不要輸出其他文字。`;
+
+const buildPersonaSystem = (n, market) => [
+  { type: 'text', text: '你是 BrainStrom 的產品策略 AI。' },
+  { type: 'text', text: PERSONA_SKILL, cache_control: { type: 'ephemeral' } },
+  { type: 'text', text: PERSONA_CONTRACT(n, market) },
+];
+
+function buildPersonaUser(appName, oneLiner, search, { regenerate, avoidCards }) {
+  const fmt = (arr, label) => (Array.isArray(arr) && arr.length)
+    ? `\n${label}：\n` + arr.map(x => `- ${x.title}${x.summary ? '：' + x.summary : ''}`).join('\n')
+    : `\n${label}：（無）`;
+  let s = `App 名稱：${appName || '（未填）'}\n一句話靈感：${oneLiner || '（未填）'}\n`;
+  s += `\n--- 真實市場資料（生成依據）---`;
+  s += fmt(search?.competitors, '商業競品');
+  s += fmt(search?.articles, '相關文章');
+  s += fmt(search?.openSource, '相關開源');
+  if (regenerate) {
+    s += `\n\n--- 重新生成 ---\n請只產生 1 張新定位，且必須明顯不同於以下既有定位（換一個差異化軸）：\n`
+      + (Array.isArray(avoidCards) ? avoidCards.map((c, i) => `${i + 1}. ${c?.tagline || c?.oneLiner || ''}`).join('\n') : '');
+  }
+  return s;
+}
+
+// POST /ai/personas { appName, oneLiner, country?, regenerateIndex?, avoidCards?[], sharedSearch? }
+async function handleGeneratePersonas(req, res, payload) {
+  const appName = String(payload?.appName || '').trim();
+  const oneLiner = String(payload?.oneLiner || '').trim();
+  const country = String(payload?.country || '').trim();
+  const regenerateIndex = Number.isInteger(payload?.regenerateIndex) ? payload.regenerateIndex : null;
+  const avoidCards = Array.isArray(payload?.avoidCards) ? payload.avoidCards : [];
+  const sharedSearch = (payload?.sharedSearch && typeof payload.sharedSearch === 'object') ? payload.sharedSearch : null;
+  if (!appName && !oneLiner) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'bad_request', detail: 'need {appName 或 oneLiner}' }));
+  }
+  const n = regenerateIndex != null ? 1 : PERSONA_N;
+  const mapIdx = (i) => (regenerateIndex != null ? regenerateIndex : i);
+  const cm = countryConf(country);
+  const emit = sse(res);
+  const ac = new AbortController();
+  res.on('close', () => { if (!res.writableEnded) ac.abort(); });
+  let hb = null;
+  try {
+    emit({ type: 'progress', current: 0, total: n, message: `開始分析《${appName || oneLiner}》` });
+    // 1) 先搜（整批共用一次；regenerate 时若带 sharedSearch 就不重搜）
+    let search = sharedSearch;
+    if (!search) {
+      hb = setInterval(() => { if (!res.writableEnded) emit({ type: 'progress', message: 'AI 研讀競品 / 文章 / 開源中…' }); }, 2500);
+      search = await runThreeTrackSearch((appName || oneLiner).slice(0, 60), { signal: ac.signal, country });
+      clearInterval(hb); hb = null;
+      emit({ type: 'search_done', competitors: search.competitors, articles: search.articles, openSource: search.openSource, partial: search.partial });
+    }
+    if (ac.signal.aborted) return;
+    emit({ type: 'progress', message: 'AI 設計定位中…' });
+    // 生成期也要心跳：工具 JSON 在 finalMessage 前可能静默数十秒(实测~50s),不送会被 Fly idle 掐线+前端冻结。
+    // 第一张 card_start 出现即停(见 inputJson 内 clearInterval)。
+    hb = setInterval(() => { if (!res.writableEnded) emit({ type: 'progress', message: 'AI 構思定位中…' }); }, 2500);
+
+    // 2) 强制工具 + 串流生成（spike 已验证 stream 上 forced tool 稳定产出 tool_use）
+    const stream = anthropic.messages.stream({
+      model: MODEL, max_tokens: PERSONA_MAX_TOKENS, temperature: 0.8,
+      system: buildPersonaSystem(n, cm.marketName),
+      tools: [makePersonasTool(n)], tool_choice: { type: 'tool', name: 'emit_personas' },
+      messages: [{ role: 'user', content: buildPersonaUser(appName, oneLiner, search, { regenerate: regenerateIndex != null, avoidCards }) }],
+    }, { signal: ac.signal });
+
+    // 3) 从 inputJson 累积快照逐卡 emit：新卡出现→card_start；当前卡 oneLiner 增长→delta(逐字)
+    let started = 0;
+    const lastOL = [];
+    stream.on('inputJson', (_partial, snap) => {
+      const arr = (snap && Array.isArray(snap.personas)) ? snap.personas : null;
+      if (!arr) return;
+      while (started < arr.length) {
+        if (hb) { clearInterval(hb); hb = null; }   // 第一张卡出现 → 停生成期心跳
+        emit({ type: 'card_start', index: mapIdx(started), cardType: 'persona', title: `定位 ${mapIdx(started) + 1}` });
+        lastOL[started] = '';
+        started++;
+      }
+      const i = arr.length - 1;
+      const ol = (typeof arr[i]?.oneLiner === 'string') ? arr[i].oneLiner : '';
+      const prev = lastOL[i] || '';
+      if (ol.length > prev.length && ol.startsWith(prev)) {
+        const inc = ol.slice(prev.length);
+        if (inc) emit({ type: 'delta', index: mapIdx(i), text: inc });
+        lastOL[i] = ol;
+      }
+    });
+
+    const final = await stream.finalMessage();
+    const tu = (final.content || []).find(c => c.type === 'tool_use' && c.name === 'emit_personas');
+    const personas = (tu && Array.isArray(tu.input?.personas)) ? tu.input.personas : null;
+    if (!personas || !personas.length) {
+      emit({ type: 'error', code: 'ai_format', error: 'AI 未回传 emit_personas 工具结果' });
+    } else {
+      while (started < personas.length) {   // 保险：补未发的 card_start
+        emit({ type: 'card_start', index: mapIdx(started), cardType: 'persona', title: `定位 ${mapIdx(started) + 1}` });
+        started++;
+      }
+      personas.forEach((p, i) => emit({ type: 'card_done', index: mapIdx(i), card: pickKeys(p, PERSONA_CARD_KEYS) }));
+      if (final.stop_reason === 'max_tokens') emit({ type: 'error', code: 'ai_truncated', error: '內容過長被截斷' });
+      emit(usagePayload(final));
+      emit({ type: 'done' });
+    }
+  } catch (e) {
+    if (hb) clearInterval(hb);
+    if (!ac.signal.aborted) emit({ type: 'error', code: errCode(e), error: String(e?.message || e) });
+  } finally { if (hb) clearInterval(hb); res.end(); }
+}
+
 const server = http.createServer(async (req, res) => {
   cors(req, res);
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
@@ -534,7 +716,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(401, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'unauthorized' }));
   }
-  const ROUTES = { '/ai/chat/note': handleChatNote, '/ai/optimize': handleOptimize, '/ai/structure': handleStructure, '/find/competitors': handleFindCompetitors, '/find/similar': handleFindSimilar };
+  const ROUTES = { '/ai/chat/note': handleChatNote, '/ai/optimize': handleOptimize, '/ai/structure': handleStructure, '/ai/personas': handleGeneratePersonas, '/find/competitors': handleFindCompetitors, '/find/similar': handleFindSimilar };
   if (req.method === 'POST' && ROUTES[url.pathname]) {
     let body = '';
     req.on('data', c => { body += c; if (body.length > 220 * 1024) req.destroy(); });
