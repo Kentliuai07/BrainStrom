@@ -21,9 +21,9 @@ protocol NotesRepositoring: AnyObject {
     func updateSystemSpec(systemID: UUID, spec: SystemSpec) throws
 
     // —— 主筆記錨點（階段三 v3）——
-    /// 建系統並同時種下主筆記（原子）：回 (系統, 主筆記)。
+    /// 建系統並同時種下主筆記（原子）：回 (系統, 主筆記)。initialContent 非空＝寫成主筆記第一塊（AI 引導/手動可讀）。
     @discardableResult
-    func createSystemWithPrimaryNote(name: String) throws -> (system: NoteSystem, note: Note)
+    func createSystemWithPrimaryNote(name: String, initialContent: String?) throws -> (system: NoteSystem, note: Note)
     /// 取該系統的主筆記 ID（nil=舊資料未設）。
     func primaryNoteID(for systemID: UUID) throws -> UUID?
     /// 取出（或惰性建立）某 system 的唯一文件筆記。

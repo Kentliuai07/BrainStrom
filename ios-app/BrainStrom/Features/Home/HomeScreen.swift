@@ -228,8 +228,9 @@ struct HomeScreen: View {
         guard let repository = root.repository else { return }
         let name = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
         let title = name.isEmpty ? String(localized: "未命名專案") : name
+        let seed = newOneLiner.trimmingCharacters(in: .whitespacesAndNewlines)   // 一句话作用 → 写进主笔记给 AI 读
         newProjectName = ""; newOneLiner = ""
-        guard let result = try? repository.createSystemWithPrimaryNote(name: title) else { return }
+        guard let result = try? repository.createSystemWithPrimaryNote(name: title, initialContent: seed) else { return }
         path.append(HomeRoute.systemDetail(id: result.system.id, mode: mode))
     }
 
@@ -246,7 +247,7 @@ struct HomeScreen: View {
         guard let repository = root.repository else { return }
         let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalName = title.isEmpty ? (card.tagline.isEmpty ? String(localized: "未命名專案") : card.tagline) : title
-        guard let result = try? repository.createSystemWithPrimaryNote(name: finalName) else { return }
+        guard let result = try? repository.createSystemWithPrimaryNote(name: finalName, initialContent: nil) else { return }
         try? repository.updateSystemSpec(systemID: result.system.id, spec: card.toSpec(name: finalName))
         if !path.isEmpty { path.removeLast() }   // 移除 persona 路由
         path.append(HomeRoute.systemDetail(id: result.system.id, mode: .notes))

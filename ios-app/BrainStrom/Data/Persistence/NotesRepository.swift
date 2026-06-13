@@ -64,10 +64,13 @@ final class NotesRepository: NotesRepositoring {
 
     /// 建系統＋種主筆記（原子）：避免「只建系統沒建筆記」的空窗。
     @discardableResult
-    func createSystemWithPrimaryNote(name: String) throws -> (system: NoteSystem, note: Note) {
+    func createSystemWithPrimaryNote(name: String, initialContent: String? = nil) throws -> (system: NoteSystem, note: Note) {
         let sysEntity = SystemEntity(id: UUID(), name: name, createdAt: .now, updatedAt: .now)
         context.insert(sysEntity)
-        let note = Note(systemID: sysEntity.id, title: name)
+        // 建专案时若带「一句话作用」→ 写成主笔记第一块，AI 引导/手动模式才读得到、能从中抽身份证资讯。
+        let seed = (initialContent ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let initialBlocks: [Block] = seed.isEmpty ? [] : [Block(kind: .paragraph, text: seed, orderIndex: 0, source: .manual)]
+        let note = Note(systemID: sysEntity.id, title: name, blocks: initialBlocks)
         let noteEntity = NoteEntity(
             id: note.id, title: note.title, docStateRaw: note.docState.rawValue,
             blocksData: try JSONEncoder().encode(note.blocks),
