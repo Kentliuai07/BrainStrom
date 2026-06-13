@@ -582,7 +582,7 @@ async function handleFindSimilar(req, res, payload) {
 // 第3模式 · 批量生成 N 种系统身份证(Persona) —— 反向「先搜后生成」+ 串流
 // 契约：progress(心跳) → search_done → 每张 card_start{cardType:'persona'} + delta{index,text} → card_done{index,card} → usage → done
 // ============================================================
-const PERSONA_N = 4;
+const PERSONA_N = Math.min(Math.max(Number(process.env.PERSONA_N) || 4, 1), 6);   // 默认 4(向后兼容旧前端);新前端送 count=2 改用 2 张+追加
 const PERSONA_MAX_TOKENS = Math.min(Number(process.env.PERSONA_MAX_TOKENS_CAP || 16000), 16000); // 独立 cap，绕开共用的 MAX_TOKENS(8192)
 const PERSONA_CARD_KEYS = ['oneLiner', 'targetUser', 'painPoint', 'coreValue', 'marketStrategy', 'businessModel', 'coreFeatures', 'tagline'];
 const pickKeys = (obj, keys) => { const o = {}; for (const k of keys) if (obj && obj[k] != null) o[k] = String(obj[k]); return o; };
@@ -636,7 +636,8 @@ const buildPersonaSystem = (n, market) => [
   { type: 'text', text: PERSONA_CONTRACT(n, market) },
 ];
 
-function buildPersonaUser(appName, oneLiner, search, { regenerate, avoidCards }) {
+// 逐张生成：每次只产 1 张，必须跟「已有的几张」不同(沿未占用的差异化轴);reason=使用者要的方向。
+function buildPersonaUser(appName, oneLiner, search, { avoidCards = [], reason = '' } = {}) {
   const fmt = (arr, label) => (Array.isArray(arr) && arr.length)
     ? `\n${label}：\n` + arr.map(x => `- ${x.title}${x.summary ? '：' + x.summary : ''}`).join('\n')
     : `\n${label}：（無）`;
@@ -645,27 +646,79 @@ function buildPersonaUser(appName, oneLiner, search, { regenerate, avoidCards })
   s += fmt(search?.competitors, '商業競品');
   s += fmt(search?.articles, '相關文章');
   s += fmt(search?.openSource, '相關開源');
-  if (regenerate) {
-    s += `\n\n--- 重新生成 ---\n請只產生 1 張新定位，且必須明顯不同於以下既有定位（換一個差異化軸）：\n`
-      + (Array.isArray(avoidCards) ? avoidCards.map((c, i) => `${i + 1}. ${c?.tagline || c?.oneLiner || ''}`).join('\n') : '');
+  s += `\n\n--- 任務 ---\n請只產生「1 張」定位（emit_personas 的 personas 陣列只放 1 個）。請先完整輸出 oneLiner，再輸出其餘欄位。`;
+  if (Array.isArray(avoidCards) && avoidCards.length) {
+    s += `\n必須明顯不同於以下已有 ${avoidCards.length} 張（換一個它們「未占用」的差異化軸，別重複人群/商業模式/場景/價格帶）：\n`
+      + avoidCards.map((c, i) => `${i + 1}. ${c?.tagline || ''}｜${c?.oneLiner || ''}｜客群:${c?.targetUser || ''}｜商業:${c?.businessModel || ''}`).join('\n');
+  }
+  if (reason && reason.trim()) {
+    s += `\n\n使用者特別想要這個方向：「${reason.trim()}」——請優先滿足，並據此選差異化方向。`;
   }
   return s;
 }
 
-// POST /ai/personas { appName, oneLiner, country?, regenerateIndex?, avoidCards?[], sharedSearch? }
+// 生成「1 张」定位并逐字串流：emit card_start{index}→delta{index}(oneLiner 增量)→card_done{index}，回传该卡(供下张避重)。
+// hb 为 call 局部心跳(避免与主循环 double-clear)；首个 card_start 即停心跳。
+async function generateOnePersona(res, emit, ac, { index, search, marketName, avoidCards, reason, appName, oneLiner }) {
+  // 立刻发 card_start → 前端马上显示这张卡的「生成中…」壳子(边看边生),不让使用者干等。
+  emit({ type: 'card_start', index, cardType: 'persona', title: `定位 ${index + 1}` });
+  // 心跳保活整张生成期(工具 JSON ~20s 才解析得出,期间静默会被 Fly idle 掐线)。
+  let hb = setInterval(() => { if (!res.writableEnded) emit({ type: 'progress', message: 'AI 構思定位中…' }); }, 2500);
+  let lastOL = '';
+  try {
+    const stream = anthropic.messages.stream({
+      model: MODEL, max_tokens: 1400, temperature: 0.85,
+      system: buildPersonaSystem(1, marketName),
+      tools: [makePersonasTool(1)], tool_choice: { type: 'tool', name: 'emit_personas' },
+      messages: [{ role: 'user', content: buildPersonaUser(appName, oneLiner, search, { avoidCards, reason }) }],
+    }, { signal: ac.signal });
+    stream.on('inputJson', (_partial, snap) => {
+      const arr = (snap && Array.isArray(snap.personas)) ? snap.personas : null;
+      if (!arr || !arr.length) return;
+      const ol = (typeof arr[0]?.oneLiner === 'string') ? arr[0].oneLiner : '';
+      if (ol.length > lastOL.length && ol.startsWith(lastOL)) {
+        const inc = ol.slice(lastOL.length);
+        if (inc) emit({ type: 'delta', index, text: inc });
+        lastOL = ol;
+      }
+    });
+    const final = await stream.finalMessage();
+    if (hb) { clearInterval(hb); hb = null; }
+    const tu = (final.content || []).find(c => c.type === 'tool_use' && c.name === 'emit_personas');
+    const p = (tu && Array.isArray(tu.input?.personas)) ? tu.input.personas[0] : null;
+    if (!p) { emit({ type: 'error', code: 'ai_format', error: 'AI 未回传 emit_personas' }); return null; }
+    const card = pickKeys(p, PERSONA_CARD_KEYS);
+    emit({ type: 'card_done', index, card });
+    if (final.stop_reason === 'max_tokens') emit({ type: 'error', code: 'ai_truncated', error: '內容過長被截斷' });
+    return card;
+  } catch (e) {
+    if (hb) clearInterval(hb);
+    if (!ac.signal.aborted) emit({ type: 'error', code: errCode(e), error: String(e?.message || e) });
+    return null;
+  } finally { if (hb) clearInterval(hb); }
+}
+
+// POST /ai/personas { appName, oneLiner, country?, count?, mode?('batch'|'append'|'regenerate'),
+//   reason?, regenerateIndex?, avoidCards?[], sharedSearch? }
+// 逐张生成、边生边串流：第一张约 15s 出，第一张完接第二张…(消灭原本干等~57s)。
 async function handleGeneratePersonas(req, res, payload) {
   const appName = String(payload?.appName || '').trim();
   const oneLiner = String(payload?.oneLiner || '').trim();
   const country = String(payload?.country || '').trim();
+  const reason = String(payload?.reason || '').trim();
   const regenerateIndex = Number.isInteger(payload?.regenerateIndex) ? payload.regenerateIndex : null;
   const avoidCards = Array.isArray(payload?.avoidCards) ? payload.avoidCards : [];
   const sharedSearch = (payload?.sharedSearch && typeof payload.sharedSearch === 'object') ? payload.sharedSearch : null;
+  const mode = payload?.mode || (regenerateIndex != null ? 'regenerate' : 'batch');
   if (!appName && !oneLiner) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'bad_request', detail: 'need {appName 或 oneLiner}' }));
   }
-  const n = regenerateIndex != null ? 1 : PERSONA_N;
-  const mapIdx = (i) => (regenerateIndex != null ? regenerateIndex : i);
+  const countReq = Math.min(Math.max(Number(payload?.count) || PERSONA_N, 1), 6);
+  const n = (mode === 'append' || mode === 'regenerate') ? 1 : countReq;
+  // index 权威收归后端：regenerate→固定回填 regenerateIndex；append→接在已有之后；batch→0,1,2…
+  const baseIndex = (mode === 'regenerate' && regenerateIndex != null) ? regenerateIndex
+    : (mode === 'append') ? avoidCards.length : 0;
   const cm = countryConf(country);
   const emit = sse(res);
   const ac = new AbortController();
@@ -673,7 +726,7 @@ async function handleGeneratePersonas(req, res, payload) {
   let hb = null;
   try {
     emit({ type: 'progress', current: 0, total: n, message: `開始分析《${appName || oneLiner}》` });
-    // 1) 先搜（整批共用一次；regenerate 时若带 sharedSearch 就不重搜）
+    // 1) 先搜（整批共用一次；append/regenerate 带 sharedSearch 就不重搜）
     let search = sharedSearch;
     if (!search) {
       hb = setInterval(() => { if (!res.writableEnded) emit({ type: 'progress', message: 'AI 研讀競品 / 文章 / 開源中…' }); }, 2500);
@@ -681,57 +734,20 @@ async function handleGeneratePersonas(req, res, payload) {
       clearInterval(hb); hb = null;
       emit({ type: 'search_done', competitors: search.competitors, articles: search.articles, openSource: search.openSource, partial: search.partial });
     }
-    if (ac.signal.aborted) return;
-    emit({ type: 'progress', message: 'AI 設計定位中…' });
-    // 生成期也要心跳：工具 JSON 在 finalMessage 前可能静默数十秒(实测~50s),不送会被 Fly idle 掐线+前端冻结。
-    // 第一张 card_start 出现即停(见 inputJson 内 clearInterval)。
-    hb = setInterval(() => { if (!res.writableEnded) emit({ type: 'progress', message: 'AI 構思定位中…' }); }, 2500);
+    if (ac.signal.aborted) { res.end(); return; }
 
-    // 2) 强制工具 + 串流生成（spike 已验证 stream 上 forced tool 稳定产出 tool_use）
-    const stream = anthropic.messages.stream({
-      model: MODEL, max_tokens: PERSONA_MAX_TOKENS, temperature: 0.8,
-      system: buildPersonaSystem(n, cm.marketName),
-      tools: [makePersonasTool(n)], tool_choice: { type: 'tool', name: 'emit_personas' },
-      messages: [{ role: 'user', content: buildPersonaUser(appName, oneLiner, search, { regenerate: regenerateIndex != null, avoidCards }) }],
-    }, { signal: ac.signal });
-
-    // 3) 从 inputJson 累积快照逐卡 emit：新卡出现→card_start；当前卡 oneLiner 增长→delta(逐字)
-    let started = 0;
-    const lastOL = [];
-    stream.on('inputJson', (_partial, snap) => {
-      const arr = (snap && Array.isArray(snap.personas)) ? snap.personas : null;
-      if (!arr) return;
-      while (started < arr.length) {
-        if (hb) { clearInterval(hb); hb = null; }   // 第一张卡出现 → 停生成期心跳
-        emit({ type: 'card_start', index: mapIdx(started), cardType: 'persona', title: `定位 ${mapIdx(started) + 1}` });
-        lastOL[started] = '';
-        started++;
-      }
-      const i = arr.length - 1;
-      const ol = (typeof arr[i]?.oneLiner === 'string') ? arr[i].oneLiner : '';
-      const prev = lastOL[i] || '';
-      if (ol.length > prev.length && ol.startsWith(prev)) {
-        const inc = ol.slice(prev.length);
-        if (inc) emit({ type: 'delta', index: mapIdx(i), text: inc });
-        lastOL[i] = ol;
-      }
-    });
-
-    const final = await stream.finalMessage();
-    const tu = (final.content || []).find(c => c.type === 'tool_use' && c.name === 'emit_personas');
-    const personas = (tu && Array.isArray(tu.input?.personas)) ? tu.input.personas : null;
-    if (!personas || !personas.length) {
-      emit({ type: 'error', code: 'ai_format', error: 'AI 未回传 emit_personas 工具结果' });
-    } else {
-      while (started < personas.length) {   // 保险：补未发的 card_start
-        emit({ type: 'card_start', index: mapIdx(started), cardType: 'persona', title: `定位 ${mapIdx(started) + 1}` });
-        started++;
-      }
-      personas.forEach((p, i) => emit({ type: 'card_done', index: mapIdx(i), card: pickKeys(p, PERSONA_CARD_KEYS) }));
-      if (final.stop_reason === 'max_tokens') emit({ type: 'error', code: 'ai_truncated', error: '內容過長被截斷' });
-      emit(usagePayload(final));
-      emit({ type: 'done' });
+    // 2) 逐张生成：每张独立串流，生完接下一张；后生的要避开已生的(避重)
+    const avoid = avoidCards.slice();
+    for (let i = 0; i < n; i++) {
+      if (ac.signal.aborted) break;
+      const index = (mode === 'regenerate') ? baseIndex : baseIndex + i;
+      emit({ type: 'progress', current: i, total: n, message: n > 1 ? `AI 生成第 ${i + 1}/${n} 張…` : 'AI 設計定位中…' });
+      const card = await generateOnePersona(res, emit, ac, {
+        index, search, marketName: cm.marketName, avoidCards: avoid, reason, appName, oneLiner,
+      });
+      if (card) avoid.push(card);   // 下一张避开这张
     }
+    emit({ type: 'done' });
   } catch (e) {
     if (hb) clearInterval(hb);
     if (!ac.signal.aborted) emit({ type: 'error', code: errCode(e), error: String(e?.message || e) });
