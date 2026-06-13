@@ -13,8 +13,12 @@ struct AIServiceStub: AIServicing {
     func health() async -> Bool { true }
 
     func findCompetitors(keywords: String) async throws -> [CompetitorItem] {
-        [CompetitorItem(source: "app_store", title: "Fitbod", url: "https://apps.apple.com", subtitle: "Fitbod Inc. · 免費", note: nil),
-         CompetitorItem(source: "github", title: "open/fitness-ai", url: "https://github.com", subtitle: "AI workout planner", note: nil)]
+        [CompetitorItem(source: "web", title: "Fitbod", url: "https://apps.apple.com/fitbod", subtitle: "apps.apple.com", summary: "AI 健身排课与重训计画 App"),
+         CompetitorItem(source: "github", title: "open/fitness-ai", url: "https://github.com/open/fitness-ai", subtitle: "AI workout planner")]
+    }
+
+    func findSimilar(url: String) async throws -> [CompetitorItem] {
+        [CompetitorItem(source: "web", title: "Strong", url: "https://apps.apple.com/strong", subtitle: "apps.apple.com", summary: "重训纪录与计画 App")]
     }
 
     func chatNote(messages: [ChatMessage], note: NotePayload, project: ProjectContext?, mode: String?, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error> {

@@ -49,6 +49,20 @@ struct AIServiceLive: AIServicing {
         return (try? JSONDecoder().decode(Resp.self, from: data).items) ?? []
     }
 
+    func findSimilar(url: String) async throws -> [CompetitorItem] {
+        struct Body: Encodable { let url: String }
+        struct Resp: Decodable { let items: [CompetitorItem] }
+        var request = URLRequest(url: config.baseURL.appending(path: "find/similar"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(config.authToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(Body(url: url))
+        request.timeoutInterval = 20
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw URLError(.badServerResponse) }
+        return (try? JSONDecoder().decode(Resp.self, from: data).items) ?? []
+    }
+
     func optimize(note: NotePayload, groupTopics: Bool, instruction: String?) -> AsyncThrowingStream<AIEvent, any Error> {
         struct Body: Encodable {
             let note: NotePayload

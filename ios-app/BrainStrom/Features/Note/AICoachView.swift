@@ -173,7 +173,8 @@ struct AICoachView: View {
 
     @ViewBuilder
     private var competitorBar: some View {
-        if let d = doc, d.systemSpec.infoEnoughForCompetitors {
+        // build11：门槛放低——只要专案有名字就能找竞品(不用等填满核心3)。
+        if let d = doc, !d.title.trimmingCharacters(in: .whitespaces).isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 if competitorResults.isEmpty {
                     Button { findCompetitors() } label: {
@@ -191,10 +192,21 @@ struct AICoachView: View {
                     .accessibilityIdentifier("coach.findcompetitors")
                 } else {
                     // build9：商業競品(App Store) 與 相關開源(GitHub) 分兩排——它們不是同一種東西。
-                    let apps = competitorResults.filter { $0.source == "app_store" }
-                    let repos = competitorResults.filter { $0.source != "app_store" }
-                    competitorGroup(String(localized: "🥊 商業競品"), apps, d)
+                    let apps = competitorResults.filter { $0.source == "web" || $0.source == "app_store" }
+                    let repos = competitorResults.filter { $0.source == "github" }
+                    competitorGroup(String(localized: "🥊 商業競品 / 相關產品"), apps, d)
                     competitorGroup(String(localized: "🧰 相關開源（可參考）"), repos, d)
+                    // build11：findSimilar——拿第一个竞品「找更多类似的」
+                    if let first = apps.first {
+                        Button { findSimilarTo(first.url) } label: {
+                            Text(findingCompetitors ? String(localized: "搜尋中…") : String(localized: "↻ 找更多像「\(first.title.prefix(8))」的"))
+                                .font(Tokens.Fonts.body(11, weight: .semibold)).foregroundStyle(palette.print2)
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .background(Capsule().strokeBorder(palette.line, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain).disabled(findingCompetitors)
+                        .accessibilityIdentifier("coach.findsimilar")
+                    }
                 }
             }
             .padding(.horizontal, 12).padding(.top, 8)
@@ -223,7 +235,7 @@ struct AICoachView: View {
                     Text(verbatim: c.source == "github" ? "🐙" : "").font(.system(size: 11))
                     Text(c.title).font(Tokens.Fonts.body(11.5, weight: .semibold)).foregroundStyle(palette.print).lineLimit(1)
                 }
-                Text(c.subtitle ?? "").font(Tokens.Fonts.body(9.5)).foregroundStyle(palette.print3).lineLimit(1)
+                Text(c.summary ?? c.subtitle ?? "").font(Tokens.Fonts.body(9.5)).foregroundStyle(palette.print3).lineLimit(2)
             }
             .frame(width: 150, alignment: .leading)
             .padding(.horizontal, 10).padding(.vertical, 7)
@@ -231,6 +243,17 @@ struct AICoachView: View {
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
         }
         .buttonStyle(.plain)
+    }
+
+    private func findSimilarTo(_ url: String) {
+        guard !findingCompetitors else { return }
+        findingCompetitors = true
+        Task {
+            let items = (try? await root.ai.findSimilar(url: url)) ?? []
+            findingCompetitors = false
+            if items.isEmpty { root.toast.show(String(localized: "暫時沒找到更多類似的")) }
+            else { competitorResults = items }
+        }
     }
 
     private func findCompetitors() {

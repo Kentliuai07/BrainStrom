@@ -81,15 +81,28 @@ enum Visibility: String, Codable, Sendable {
 
 /// 競品項（iTunes / GitHub Search 回的真實結果，點選記入身份證）。
 struct CompetitorItem: Equatable, Hashable, Codable, Sendable {
-    var source: String      // "app_store" | "github"
+    var source: String      // "web"(商業竞品/相关产品) | "app_store" | "github"
     var title: String
     var url: String
-    var subtitle: String?   // App 開發商 / repo 描述
+    var subtitle: String?   // 域名 / 開發商 / repo 描述
+    var summary: String?    // Exa 一句話簡介「它在做什麼」
     var note: String?       // 之後可放「跟你差在哪」
 
-    init(source: String, title: String, url: String, subtitle: String? = nil, note: String? = nil) {
+    init(source: String, title: String, url: String, subtitle: String? = nil, summary: String? = nil, note: String? = nil) {
         self.source = source; self.title = title; self.url = url
-        self.subtitle = subtitle; self.note = note
+        self.subtitle = subtitle; self.summary = summary; self.note = note
+    }
+
+    // 向後相容:舊持久化的竞品無 summary → nil
+    enum CodingKeys: String, CodingKey { case source, title, url, subtitle, summary, note }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        source = try c.decode(String.self, forKey: .source)
+        title = try c.decode(String.self, forKey: .title)
+        url = try c.decode(String.self, forKey: .url)
+        subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle)
+        summary = try c.decodeIfPresent(String.self, forKey: .summary)
+        note = try c.decodeIfPresent(String.self, forKey: .note)
     }
 }
 
