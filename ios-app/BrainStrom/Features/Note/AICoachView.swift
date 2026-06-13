@@ -115,11 +115,18 @@ struct AICoachView: View {
                 } else if bubble.text.isEmpty {
                     Text(String(localized: "思考中…")).font(Tokens.Fonts.body(13.5)).foregroundStyle(palette.print2)
                 } else {
-                    MarkdownView(blocks: MarkdownParser.parse(bubble.text))
+                    // 定稿：若是引导的「编号选项」回覆→只显示前言(选项另做成可点按钮);否则整段 markdown
+                    let parsed = Self.parseGuidedOptions(bubble.text)
+                    MarkdownView(blocks: MarkdownParser.parse(parsed.options.count >= 2 ? parsed.intro : bubble.text))
                 }
             }
             .padding(.horizontal, 11).padding(.vertical, 9)
             .background(RoundedRectangle(cornerRadius: 14).fill(isUser ? palette.orange : palette.panel2))
+            // A：引导编号选项 → 可点按钮（文字串完即出现，无需等工具）。点了就记进身份证。
+            if !isUser, chatVM?.streamingBubbleID != bubble.id {
+                let parsed = Self.parseGuidedOptions(bubble.text)
+                if parsed.options.count >= 2 { optionsRow(parsed.options) }
+            }
             if let tokens = bubble.tokens {
                 Text(tokens).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
             }
@@ -177,6 +184,66 @@ struct AICoachView: View {
             // structure / edit_text / find_* 屬單篇筆記操作 → 引導去開發筆記分頁
             root.toast.show(String(localized: "這個操作請到「開發筆記」分頁進行"))
         }
+    }
+
+    // MARK: - A：引导编号选项 → 可点按钮
+
+    /// 从 AI 回覆解析「1. xxx / 2. yyy」编号选项：回 (前言, 选项[])。
+    static func parseGuidedOptions(_ text: String) -> (intro: String, options: [String]) {
+        var introLines: [String] = []
+        var options: [String] = []
+        for raw in text.components(separatedBy: "\n") {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if let r = line.range(of: #"^\d+[.、)）]\s*"#, options: .regularExpression) {
+                let opt = String(line[r.upperBound...]).trimmingCharacters(in: .whitespaces)
+                if !opt.isEmpty { options.append(opt) }
+            } else if options.isEmpty {
+                introLines.append(raw)
+            }
+        }
+        return (introLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines), options)
+    }
+
+    /// 引导当前要填的核心字段（一句话→目标用户→痛点→核心功能，第一个空的）。
+    static func nextCoreField(_ s: SystemSpec) -> String? {
+        func empty(_ v: String?) -> Bool { (v ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        if empty(s.oneLiner) { return "oneLiner" }
+        if empty(s.targetUser) { return "targetUser" }
+        if empty(s.painPoint) { return "painPoint" }
+        if empty(s.coreFeatures) { return "coreFeatures" }
+        return nil
+    }
+
+    private func optionsRow(_ options: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(options.enumerated()), id: \.offset) { _, opt in
+                Button { Haptics.tap(); tapGuidedOption(opt) } label: {
+                    HStack(alignment: .top, spacing: 7) {
+                        Image(systemName: "circle").font(.system(size: 11)).foregroundStyle(palette.orange).padding(.top, 2)
+                        Text(opt).font(Tokens.Fonts.body(13, weight: .medium)).foregroundStyle(palette.print)
+                            .frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(palette.orangeDim)
+                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(palette.orange.opacity(0.35), lineWidth: 1)))
+                }
+                .buttonStyle(.plain)
+                .disabled(chatVM?.streaming == true)
+                .accessibilityIdentifier("coach.option")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 点编号选项 → 直接记进身份证当前核心字段 + 把它当回答送出，触发问下一题。
+    private func tapGuidedOption(_ text: String) {
+        guard let doc, let chatVM, chatVM.streaming == false else { return }
+        if let field = Self.nextCoreField(doc.systemSpec),
+           let data = try? JSONSerialization.data(withJSONObject: [field: text]),
+           let json = String(data: data, encoding: .utf8) {
+            noteVM?.applySpecPatch(doc, instructionJSON: json)
+        }
+        chatVM.send(doc, text: text, project: doc.projectContext(), mode: "guided")
     }
 
     // MARK: - 競品條（資訊夠時浮現；找競品 + 點卡記入）

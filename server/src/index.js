@@ -81,19 +81,17 @@ JSON 鍵只能用這些（只填這次明確提到的，其餘省略）：
 沒有明確身份證資訊時，不要加 update_spec。它與其它提議可並存，但 items 最多 4 個。`;
 
 // build7 · 引导式访谈 prompt（mode=guided）：一次一题、出候选选项、核心4优先
-const GUIDED_INTERVIEW_PROMPT = `任務（引導式訪談）：你是產品教練，幫使用者一步步把「系統身份證」填好。
-1. 一次只問一個核心問題，順序：一句話簡介 → 目標用戶 → 解決痛點 → 核心功能；看「身份證現況」跳過已填的，問第一個還沒填的（下方會告訴你「現在問哪題」）。
-2. 先用 1-2 句白話說「為什麼問這題」，然後呼叫 propose 抛 2-4 個「候選答案」當選項：每個 item action='update_spec'、label=該候選的精簡可讀文字(≤40字)、args.instruction= 一段 JSON 字串。
-   ⚠️ args.instruction 絕對不能省！內容是把這個候選寫成 JSON，鍵用「現在問的那個欄位」(問一句話就用 oneLiner、問目標用戶就用 targetUser…)，例：{"oneLiner":"道家法術×每日指引的解惑App"}。沒有 args.instruction 使用者點了就記不進身份證＝白點。
-   候選要具體、貼合這個專案、互不重複。
-2b.【別重問使用者已經講過的】先看上方筆記/描述：若「現在問哪題」的那個欄位，使用者在筆記/描述裡其實已經講清楚了，就「不要再當問題問」——改成：用一句話說「我從你的描述抓到了 X」，然後 propose 一個 update_spec 把你抽出的答案記入(label='記入：X'、args.instruction={該欄位:抽出的值})，並把提問焦點移到「下一個還沒講到的欄位」(可在同一則 propose 裡，第一個是記入抽出值、其餘是下一欄位的候選)。目的：使用者講過的別重問，讓流程更聰明、更有機。
-3. 【市場刺激·重要】若上方有【你已查到的真實市場】：
-   · 「為什麼問這題」要帶「一句具體市場觀察」，點名一個真實競品或做法（例：「市場上 Forest 用種樹遊戲化、TickTick 走任務整合，定位差很多」）。
-   · 你拋的候選選項要「直接取材自這些真實競品/開源的不同定位方向」，改寫成貼合本專案的選項——讓使用者一眼看出「這是基於真實市場的不同路線」。禁止給「方便記帳/好用的工具」這種通用空泛選項。
-   · 目的：同一個欄位，因為看過市場，你問的角度與給的選項要明顯比沒查過時更具體、更有洞察。
-4. 結尾告訴使用者：可以點一個候選，或自己打字補充。
-5. 全文 ≤220 字、繁體中文白話；絕不直接改筆記。
-6. 若「現在問哪題」顯示『核心4已填齊』→ 不要再問核心題，改說「基礎清楚了！」並引導往技術選型/功能拆解推敲（此時 propose 可含 structure / 一般 update_spec）。`;
+const GUIDED_INTERVIEW_PROMPT = `任務（引導式訪談）：你是產品教練，幫使用者一步步把「系統身份證」填好。一次只問一個核心問題，順序：一句話簡介 → 目標用戶 → 解決痛點 → 核心功能；看「身份證現況」跳過已填的，問第一個還沒填的（下方會告訴你「現在問哪題」）。
+
+【輸出格式·務必嚴格遵守】純文字回答，不要呼叫任何工具：
+1. 先用 1-2 句白話說「為什麼問這題」；若上方有【你已查到的真實市場】，帶一句具體市場觀察（點名真實競品/做法，例：Forest 種樹遊戲化、TickTick 任務整合）。
+2. 然後「另起一行、用編號清單」列 2-4 個「候選答案」，每個獨佔一行，格式就是：「1. 候選內容」換行「2. 候選內容」… 。
+   · 候選內容＝可直接當「這一題」答案的一句完整話（前端會把每一行變成可點按鈕，點了就記進身份證；所以要是完整答案、不是空泛標籤如「好用的工具」）。
+   · 候選要具體、貼合本專案、互不重複；有真實市場時取材自真實競品的不同定位方向。
+   · 【別重問使用者已經講過的】若使用者在筆記/描述裡已講清這一題，第 1 個候選就直接放「你從描述抽出來的答案」讓他一鍵確認，其餘給不同方向。
+3. 編號清單之後可加一句「點一個，或自己打字補充」。
+4. 全文 ≤200 字、繁體中文白話；絕不直接改筆記；除了那組編號清單，不要用其他項目符號或多個清單。
+5. 若「現在問哪題」顯示『核心4已填齊』→ 不要再問核心題，改說「基礎清楚了！」並用同樣的編號清單格式給「下一步」候選（例：1. 幫我拆解功能 2. 想技術選型）。`;
 
 // 系统身份证（L1）转成可读文字（只列已填栏位；build7 扩 5 区）
 function formatSpec(spec) {
@@ -138,7 +136,7 @@ function buildSystem(note, kickoff, project, mode, marketContext) {
     const coreOrder = [['oneLiner', '一句話簡介'], ['targetUser', '目標用戶'], ['painPoint', '解決痛點'], ['coreFeatures', '核心功能']];
     const next = coreOrder.find(([k]) => !String(spec[k] || '').trim());
     const hint = next ? `\n\n【現在問哪題】${next[1]}（JSON 鍵 ${next[0]}）` : '\n\n【現在問哪題】核心4已填齊';
-    task = GUIDED_INTERVIEW_PROMPT + hint + SPEC_DETECT;
+    task = GUIDED_INTERVIEW_PROMPT + hint;   // 引导改纯文字编号选项,不挂工具(SPEC_DETECT 不需要)
   } else {
     task = (kickoff ? (hasContent ? COACH_CONTENT_TASK : COACH_EMPTY_TASK) : CHAT_TASK) + SPEC_DETECT;
   }
@@ -367,14 +365,19 @@ async function handleChatNote(req, res, payload) {
     // Anthropic 要求 messages 至少一则：kickoff 空阵列时注入一则触发语（教练 prompt 在 system 第三层）
     const msgs = (Array.isArray(messages) && messages.length) ? messages
       : [{ role: 'user', content: '（使用者按下了「点子助攻」按钮）请开始你的教练开场。' }];
-    const stream = anthropic.messages.stream({
+    const isGuided = payload?.mode === 'guided';
+    const streamParams = {
       model: MODEL, max_tokens: MAX_TOKENS, temperature: 0.7,
       system: buildSystem(note, kickoff, payload?.project, payload?.mode, marketContext),
-      tools: [PROPOSE_TOOL], tool_choice: { type: 'auto' }, // Step 3.5：AI 可在结尾抛提议（kickoff 时 prompt 强制）
       messages: msgs.map(m => ({
         role: m.role === 'ai' ? 'assistant' : 'user', content: String(m.content || ''),
       })),
-    }, { signal: ac.signal });
+    };
+    if (!isGuided) {   // 引导改纯文字编号选项→不挂 propose 工具(消除选项按钮的生成等待);其余模式照旧
+      streamParams.tools = [PROPOSE_TOOL];
+      streamParams.tool_choice = { type: 'auto' };
+    }
+    const stream = anthropic.messages.stream(streamParams, { signal: ac.signal });
 
     // SDK 行为：stream.on('text') 只吐 text delta，tool_use 的 input json 不进 text——
     // 开场白由 prompt 要求「先文字后工具」；就算 AI 只回工具没文字，下面也照常 emit proposal/usage/done。
