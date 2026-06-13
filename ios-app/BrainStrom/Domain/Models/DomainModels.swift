@@ -81,7 +81,7 @@ enum Visibility: String, Codable, Sendable {
 
 /// 競品項（iTunes / GitHub Search 回的真實結果，點選記入身份證）。
 struct CompetitorItem: Equatable, Hashable, Codable, Sendable {
-    var source: String      // "web"(商業竞品/相关产品) | "app_store" | "github"
+    var source: String      // "web"(竞品产品) | "app_store" | "article"(相关文章) | "github"(开源)
     var title: String
     var url: String
     var subtitle: String?   // 域名 / 開發商 / repo 描述

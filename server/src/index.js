@@ -427,35 +427,54 @@ async function handleFindCompetitors(req, res, payload) {
   }
   const term = kw.slice(0, 60);
   const seen = new Set();
-  const competitors = [], openSource = [];
+  const competitors = [], articles = [], openSource = [];
   let partial = false;
 
-  // 注意:query 直接用产品词本身(Exa 神经搜=找相似产品);别加「竞品/类似产品」否则会搜到「竞品分析文章」而非产品。
-  const [web, repos] = await Promise.allSettled([
+  // build12：拆 3 轨。query 直接用产品词本身(Exa 神经搜=找相似产品);文章轨才加「評測」偏向评测文。
+  // 解构名 [company, articlesRes, repos]——刻意与收集阵列 articles 不同名,否则同作用域重复宣告会 SyntaxError。
+  const [company, articlesRes, repos] = await Promise.allSettled([
     exaSearch(term, { type: 'auto', numResults: 8, summaryQuery: '這個產品/App 一句話在做什麼？用繁體中文，30字內' }),
-    exaSearch(term, { category: 'github', type: 'auto', numResults: 8 }),
+    exaSearch(term + ' 評測', { type: 'auto', numResults: 8, summaryQuery: '這篇文章在講什麼？用繁體中文一句話' }),
+    exaSearch(term, { category: 'github', type: 'auto', numResults: 8, summaryQuery: '這個開源專案在做什麼？用繁體中文，30字內' }),
   ]);
 
-  // 竞品轨(Exa web)
-  if (web.status === 'fulfilled' && Array.isArray(web.value)) {
-    for (const r of web.value) {
+  // 竞品轨噪声过滤:百科/wiki 页永远不是竞品产品,直接跳过(笼统关键字时 Exa 易召回这些)。
+  const isReferenceNoise = (u) => /wikipedia\.org|baike\.baidu|\.wikipedia\.|百科/.test(String(u));
+
+  // 轨1 竞品产品轨(Exa company/neural) source 'web'
+  if (company.status === 'fulfilled' && Array.isArray(company.value)) {
+    for (const r of company.value) {
       if (!r.url || seen.has(r.url)) continue;
+      if (isReferenceNoise(r.url)) continue;
       seen.add(r.url);
       competitors.push({ source: 'web', title: String(r.title || hostOf(r.url)).slice(0, 80), url: r.url,
         subtitle: hostOf(r.url), summary: (String(r.summary || '').trim() || null), score: null });
-      if (competitors.length >= 6) break;
+      if (competitors.length >= 5) break;
     }
   } else { partial = true; }
 
-  // 开源轨(Exa github)——按 repo 名去重(避免 repo 页+README 页重复)
+  // 轨2 相关文章轨(Exa neural) source 'article'——跳过 github 链接(交给开源轨)
+  if (articlesRes.status === 'fulfilled' && Array.isArray(articlesRes.value)) {
+    for (const r of articlesRes.value) {
+      if (!r.url || seen.has(r.url)) continue;
+      if (repoName(r.url)) continue;
+      seen.add(r.url);
+      articles.push({ source: 'article', title: String(r.title || hostOf(r.url)).slice(0, 80), url: r.url,
+        subtitle: hostOf(r.url), summary: (String(r.summary || r.text || '').trim() || null), score: null });
+      if (articles.length >= 5) break;
+    }
+  } else { partial = true; }
+
+  // 轨3 相关开源轨(Exa github)——按 repo 名去重(避免 repo 页+README 页重复)。summary 来自轨3 的 summaryQuery。
   if (repos.status === 'fulfilled' && Array.isArray(repos.value)) {
     for (const r of repos.value) {
       const rn = repoName(r.url);
       if (!rn || seen.has('gh:' + rn)) continue;
       seen.add('gh:' + rn);
       openSource.push({ source: 'github', title: rn, url: `https://github.com/${rn}`,
-        subtitle: (String(r.summary || r.text || '').slice(0, 80) || null), summary: null, score: null });
-      if (openSource.length >= 6) break;
+        subtitle: (String(r.summary || r.text || '').slice(0, 80) || null),
+        summary: (String(r.summary || r.text || '').trim() || null), score: null });
+      if (openSource.length >= 5) break;
     }
   }
   // 开源保底:Exa github 空/失败 → GitHub 关键字搜
@@ -465,7 +484,7 @@ async function handleFindCompetitors(req, res, payload) {
   }
 
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ items: [...competitors, ...openSource], competitors, openSource, partial }));
+  res.end(JSON.stringify({ items: [...competitors, ...articles, ...openSource], competitors, articles, openSource, partial }));
 }
 
 // build11：findSimilar — 给一个竞品网址，找更多类似的(Exa)。

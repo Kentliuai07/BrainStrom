@@ -121,7 +121,7 @@ struct SystemStructureView: View {
             Text(String(localized: "競品")).font(Tokens.Fonts.mono(10, weight: .bold)).kerning(1).foregroundStyle(palette.print3)
             ForEach(Array(spec.competitors.enumerated()), id: \.offset) { _, c in
                 HStack(spacing: 8) {
-                    Text(verbatim: c.source == "github" ? "🐙" : "").font(.system(size: 13))
+                    Text(verbatim: { switch c.source { case "github": return "🐙"; case "article": return "📄"; default: return "" } }()).font(.system(size: 13))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(c.title).font(Tokens.Fonts.body(13, weight: .semibold)).foregroundStyle(palette.print).lineLimit(1)
                         if let s = c.subtitle, !s.isEmpty {

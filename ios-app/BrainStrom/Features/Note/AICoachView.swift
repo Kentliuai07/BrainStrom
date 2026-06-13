@@ -17,6 +17,7 @@ struct AICoachView: View {
 
     @Environment(CompositionRoot.self) private var root
     @Environment(\.palette) private var palette
+    @Environment(\.openURL) private var openURL
 
     @State private var doc: NoteDocument?
     @State private var chatVM: ChatViewModel?
@@ -181,7 +182,7 @@ struct AICoachView: View {
                         HStack(spacing: 6) {
                             if findingCompetitors { ProgressView().controlSize(.mini).tint(palette.orange) }
                             Text(findingCompetitors ? String(localized: "搜尋競品中…")
-                                 : String(localized: "🔍 幫你找競品（App Store + GitHub）"))
+                                 : String(localized: "🔍 幫你找競品 / 文章 / 開源"))
                                 .font(Tokens.Fonts.body(12, weight: .semibold)).foregroundStyle(palette.orange)
                         }
                         .padding(.horizontal, 12).frame(height: 34)
@@ -191,10 +192,12 @@ struct AICoachView: View {
                     .buttonStyle(.plain).disabled(findingCompetitors)
                     .accessibilityIdentifier("coach.findcompetitors")
                 } else {
-                    // build9：商業競品(App Store) 與 相關開源(GitHub) 分兩排——它們不是同一種東西。
+                    // build12：竞品产品 / 相关文章 / 相关开源 分三排——它们不是同一种东西。
                     let apps = competitorResults.filter { $0.source == "web" || $0.source == "app_store" }
+                    let articles = competitorResults.filter { $0.source == "article" }
                     let repos = competitorResults.filter { $0.source == "github" }
-                    competitorGroup(String(localized: "🥊 商業競品 / 相關產品"), apps, d)
+                    competitorGroup(String(localized: "🥊 競品產品"), apps, d)
+                    competitorGroup(String(localized: "📄 相關文章"), articles, d)
                     competitorGroup(String(localized: "🧰 相關開源（可參考）"), repos, d)
                     // build11：findSimilar——拿第一个竞品「找更多类似的」
                     if let first = apps.first {
@@ -227,12 +230,17 @@ struct AICoachView: View {
 
     private func competitorChip(_ c: CompetitorItem, _ d: NoteDocument) -> some View {
         Button {
-            d.addCompetitors([c]); competitorResults.removeAll { $0.url == c.url }
-            root.toast.show(String(localized: "已記入競品"))
+            // build12：文章=只開瀏覽器看,不記入身份證競品列;產品/開源=維持記入。
+            if c.source == "article" {
+                if let u = URL(string: c.url) { openURL(u) }
+            } else {
+                d.addCompetitors([c]); competitorResults.removeAll { $0.url == c.url }
+                root.toast.show(String(localized: "已記入競品"))
+            }
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Text(verbatim: c.source == "github" ? "🐙" : "").font(.system(size: 11))
+                    Text(verbatim: { switch c.source { case "github": return "🐙"; case "article": return "📄"; default: return "" } }()).font(.system(size: 11))
                     Text(c.title).font(Tokens.Fonts.body(11.5, weight: .semibold)).foregroundStyle(palette.print).lineLimit(1)
                 }
                 Text(c.summary ?? c.subtitle ?? "").font(Tokens.Fonts.body(9.5)).foregroundStyle(palette.print3).lineLimit(2)

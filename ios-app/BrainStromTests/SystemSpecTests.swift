@@ -112,4 +112,26 @@ final class SystemSpecTests: XCTestCase {
         XCTAssertFalse(SystemSpec(oneLiner: "x").isEmpty)
         XCTAssertFalse(SystemSpec(competitors: [CompetitorItem(source: "github", title: "r", url: "u")]).isEmpty)
     }
+
+    // build12：新增 source "article"（相关文章）——坐实新值编解码与旧解码相容。
+    func testArticleSourceRoundTrip() throws {
+        let c = CompetitorItem(source: "article", title: "t", url: "https://x", subtitle: "example.com", summary: "繁中一句")
+        let back = try JSONDecoder().decode(CompetitorItem.self, from: JSONEncoder().encode(c))
+        XCTAssertEqual(c, back)
+        XCTAssertEqual(back.source, "article")
+        XCTAssertEqual(back.summary, "繁中一句")
+    }
+
+    func testArticleSourceDecodesFromRawJSON() throws {
+        let raw = Data(#"{"source":"article","title":"t","url":"u","summary":"s"}"#.utf8)
+        let a = try JSONDecoder().decode(CompetitorItem.self, from: raw)
+        XCTAssertEqual(a.source, "article")
+        XCTAssertEqual(a.summary, "s")
+        XCTAssertNil(a.subtitle)
+        // 旧持久化竞品（无 summary）仍正确解出 summary == nil
+        let old = Data(#"{"source":"web","title":"t","url":"u"}"#.utf8)
+        let w = try JSONDecoder().decode(CompetitorItem.self, from: old)
+        XCTAssertEqual(w.source, "web")
+        XCTAssertNil(w.summary)
+    }
 }

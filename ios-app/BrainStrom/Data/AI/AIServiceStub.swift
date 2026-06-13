@@ -14,7 +14,8 @@ struct AIServiceStub: AIServicing {
 
     func findCompetitors(keywords: String) async throws -> [CompetitorItem] {
         [CompetitorItem(source: "web", title: "Fitbod", url: "https://apps.apple.com/fitbod", subtitle: "apps.apple.com", summary: "AI 健身排课与重训计画 App"),
-         CompetitorItem(source: "github", title: "open/fitness-ai", url: "https://github.com/open/fitness-ai", subtitle: "AI workout planner")]
+         CompetitorItem(source: "article", title: "2024 健身 App 推薦比較", url: "https://example.com/fitness-apps-2024", subtitle: "example.com", summary: "盤點今年熱門健身排課 App 的優缺點"),
+         CompetitorItem(source: "github", title: "open/fitness-ai", url: "https://github.com/open/fitness-ai", subtitle: "AI workout planner", summary: "AI 自動重訓計畫開源專案")]
     }
 
     func findSimilar(url: String) async throws -> [CompetitorItem] {
