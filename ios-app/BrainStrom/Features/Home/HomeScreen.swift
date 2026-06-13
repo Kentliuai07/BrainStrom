@@ -15,6 +15,7 @@ enum HomeRoute: Hashable {
     case settings
     case systemDetail(id: UUID, mode: CreationMode)
     case noteDetail(noteID: UUID)
+    case personaBatch(name: String, oneLiner: String, country: String)   // 第3模式：批量生成定位卡
 }
 
 struct HomeScreen: View {
@@ -26,9 +27,10 @@ struct HomeScreen: View {
     @State private var systems: [NoteSystem] = []
     @State private var loaded = false
     @State private var loadFailed = false
-    @State private var showCreateDialog = false
-    @State private var showModeDialog = false
+    @State private var showCreateSheet = false
     @State private var newProjectName = ""
+    @State private var newOneLiner = ""
+    @State private var countryStore = CountryStore()
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -50,6 +52,10 @@ struct HomeScreen: View {
                 case .systemDetail(let id, let mode):
                     SystemDetailScreen(systemID: id, path: $path, mode: mode)
                 case .noteDetail(let id): NoteDetailScreen(noteID: id)
+                case .personaBatch(let name, let oneLiner, let country):
+                    PersonaBatchView(appName: name, oneLiner: oneLiner, country: country,
+                                     onSelect: { card in selectPersona(card, name: name) },
+                                     onCancel: { if !path.isEmpty { path.removeLast() } })
                 }
             }
         }
@@ -57,25 +63,13 @@ struct HomeScreen: View {
         .onChange(of: path) { _, new in
             if new.isEmpty { reload() }  // 從筆記/設定返回 → 刷新清單
         }
-        // 弹窗①：输入名称/灵感
-        .alert(String(localized: "新增專案"), isPresented: $showCreateDialog) {
-            TextField(String(localized: "系統名稱，或一個靈感…"), text: $newProjectName)
-                .accessibilityIdentifier("home.projectNameInput")
-            Button(String(localized: "下一步")) {
-                // 接力弹窗②（稍延一拍让弹窗①先收）
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { showModeDialog = true }
-            }
-            Button(String(localized: "取消"), role: .cancel) { newProjectName = "" }
-        } message: {
-            Text(String(localized: "先給專案取個名字或丟一個靈感。"))
-        }
-        // 弹窗②：选「进 AI 引导」或「之后慢慢填」
-        .confirmationDialog(String(localized: "要怎麼開始？"), isPresented: $showModeDialog, titleVisibility: .visible) {
-            Button(String(localized: "🤖 進 AI 引導（建議）")) { createProject(mode: .kickoff) }
-            Button(String(localized: "📝 之後慢慢填，自己寫")) { createProject(mode: .notes) }
-            Button(String(localized: "取消"), role: .cancel) { newProjectName = "" }
-        } message: {
-            Text(String(localized: "進引導：AI 一題一題帶你把專案想清楚。慢慢填：先自由寫，AI 在旁邊偵測幫你記。"))
+        // 建專案 sheet：①名稱 ②一句話作用 ③目標國家 ④三種開始方式
+        .sheet(isPresented: $showCreateSheet) {
+            CreationSheet(name: $newProjectName, oneLiner: $newOneLiner, country: countryStore,
+                          onMode: { mode in showCreateSheet = false; createProject(mode: mode) },
+                          onPersona: { showCreateSheet = false; startPersona() },
+                          onCancel: { showCreateSheet = false })
+                .presentationDetents([.medium, .large])
         }
     }
 
@@ -99,7 +93,7 @@ struct HomeScreen: View {
             .accessibilityIdentifier("home.settings")
             circleIcon(system: "plus", accent: true) {
                 Haptics.press()
-                newProjectName = ""; showCreateDialog = true
+                newProjectName = ""; newOneLiner = ""; showCreateSheet = true
             }
             .accessibilityIdentifier("home.create")
         }
@@ -200,7 +194,7 @@ struct HomeScreen: View {
             )
             Button {
                 Haptics.press()
-                newProjectName = ""; showCreateDialog = true
+                newProjectName = ""; newOneLiner = ""; showCreateSheet = true
             } label: {
                 Text(String(localized: "建立第一個系統"))
                     .font(Tokens.Fonts.body(14.5, weight: .semibold))
@@ -229,14 +223,119 @@ struct HomeScreen: View {
         loaded = true
     }
 
-    /// build7：弹窗②选模式后 → 原子建系統+主筆記 → 進專案首頁（kickoff→教練自动开场；notes→开发笔记）。
+    /// 选模式后 → 原子建系統+主筆記 → 進專案首頁（kickoff→教練自动开场；notes→开发笔记）。
     private func createProject(mode: CreationMode) {
         guard let repository = root.repository else { return }
         let name = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
-        newProjectName = ""
         let title = name.isEmpty ? String(localized: "未命名專案") : name
+        newProjectName = ""; newOneLiner = ""
         guard let result = try? repository.createSystemWithPrimaryNote(name: title) else { return }
         path.append(HomeRoute.systemDetail(id: result.system.id, mode: mode))
+    }
+
+    /// 第3模式：进批量生成画面（先搜后生成，挑中才建专案）。
+    private func startPersona() {
+        let name = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let oneLiner = newOneLiner.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty || !oneLiner.isEmpty else { return }
+        path.append(HomeRoute.personaBatch(name: name, oneLiner: oneLiner, country: countryStore.code))
+    }
+
+    /// 挑中一张定位 → 原子建系統+主筆记 → 灌身份证 → 取代 persona 路由进系统详情。
+    private func selectPersona(_ card: PersonaCard, name: String) {
+        guard let repository = root.repository else { return }
+        let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = title.isEmpty ? (card.tagline.isEmpty ? String(localized: "未命名專案") : card.tagline) : title
+        guard let result = try? repository.createSystemWithPrimaryNote(name: finalName) else { return }
+        try? repository.updateSystemSpec(systemID: result.system.id, spec: card.toSpec(name: finalName))
+        if !path.isEmpty { path.removeLast() }   // 移除 persona 路由
+        path.append(HomeRoute.systemDetail(id: result.system.id, mode: .notes))
+    }
+}
+
+// MARK: - 建專案 Sheet（名稱＋一句話＋目標國家＋三模式）
+
+struct CreationSheet: View {
+    @Binding var name: String
+    @Binding var oneLiner: String
+    @Bindable var country: CountryStore
+    let onMode: (CreationMode) -> Void
+    let onPersona: () -> Void
+    let onCancel: () -> Void
+
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(String(localized: "新增專案")).font(Tokens.Fonts.display(22, weight: .heavy)).foregroundStyle(palette.print)
+
+                fieldBox(String(localized: "APP 名稱")) {
+                    TextField(String(localized: "例如：記帳 App"), text: $name)
+                        .accessibilityIdentifier("home.projectNameInput")
+                }
+                fieldBox(String(localized: "這個 APP 的作用（一句話）")) {
+                    TextField(String(localized: "例如：幫人記錄日常開銷"), text: $oneLiner, axis: .vertical)
+                        .lineLimit(1...3)
+                        .accessibilityIdentifier("home.oneLinerInput")
+                }
+                fieldBox(String(localized: "目標國家 / 語言")) {
+                    Menu {
+                        ForEach(CountryStore.presets) { c in
+                            Button(c.label) { country.code = c.code }
+                        }
+                    } label: {
+                        HStack {
+                            Text(country.label).foregroundStyle(palette.print)
+                            Spacer()
+                            Image(systemName: "chevron.up.chevron.down").font(.system(size: 11)).foregroundStyle(palette.print3)
+                        }
+                    }
+                    .accessibilityIdentifier("home.countryMenu")
+                }
+
+                VStack(spacing: 10) {
+                    modeButton("🤖 進 AI 引導（建議）", sub: String(localized: "AI 一題一題帶你想清楚"), id: "create.mode.kickoff") { onMode(.kickoff) }
+                    modeButton("📝 之後慢慢填，自己寫", sub: String(localized: "你自己寫，AI 在旁偵測幫你記"), id: "create.mode.notes") { onMode(.notes) }
+                    modeButton("🪄 直接生成 4 種定位", sub: String(localized: "先查市場，AI 給你 4 種定位挑一個"), id: "create.mode.persona") { onPersona() }
+                }
+                .padding(.top, 4)
+
+                Button { onCancel() } label: {
+                    Text(String(localized: "取消")).font(Tokens.Fonts.body(14, weight: .semibold)).foregroundStyle(palette.print3)
+                        .frame(maxWidth: .infinity).frame(height: 40)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(20)
+        }
+        .background(palette.bg)
+    }
+
+    private func fieldBox(_ label: String, @ViewBuilder _ content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label).font(Tokens.Fonts.mono(10, weight: .bold)).kerning(1).foregroundStyle(palette.print3)
+            content()
+                .font(Tokens.Fonts.body(15)).foregroundStyle(palette.print)
+                .padding(.horizontal, 12).frame(minHeight: 44, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: Tokens.Radius.input).fill(palette.recess)
+                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.input).strokeBorder(palette.line, lineWidth: 1)))
+        }
+    }
+
+    private func modeButton(_ title: String, sub: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(Tokens.Fonts.body(15, weight: .bold)).foregroundStyle(palette.print)
+                Text(sub).font(Tokens.Fonts.body(11)).foregroundStyle(palette.print3)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(palette.panel)
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(palette.line, lineWidth: 1)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
     }
 }
 

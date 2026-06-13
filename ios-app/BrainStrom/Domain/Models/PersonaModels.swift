@@ -38,6 +38,22 @@ struct PersonaCard: Equatable, Sendable, Codable, Identifiable {
     }
 }
 
+extension PersonaCard {
+    /// 挑中这张 → 组成系统身份证（写进现有 7 个理念字段，非空者标已确认；技术栈留空给守门员）。
+    func toSpec(name: String) -> SystemSpec {
+        func ne(_ s: String) -> String? { let t = s.trimmingCharacters(in: .whitespacesAndNewlines); return t.isEmpty ? nil : t }
+        var confirmed: [String] = []
+        let pairs: [(String, String)] = [("oneLiner", oneLiner), ("targetUser", targetUser), ("painPoint", painPoint),
+            ("coreValue", coreValue), ("marketStrategy", marketStrategy), ("businessModel", businessModel), ("coreFeatures", coreFeatures)]
+        for (k, v) in pairs where ne(v) != nil { confirmed.append(k) }
+        return SystemSpec(
+            name: ne(name),
+            oneLiner: ne(oneLiner), targetUser: ne(targetUser), painPoint: ne(painPoint),
+            coreValue: ne(coreValue), marketStrategy: ne(marketStrategy), businessModel: ne(businessModel),
+            coreFeatures: ne(coreFeatures), confirmedFields: confirmed)
+    }
+}
+
 /// 三轨搜寻结果（4 张候选共用同一份）。
 struct PersonaSearchBundle: Equatable, Sendable, Codable {
     var competitors: [CompetitorItem] = []
