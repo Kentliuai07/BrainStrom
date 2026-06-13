@@ -80,6 +80,22 @@ struct AIServiceLive: AIServicing {
         return stream(path: "ai/structure", body: Body(note: note, mode: "full"))
     }
 
+    func generatePersonas(appName: String, oneLiner: String, country: String,
+                          regenerateIndex: Int?, avoidCards: [PersonaCard], sharedSearch: PersonaSearchBundle?)
+        -> AsyncThrowingStream<PersonaEvent, any Error> {
+        struct Body: Encodable {
+            let appName: String
+            let oneLiner: String
+            let country: String
+            let regenerateIndex: Int?
+            let avoidCards: [PersonaCard]
+            let sharedSearch: PersonaSearchBundle?
+        }
+        let body = Body(appName: appName, oneLiner: oneLiner, country: country,
+                        regenerateIndex: regenerateIndex, avoidCards: avoidCards, sharedSearch: sharedSearch)
+        return streamPersona(body: body)
+    }
+
     // MARK: - SSE 共通管線
 
     private func stream(path: String, body: some Encodable & Sendable) -> AsyncThrowingStream<AIEvent, any Error> {
@@ -142,6 +158,97 @@ struct AIServiceLive: AIServicing {
             continuation.onTermination = { _ in
                 task.cancel()
             }
+        }
+    }
+
+    // MARK: - Persona 串流管線（专用，映射成 PersonaEvent）
+
+    private func streamPersona(body: some Encodable & Sendable) -> AsyncThrowingStream<PersonaEvent, any Error> {
+        let baseURL = config.baseURL
+        let token = config.authToken
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var request = URLRequest(url: baseURL.appending(path: "ai/personas"))
+                    request.httpMethod = "POST"
+                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                    request.httpBody = try JSONEncoder().encode(body)
+                    request.timeoutInterval = 180
+                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+                    guard http.statusCode == 200 else {
+                        continuation.yield(.error(code: errorCode(for: http.statusCode), message: errorMessage(for: http.statusCode)))
+                        continuation.finish(); return
+                    }
+                    var accumulator = SSEAccumulator()
+                    var lineBuffer: [UInt8] = []
+                    func emit(_ json: String?) -> Bool {
+                        guard let json, let event = Self.mapPersona(jsonString: json) else { return false }
+                        continuation.yield(event)
+                        if case .done = event { return true }
+                        return false
+                    }
+                    for try await byte in bytes {
+                        guard !Task.isCancelled else { break }
+                        if byte == 0x0A {
+                            var line = String(decoding: lineBuffer, as: UTF8.self)
+                            lineBuffer.removeAll(keepingCapacity: true)
+                            if line.hasSuffix("\r") { line.removeLast() }
+                            if emit(accumulator.feed(line: line)) { continuation.finish(); return }
+                        } else { lineBuffer.append(byte) }
+                    }
+                    _ = emit(accumulator.flush())
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private static func mapPersona(jsonString: String) -> PersonaEvent? {
+        guard let data = jsonString.data(using: .utf8),
+              let o = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let type = o["type"] as? String else { return nil }
+        func intv(_ a: Any?) -> Int { (a as? Int) ?? (a as? Double).map(Int.init) ?? (a as? NSNumber)?.intValue ?? 0 }
+        func competitors(_ key: String) -> [CompetitorItem] {
+            (o[key] as? [[String: Any]] ?? []).map { d in
+                CompetitorItem(source: (d["source"] as? String) ?? "web",
+                               title: (d["title"] as? String) ?? "",
+                               url: (d["url"] as? String) ?? "",
+                               subtitle: d["subtitle"] as? String,
+                               summary: d["summary"] as? String)
+            }
+        }
+        switch type {
+        case "progress": return .progress(message: o["message"] as? String)
+        case "search_done":
+            return .searchResults(PersonaSearchBundle(
+                competitors: competitors("competitors"), articles: competitors("articles"),
+                openSource: competitors("openSource"), partial: (o["partial"] as? Bool) ?? false))
+        case "card_start": return .cardStart(index: intv(o["index"]))
+        case "delta":
+            let t = (o["text"] as? String) ?? ""
+            return t.isEmpty ? nil : .delta(index: intv(o["index"]), text: t)
+        case "card_done":
+            guard let card = o["card"] as? [String: Any] else { return nil }
+            let pc = PersonaCard(
+                oneLiner: (card["oneLiner"] as? String) ?? "", targetUser: (card["targetUser"] as? String) ?? "",
+                painPoint: (card["painPoint"] as? String) ?? "", coreValue: (card["coreValue"] as? String) ?? "",
+                marketStrategy: (card["marketStrategy"] as? String) ?? "", businessModel: (card["businessModel"] as? String) ?? "",
+                coreFeatures: (card["coreFeatures"] as? String) ?? "", tagline: (card["tagline"] as? String) ?? "")
+            return .cardDone(index: intv(o["index"]), card: pc)
+        case "usage":
+            return .usage(AIUsage(inputTokens: intv(o["input_tokens"]), outputTokens: intv(o["output_tokens"]),
+                                  cacheReadInputTokens: intv(o["cache_read_input_tokens"]), model: (o["model"] as? String) ?? ""))
+        case "done": return .done
+        case "error": return .error(code: (o["code"] as? String) ?? "unknown", message: (o["error"] as? String) ?? (o["detail"] as? String) ?? "")
+        default: return nil
         }
     }
 

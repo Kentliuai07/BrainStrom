@@ -22,6 +22,59 @@ struct AIServiceStub: AIServicing {
         [CompetitorItem(source: "web", title: "Strong", url: "https://apps.apple.com/strong", subtitle: "apps.apple.com", summary: "重训纪录与计画 App")]
     }
 
+    func generatePersonas(appName: String, oneLiner: String, country: String,
+                          regenerateIndex: Int?, avoidCards: [PersonaCard], sharedSearch: PersonaSearchBundle?)
+        -> AsyncThrowingStream<PersonaEvent, any Error> {
+        let cards: [PersonaCard] = [
+            PersonaCard(oneLiner: "專為小資族設計的極簡記帳 App，30 秒記一筆。", targetUser: "剛出社會的上班族", painPoint: "記帳太麻煩、堅持不了", coreValue: "快到沒有藉口不記", marketStrategy: "免費＋訂閱進階", businessModel: "Freemium 訂閱", coreFeatures: "一鍵記帳、自動分類、週報", tagline: "記帳，就該這麼簡單"),
+            PersonaCard(oneLiner: "隱私優先的本地加密記帳，資料只在你手機。", targetUser: "重視隱私的使用者", painPoint: "不想財務資料上雲", coreValue: "本地加密、不上傳", marketStrategy: "一次買斷", businessModel: "買斷制", coreFeatures: "本地加密、離線、匯出", tagline: "你的帳，只有你看得到"),
+            PersonaCard(oneLiner: "家庭共用的多人協作記帳平台。", targetUser: "夫妻／室友／家庭", painPoint: "多人共帳很亂", coreValue: "一起記、自動拆帳", marketStrategy: "家庭方案", businessModel: "家庭訂閱", coreFeatures: "共享帳本、拆帳、同步", tagline: "家的帳，一起記才清楚"),
+            PersonaCard(oneLiner: "內建 AI 財務教練的智慧記帳。", targetUser: "想存錢卻存不到的人", painPoint: "看不懂自己花去哪", coreValue: "AI 分析＋省錢建議", marketStrategy: "AI 訂閱", businessModel: "AI Premium", coreFeatures: "AI 分析、預算、提醒", tagline: "AI 陪你真的存到錢"),
+        ]
+        let n = regenerateIndex != nil ? 1 : cards.count
+        let interval = deltaInterval
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    continuation.yield(.progress(message: "開始分析《\(appName.isEmpty ? oneLiner : appName)》"))
+                    try await Task.sleep(for: interval)
+                    if sharedSearch == nil {
+                        continuation.yield(.progress(message: "AI 研讀競品 / 文章 / 開源中…"))
+                        try await Task.sleep(for: interval)
+                        continuation.yield(.searchResults(PersonaSearchBundle(
+                            competitors: [CompetitorItem(source: "web", title: "Moneybook", url: "https://moneybook.com.tw", subtitle: "moneybook.com.tw", summary: "自動同步多銀行的理財管家")],
+                            articles: [CompetitorItem(source: "article", title: "2026 記帳 App 推薦", url: "https://example.com/a", subtitle: "example.com", summary: "10 款記帳 App 實測比較")],
+                            openSource: [CompetitorItem(source: "github", title: "open/jizhang", url: "https://github.com/open/jizhang", subtitle: "Flutter 記帳", summary: "Flutter 開源記帳 App")],
+                            partial: false)))
+                    }
+                    continuation.yield(.progress(message: "AI 設計定位中…"))
+                    for k in 0..<n {
+                        let idx = regenerateIndex ?? k
+                        let card = cards[regenerateIndex ?? k]
+                        continuation.yield(.cardStart(index: idx))
+                        for chunk in chunked(card.oneLiner, size: 6) {
+                            try await Task.sleep(for: interval)
+                            continuation.yield(.delta(index: idx, text: chunk))
+                        }
+                        continuation.yield(.cardDone(index: idx, card: card))
+                    }
+                    continuation.yield(.usage(AIUsage(inputTokens: 2400, outputTokens: 2500, cacheReadInputTokens: 1000, model: "stub")))
+                    continuation.yield(.done)
+                    continuation.finish()
+                } catch { continuation.finish(throwing: error) }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// 把字串切成等长块（模拟串流 delta）。
+    private func chunked(_ s: String, size: Int) -> [String] {
+        var out: [String] = []; var cur = ""
+        for ch in s { cur.append(ch); if cur.count >= size { out.append(cur); cur = "" } }
+        if !cur.isEmpty { out.append(cur) }
+        return out
+    }
+
     func chatNote(messages: [ChatMessage], note: NotePayload, project: ProjectContext?, mode: String?, kickoff: Bool) -> AsyncThrowingStream<AIEvent, any Error> {
         let deltas = kickoff
             ? ["## 教練開場\n\n", "看了你寫的「\(note.title)」，", "**方向不錯**。先想清楚要解決誰的什麼問題。"]
