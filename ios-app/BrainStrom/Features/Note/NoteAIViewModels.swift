@@ -243,13 +243,18 @@ final class ChatViewModel {
     var streaming = false
     private var task: Task<Void, Never>?
 
+    /// 正在串流的那則 AI 氣泡 id；非 nil 時該氣泡用打字機逐字（純文字）渲染，串流結束才切回 markdown 定稿。
+    var streamingBubbleID: UUID?
+    /// 逐字播放緩衝（修「五字一排」）。
+    let typewriter = TypewriterBuffer()
+
     init(ai: any AIServicing, toast: ToastModel) {
         self.ai = ai
         self.toast = toast
     }
 
     /// 切筆記清空（聊天歷史只存記憶體，附錄 D7）。
-    func reset() { task?.cancel(); task = nil; messages = []; streaming = false }
+    func reset() { task?.cancel(); task = nil; messages = []; streaming = false; streamingBubbleID = nil; typewriter.reset() }
 
     func send(_ doc: NoteDocument, text: String, project: ProjectContext? = nil, mode: String? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -275,6 +280,8 @@ final class ChatViewModel {
         streaming = true
         let aiIndex = messages.count
         messages.append(ChatBubble(role: .ai, text: ""))
+        streamingBubbleID = messages[aiIndex].id   // 標記串流中氣泡 → 打字機逐字渲染
+        typewriter.reset()
         let payload = doc.payload(changedIds: [])
         task = Task { [weak self] in
             guard let self else { return }
@@ -286,23 +293,28 @@ final class ChatViewModel {
                     switch event {
                     case .delta(let t):
                         accumulated += t; messages[aiIndex].text = accumulated
+                        typewriter.setTarget(accumulated)   // 餵打字機（逐字播放，與網路 chunk 脫鉤）
                     case .usage(let u):
                         messages[aiIndex].tokens = "tokens: in \(u.inputTokens) / out \(u.outputTokens)"
                     case .proposal(let items):
                         captured = items; messages[aiIndex].proposals = items
                     case .error(let code, _):
                         messages[aiIndex].text = accumulated.isEmpty ? String(localized: "AI 出錯：\(code)") : accumulated
+                        typewriter.setTarget(messages[aiIndex].text)
                     default: break
                     }
                 }
+                typewriter.finish(); streamingBubbleID = nil   // 串流結束 → 補完並切回 markdown 定稿
                 if aiIndex < messages.count && messages[aiIndex].text.isEmpty && captured.isEmpty {
                     messages.remove(at: aiIndex)   // 一個字都沒吐 → 不留空氣泡
                 }
                 streaming = false
             } catch is CancellationError {
+                typewriter.finish(); streamingBubbleID = nil
                 if aiIndex < messages.count { messages[aiIndex].stopped = true }
                 streaming = false
             } catch {
+                typewriter.finish(); streamingBubbleID = nil
                 streaming = false
                 toast.show(String(localized: "AI 連線出錯，請稍後再試"))
             }
