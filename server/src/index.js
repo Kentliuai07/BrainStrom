@@ -373,55 +373,131 @@ async function handleChatNote(req, res, payload) {
 
 // build7 · 竞品搜寻：免费 iTunes + GitHub Search API，纯 HTTP 聚合（不调 Claude、不升 SDK）
 // POST /find/competitors { brief, sources?:['app_store','github'] } → { items:[{source,title,url,subtitle,score}] }
+const EXA_API_KEY = process.env.EXA_API_KEY || '';
+
+// Exa 神经搜寻(语意,中文也准)。失败/无 key 回 null。
+async function exaSearch(query, { type = 'auto', category, numResults = 8, summaryQuery } = {}) {
+  if (!EXA_API_KEY) return null;
+  const body = { query, type, numResults };
+  if (category) body.category = category;
+  if (summaryQuery) body.contents = { summary: { query: summaryQuery } };
+  try {
+    const r = await fetch('https://api.exa.ai/search', {
+      method: 'POST',
+      headers: { 'x-api-key': EXA_API_KEY, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return Array.isArray(d.results) ? d.results : [];
+  } catch { return null; }
+}
+const hostOf = (u) => { try { return new URL(u).host.replace(/^www\./, ''); } catch { return ''; } };
+const repoName = (u) => { const m = String(u).match(/github\.com\/([^/]+\/[^/?#]+)/); return m ? m[1] : null; };
+
+// 保底:GitHub 关键字搜(Exa github 轨失败/空时用;免费无 key)。尊重 seen 去重。
+async function githubKeywordSearch(term, seen) {
+  const out = [];
+  try {
+    const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'brainstrom-ai' };
+    if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    const q = `${term} in:name,description stars:>10`;
+    const r = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=6`, { headers, signal: AbortSignal.timeout(10000) });
+    if (r.ok) {
+      const d = await r.json();
+      for (const repo of (d.items || [])) {
+        if (!repo.html_url || seen.has(repo.html_url)) continue;
+        seen.add(repo.html_url);
+        out.push({ source: 'github', title: repo.full_name, url: repo.html_url,
+          subtitle: String(repo.description || '').slice(0, 80), summary: null, score: `⭐${repo.stargazers_count}` });
+        if (out.length >= 6) break;
+      }
+    }
+  } catch { /* ignore */ }
+  return out;
+}
+
+// build11：竞品/开源改用 Exa 神经搜寻。竞品轨=Exa web+一句话简介(source 'web')；开源轨=Exa github，失败 fallback GitHub 关键字。
 async function handleFindCompetitors(req, res, payload) {
-  // build9：收 keywords(短关键字)优先、brief 保底；竞品(app_store)与开源(github)分开回。
   const kw = String(payload?.keywords || payload?.brief || '').trim();
-  const sources = (Array.isArray(payload?.sources) && payload.sources.length) ? payload.sources : ['app_store', 'github'];
   if (!kw) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'bad_request', detail: 'need {keywords|brief}' }));
   }
   const term = kw.slice(0, 60);
-  const hasCJK = /[一-鿿぀-ヿ가-힯]/.test(term);
-  const competitors = [], openSource = [];
   const seen = new Set();
+  const competitors = [], openSource = [];
   let partial = false;
-  try {
-    if (sources.includes('app_store')) {
-      const country = hasCJK ? 'tw' : 'us';   // 中文搜台湾区、英文搜美区，别写死
-      const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=software&limit=8&country=${country}`);
-      if (r.ok) {
-        const d = await r.json();
-        for (const a of (d.results || [])) {
-          if (!a.trackViewUrl || seen.has(a.trackViewUrl)) continue;
-          seen.add(a.trackViewUrl);
-          competitors.push({ source: 'app_store', title: a.trackName, url: a.trackViewUrl,
-            subtitle: [a.artistName, a.formattedPrice].filter(Boolean).join(' · '),
-            score: a.averageUserRating ? `★${a.averageUserRating.toFixed(1)}` : null });
-          if (competitors.length >= 6) break;
-        }
-      } else { partial = true; }
+
+  // 注意:query 直接用产品词本身(Exa 神经搜=找相似产品);别加「竞品/类似产品」否则会搜到「竞品分析文章」而非产品。
+  const [web, repos] = await Promise.allSettled([
+    exaSearch(term, { type: 'auto', numResults: 8, summaryQuery: '這個產品/App 一句話在做什麼？用繁體中文，30字內' }),
+    exaSearch(term, { category: 'github', type: 'auto', numResults: 8 }),
+  ]);
+
+  // 竞品轨(Exa web)
+  if (web.status === 'fulfilled' && Array.isArray(web.value)) {
+    for (const r of web.value) {
+      if (!r.url || seen.has(r.url)) continue;
+      seen.add(r.url);
+      competitors.push({ source: 'web', title: String(r.title || hostOf(r.url)).slice(0, 80), url: r.url,
+        subtitle: hostOf(r.url), summary: (String(r.summary || '').trim() || null), score: null });
+      if (competitors.length >= 6) break;
     }
-    if (sources.includes('github')) {
-      const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'brainstrom-ai' };
-      if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-      const q = `${term} in:name,description stars:>10`;   // 限名称/描述命中、过滤小星 repo
-      const r = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=6`, { headers });
-      if (r.ok) {
-        const d = await r.json();
-        for (const repo of (d.items || [])) {
-          if (!repo.html_url || seen.has(repo.html_url)) continue;
-          seen.add(repo.html_url);
-          openSource.push({ source: 'github', title: repo.full_name, url: repo.html_url,
-            subtitle: String(repo.description || '').slice(0, 80), score: `⭐${repo.stargazers_count}` });
-          if (openSource.length >= 6) break;
-        }
-      } else { partial = true; }
+  } else { partial = true; }
+
+  // 开源轨(Exa github)——按 repo 名去重(避免 repo 页+README 页重复)
+  if (repos.status === 'fulfilled' && Array.isArray(repos.value)) {
+    for (const r of repos.value) {
+      const rn = repoName(r.url);
+      if (!rn || seen.has('gh:' + rn)) continue;
+      seen.add('gh:' + rn);
+      openSource.push({ source: 'github', title: rn, url: `https://github.com/${rn}`,
+        subtitle: (String(r.summary || r.text || '').slice(0, 80) || null), summary: null, score: null });
+      if (openSource.length >= 6) break;
     }
-  } catch (e) { partial = true; }
+  }
+  // 开源保底:Exa github 空/失败 → GitHub 关键字搜
+  if (openSource.length === 0) {
+    if (repos.status !== 'fulfilled' || !repos.value) partial = true;
+    openSource.push(...(await githubKeywordSearch(term, seen)));
+  }
+
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  // items 保留(向后相容)＋分轨 competitors/openSource
   res.end(JSON.stringify({ items: [...competitors, ...openSource], competitors, openSource, partial }));
+}
+
+// build11：findSimilar — 给一个竞品网址，找更多类似的(Exa)。
+async function handleFindSimilar(req, res, payload) {
+  const url = String(payload?.url || '').trim();
+  if (!url || !EXA_API_KEY) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'bad_request', detail: 'need {url} and EXA_API_KEY' }));
+  }
+  const items = [];
+  try {
+    const r = await fetch('https://api.exa.ai/findSimilar', {
+      method: 'POST',
+      headers: { 'x-api-key': EXA_API_KEY, 'content-type': 'application/json' },
+      body: JSON.stringify({ url, numResults: 8, contents: { summary: { query: '這個產品一句話在做什麼？繁體中文30字內' } } }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const seen = new Set([url]);
+      for (const x of (Array.isArray(d.results) ? d.results : [])) {
+        if (!x.url || seen.has(x.url)) continue;
+        seen.add(x.url);
+        const isGh = /github\.com/.test(x.url);
+        items.push({ source: isGh ? 'github' : 'web', title: String(x.title || hostOf(x.url)).slice(0, 80),
+          url: x.url, subtitle: hostOf(x.url), summary: (String(x.summary || '').trim() || null), score: null });
+        if (items.length >= 8) break;
+      }
+    }
+  } catch { /* ignore */ }
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ items }));
 }
 
 const server = http.createServer(async (req, res) => {
@@ -439,7 +515,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(401, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'unauthorized' }));
   }
-  const ROUTES = { '/ai/chat/note': handleChatNote, '/ai/optimize': handleOptimize, '/ai/structure': handleStructure, '/find/competitors': handleFindCompetitors };
+  const ROUTES = { '/ai/chat/note': handleChatNote, '/ai/optimize': handleOptimize, '/ai/structure': handleStructure, '/find/competitors': handleFindCompetitors, '/find/similar': handleFindSimilar };
   if (req.method === 'POST' && ROUTES[url.pathname]) {
     let body = '';
     req.on('data', c => { body += c; if (body.length > 220 * 1024) req.destroy(); });
