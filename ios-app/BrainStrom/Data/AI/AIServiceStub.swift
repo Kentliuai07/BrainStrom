@@ -23,15 +23,23 @@ struct AIServiceStub: AIServicing {
     }
 
     func generatePersonas(appName: String, oneLiner: String, country: String,
+                          count: Int, mode: String, reason: String,
                           regenerateIndex: Int?, avoidCards: [PersonaCard], sharedSearch: PersonaSearchBundle?)
         -> AsyncThrowingStream<PersonaEvent, any Error> {
-        let cards: [PersonaCard] = [
+        // 6 张池子(避免追加/重生越界)
+        let pool: [PersonaCard] = [
             PersonaCard(oneLiner: "專為小資族設計的極簡記帳 App，30 秒記一筆。", targetUser: "剛出社會的上班族", painPoint: "記帳太麻煩、堅持不了", coreValue: "快到沒有藉口不記", marketStrategy: "免費＋訂閱進階", businessModel: "Freemium 訂閱", coreFeatures: "一鍵記帳、自動分類、週報", tagline: "記帳，就該這麼簡單"),
             PersonaCard(oneLiner: "隱私優先的本地加密記帳，資料只在你手機。", targetUser: "重視隱私的使用者", painPoint: "不想財務資料上雲", coreValue: "本地加密、不上傳", marketStrategy: "一次買斷", businessModel: "買斷制", coreFeatures: "本地加密、離線、匯出", tagline: "你的帳，只有你看得到"),
             PersonaCard(oneLiner: "家庭共用的多人協作記帳平台。", targetUser: "夫妻／室友／家庭", painPoint: "多人共帳很亂", coreValue: "一起記、自動拆帳", marketStrategy: "家庭方案", businessModel: "家庭訂閱", coreFeatures: "共享帳本、拆帳、同步", tagline: "家的帳，一起記才清楚"),
             PersonaCard(oneLiner: "內建 AI 財務教練的智慧記帳。", targetUser: "想存錢卻存不到的人", painPoint: "看不懂自己花去哪", coreValue: "AI 分析＋省錢建議", marketStrategy: "AI 訂閱", businessModel: "AI Premium", coreFeatures: "AI 分析、預算、提醒", tagline: "AI 陪你真的存到錢"),
+            PersonaCard(oneLiner: "給自由工作者的接案收支與報稅記帳。", targetUser: "接案／自雇者", painPoint: "報稅對帳很痛", coreValue: "自動分類報稅", marketStrategy: "專業訂閱", businessModel: "Pro 訂閱", coreFeatures: "發票歸檔、稅務報表", tagline: "接案族的帳，五月不慌"),
+            PersonaCard(oneLiner: "遊戲化存錢挑戰記帳，存錢像打怪。", targetUser: "存不住錢的年輕人", painPoint: "沒動力存錢", coreValue: "成就感驅動", marketStrategy: "社群裂變", businessModel: "廣告＋內購", coreFeatures: "存錢挑戰、徽章、排行", tagline: "存錢，也能上癮"),
         ]
-        let n = regenerateIndex != nil ? 1 : cards.count
+        // batch→0..count-1；append→接在 avoidCards 之后；regenerate→回填 regenerateIndex
+        let indices: [Int]
+        if let ri = regenerateIndex { indices = [ri] }
+        else if mode == "append" { indices = [avoidCards.count] }
+        else { indices = Array(0..<max(1, min(count, pool.count))) }
         let interval = deltaInterval
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -47,10 +55,9 @@ struct AIServiceStub: AIServicing {
                             openSource: [CompetitorItem(source: "github", title: "open/jizhang", url: "https://github.com/open/jizhang", subtitle: "Flutter 記帳", summary: "Flutter 開源記帳 App")],
                             partial: false)))
                     }
-                    continuation.yield(.progress(message: "AI 設計定位中…"))
-                    for k in 0..<n {
-                        let idx = regenerateIndex ?? k
-                        let card = cards[regenerateIndex ?? k]
+                    continuation.yield(.progress(message: reason.isEmpty ? "AI 設計定位中…" : "AI 依「\(reason)」生成中…"))
+                    for idx in indices {
+                        let card = pool[min(idx, pool.count - 1)]
                         continuation.yield(.cardStart(index: idx))
                         for chunk in chunked(card.oneLiner, size: 6) {
                             try await Task.sleep(for: interval)

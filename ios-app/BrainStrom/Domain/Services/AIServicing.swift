@@ -135,6 +135,7 @@ protocol AIServicing: Sendable {
     /// 第3模式 · 批量生成定位卡：反向「先搜后生成」+ 串流（progress/searchResults/cardStart/delta/cardDone/usage/done）。
     /// regenerateIndex 非 nil＝只重生该张（avoidCards 当负面提示）；sharedSearch 非 nil＝复用首次搜寻不重搜。
     func generatePersonas(appName: String, oneLiner: String, country: String,
+                          count: Int, mode: String, reason: String,
                           regenerateIndex: Int?, avoidCards: [PersonaCard], sharedSearch: PersonaSearchBundle?)
         -> AsyncThrowingStream<PersonaEvent, any Error>
 }

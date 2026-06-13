@@ -16,6 +16,7 @@ struct PersonaBatchView: View {
     @Environment(CompositionRoot.self) private var root
     @Environment(\.palette) private var palette
     @State private var vm: PersonaBatchViewModel?
+    @FocusState private var appendFocused: Bool
 
     var body: some View {
         ZStack {
@@ -52,7 +53,7 @@ struct PersonaBatchView: View {
                 .multilineTextAlignment(.center).padding(.horizontal, 30)
                 .id(vm.progress)
                 .transition(.opacity)
-            Text(String(localized: "先查真實市場，再幫你生 4 種定位（約需 1 分鐘）"))
+            Text(String(localized: "先查真實市場，再一張一張生給你看"))
                 .font(Tokens.Fonts.body(11)).foregroundStyle(palette.print3)
             Spacer()
             Button { vm.cancel(); onCancel() } label: {
@@ -101,16 +102,50 @@ struct PersonaBatchView: View {
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
 
-            Button { Haptics.press(); onSelect(vm.cards[vm.current]) } label: {
+            appendBar(vm)
+
+            let cur = vm.cards.indices.contains(vm.current) ? vm.current : max(0, vm.cards.count - 1)
+            let curReady = vm.ready.indices.contains(cur) && vm.ready[cur]
+            Button { Haptics.press(); if vm.cards.indices.contains(cur) { onSelect(vm.cards[cur]) } } label: {
                 Text(String(localized: "✓ 選這個，開始微調"))
                     .font(Tokens.Fonts.body(15, weight: .bold)).frame(maxWidth: .infinity).frame(height: 52)
             }
             .buttonStyle(.keycap(.orange))
-            .disabled(!vm.ready[vm.current])
-            .opacity(vm.ready[vm.current] ? 1 : 0.5)
+            .disabled(!curReady || vm.busy)
+            .opacity(curReady && !vm.busy ? 1 : 0.5)
             .accessibilityIdentifier("persona.select")
             .padding(.horizontal, 16).padding(.bottom, 16)
         }
+    }
+
+    // ＋再生成一張：理由输入框 + 追加按钮（追加卡到末尾，旧的留着比较）。
+    private func appendBar(_ vm: PersonaBatchViewModel) -> some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                TextField(String(localized: "想要什麼不一樣的？（可留空）"),
+                          text: Binding(get: { vm.appendReason }, set: { vm.appendReason = $0 }))
+                    .font(Tokens.Fonts.body(13)).foregroundStyle(palette.print)
+                    .focused($appendFocused)
+                    .padding(.horizontal, 11).frame(height: 40)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(palette.recess)
+                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(palette.line, lineWidth: 1)))
+                    .disabled(vm.busy)
+                Button { Haptics.tap(); appendFocused = false; vm.appendCard() } label: {
+                    HStack(spacing: 4) {
+                        if vm.busy && vm.regeneratingIndex == nil { ProgressView().controlSize(.mini).tint(palette.orange) }
+                        Text(String(localized: "＋ 再生成一張")).font(Tokens.Fonts.body(13, weight: .semibold))
+                    }
+                    .frame(height: 40).padding(.horizontal, 12)
+                }
+                .buttonStyle(.keycap(.orange, cornerRadius: 10))
+                .disabled(!vm.canAppend)
+                .accessibilityIdentifier("persona.append")
+            }
+            if vm.cards.count >= vm.maxCards {
+                Text(String(localized: "已達上限 \(vm.maxCards) 張")).font(Tokens.Fonts.body(10)).foregroundStyle(palette.print3)
+            }
+        }
+        .padding(.horizontal, 16).padding(.bottom, 6)
     }
 
     private func topBar(_ vm: PersonaBatchView.VM) -> some View {
@@ -129,7 +164,7 @@ struct PersonaBatchView: View {
                     Text(String(localized: "🔄 重生")).font(Tokens.Fonts.body(13, weight: .semibold)).foregroundStyle(palette.orange)
                 }
             }
-            .disabled(vm.regeneratingIndex != nil || !vm.ready[vm.current])
+            .disabled(vm.busy || !(vm.ready.indices.contains(vm.current) && vm.ready[vm.current]))
             .accessibilityIdentifier("persona.regenerate")
         }
         .padding(.horizontal, 16).padding(.vertical, 12)

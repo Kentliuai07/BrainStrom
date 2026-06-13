@@ -81,17 +81,22 @@ struct AIServiceLive: AIServicing {
     }
 
     func generatePersonas(appName: String, oneLiner: String, country: String,
+                          count: Int, mode: String, reason: String,
                           regenerateIndex: Int?, avoidCards: [PersonaCard], sharedSearch: PersonaSearchBundle?)
         -> AsyncThrowingStream<PersonaEvent, any Error> {
         struct Body: Encodable {
             let appName: String
             let oneLiner: String
             let country: String
+            let count: Int
+            let mode: String
+            let reason: String
             let regenerateIndex: Int?
             let avoidCards: [PersonaCard]
             let sharedSearch: PersonaSearchBundle?
         }
         let body = Body(appName: appName, oneLiner: oneLiner, country: country,
+                        count: count, mode: mode, reason: reason,
                         regenerateIndex: regenerateIndex, avoidCards: avoidCards, sharedSearch: sharedSearch)
         return streamPersona(body: body)
     }
