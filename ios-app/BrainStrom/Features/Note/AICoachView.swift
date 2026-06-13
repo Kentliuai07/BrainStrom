@@ -107,7 +107,7 @@ struct AICoachView: View {
                     // 串流中：純文字逐字播放（不在串流時 parse markdown，避免整塊重排「五字一排」）
                     let shown = chatVM?.typewriter.shown ?? ""
                     if shown.isEmpty {
-                        Text(String(localized: "思考中…")).font(Tokens.Fonts.body(13.5)).foregroundStyle(palette.print2)
+                        Text(chatVM?.coachStatus ?? String(localized: "思考中…")).font(Tokens.Fonts.body(13.5)).foregroundStyle(palette.print2)
                     } else {
                         Text(shown).font(Tokens.Fonts.body(13.5)).foregroundStyle(palette.print)
                             .frame(maxWidth: .infinity, alignment: .leading)

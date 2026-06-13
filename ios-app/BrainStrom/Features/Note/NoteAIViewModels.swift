@@ -245,6 +245,8 @@ final class ChatViewModel {
 
     /// 正在串流的那則 AI 氣泡 id；非 nil 時該氣泡用打字機逐字（純文字）渲染，串流結束才切回 markdown 定稿。
     var streamingBubbleID: UUID?
+    /// 串流前的進度提示（第4刀：引導開場前先搜市場時顯示「先了解市場…」，避免空等）。第一個 delta 到達即清空。
+    var coachStatus: String?
     /// 逐字播放緩衝（修「五字一排」）。
     let typewriter = TypewriterBuffer()
 
@@ -281,6 +283,7 @@ final class ChatViewModel {
         let aiIndex = messages.count
         messages.append(ChatBubble(role: .ai, text: ""))
         streamingBubbleID = messages[aiIndex].id   // 標記串流中氣泡 → 打字機逐字渲染
+        coachStatus = nil
         typewriter.reset()
         let payload = doc.payload(changedIds: [])
         task = Task { [weak self] in
@@ -291,7 +294,10 @@ final class ChatViewModel {
                 for try await event in ai.chatNote(messages: history, note: payload, project: project, mode: mode, kickoff: kickoff) {
                     guard aiIndex < messages.count else { break }
                     switch event {
+                    case .progress(_, _, let m):
+                        if let m { coachStatus = m }        // 第4刀：搜市場進度（開場前）
                     case .delta(let t):
+                        if coachStatus != nil { coachStatus = nil }   // 內容開始 → 清掉進度提示
                         accumulated += t; messages[aiIndex].text = accumulated
                         typewriter.setTarget(accumulated)   // 餵打字機（逐字播放，與網路 chunk 脫鉤）
                     case .usage(let u):

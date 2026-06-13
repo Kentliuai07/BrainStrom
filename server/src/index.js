@@ -105,7 +105,16 @@ function formatSpec(spec) {
 
 // system block：㈠静态人设(快取) ㈡身份证 L1(快取) ㈢当前笔记全文 ㈣其他笔记摘要 L3 ㈤任务指令(含结构侦测)
 // project = { spec, otherNotes:[{title,summary}] }（AI 教练模式才有；单笔记聊天为 null，行为不变）
-function buildSystem(note, kickoff, project, mode) {
+// 把三轨搜寻结果压成给「引导提问」当刺激的精简文字。
+function formatSearchForPrompt(s) {
+  if (!s) return '';
+  const fmt = (arr, label) => (Array.isArray(arr) && arr.length)
+    ? `${label}：` + arr.slice(0, 5).map(x => `${x.title}${x.summary ? '(' + x.summary + ')' : ''}`).join('；')
+    : '';
+  return [fmt(s.competitors, '競品'), fmt(s.articles, '相關文章'), fmt(s.openSource, '相關開源')].filter(Boolean).join('\n');
+}
+
+function buildSystem(note, kickoff, project, mode, marketContext) {
   let blocks = Array.isArray(note?.blocks) ? note.blocks : [];
   const N = blocks.length;
   const totalChars = blocks.reduce((s, b) => s + String(b.content || '').length, 0);
@@ -142,6 +151,9 @@ function buildSystem(note, kickoff, project, mode) {
     const list = others.slice(0, 8).map((d, i) =>
       `〔${i + 1}〕${String(d.title || '未命名')}：${String(d.summary || '').slice(0, 200)}`).join('\n');
     sys.push({ type: 'text', text: `這個專案還有其他筆記（摘要，回答時可參照全局）：\n${list}` });
+  }
+  if (mode === 'guided' && marketContext) {  // 第4刀：引导前先搜到的真实市场当「刺激」，让 AI 从更对的角度问
+    sys.push({ type: 'text', text: `【市場刺激】這個方向的真實市場現況（引導提問時當參考，據此從更具體的角度問，但仍以問出身份證答案為目的）：\n${marketContext}` });
   }
   sys.push({ type: 'text', text: task });
   return sys;
@@ -330,13 +342,27 @@ async function handleChatNote(req, res, payload) {
   // 真正的「客户端断线」= 回应流在我们写完前被关闭。
   res.on('close', () => { if (!res.writableEnded) ac.abort(); });
 
+  let hb = null;
   try {
+    // 第4刀：引导模式开场前先搜真实市场当「刺激」（带进度心跳，不让使用者空等）。
+    let marketContext = '';
+    if (kickoff && payload?.mode === 'guided') {
+      const term = String(note?.title || '').slice(0, 60) || String(payload?.project?.spec?.oneLiner || '').slice(0, 60);
+      if (term) {
+        emit({ type: 'progress', message: '先了解一下市場…' });
+        hb = setInterval(() => { if (!res.writableEnded) emit({ type: 'progress', message: 'AI 研讀競品 / 開源中…' }); }, 2500);
+        const s = await runThreeTrackSearch(term, { signal: ac.signal, country: payload?.country });
+        clearInterval(hb); hb = null;
+        marketContext = formatSearchForPrompt(s);
+      }
+    }
+    if (ac.signal.aborted) { res.end(); return; }
     // Anthropic 要求 messages 至少一则：kickoff 空阵列时注入一则触发语（教练 prompt 在 system 第三层）
     const msgs = (Array.isArray(messages) && messages.length) ? messages
       : [{ role: 'user', content: '（使用者按下了「点子助攻」按钮）请开始你的教练开场。' }];
     const stream = anthropic.messages.stream({
       model: MODEL, max_tokens: MAX_TOKENS, temperature: 0.7,
-      system: buildSystem(note, kickoff, payload?.project, payload?.mode),
+      system: buildSystem(note, kickoff, payload?.project, payload?.mode, marketContext),
       tools: [PROPOSE_TOOL], tool_choice: { type: 'auto' }, // Step 3.5：AI 可在结尾抛提议（kickoff 时 prompt 强制）
       messages: msgs.map(m => ({
         role: m.role === 'ai' ? 'assistant' : 'user', content: String(m.content || ''),
@@ -364,11 +390,12 @@ async function handleChatNote(req, res, payload) {
     emit(usagePayload(final)); // 扁平 usage（对齐 §2.1 与 /ai/optimize 同一形状）
     emit({ type: 'done' });
   } catch (e) {
+    if (hb) clearInterval(hb);
     if (!ac.signal.aborted) {
       const code = e?.status === 429 ? 'rate_limited' : (e?.status >= 500 ? 'upstream_error' : 'ai_error');
       emit({ type: 'error', code, error: String(e?.message || e) });
     }
-  } finally { res.end(); }
+  } finally { if (hb) clearInterval(hb); res.end(); }
 }
 
 // build7 · 竞品搜寻：免费 iTunes + GitHub Search API，纯 HTTP 聚合（不调 Claude、不升 SDK）
