@@ -171,13 +171,16 @@ final class NoteViewModel {
     // MARK: - 記入系統身份證（proposal update_spec → 部分合併）
 
     /// 解析 instruction 內的 JSON 補丁 → 合併進現有身份證（null/缺鍵不動）。
-    func applySpecPatch(_ doc: NoteDocument, instructionJSON: String?) {
+    /// 回傳是否成功（build9 安全鎖①：失敗就別讓教練續聊，否則拿舊 spec 重複問同題）。
+    @discardableResult
+    func applySpecPatch(_ doc: NoteDocument, instructionJSON: String?) -> Bool {
         guard let json = instructionJSON?.data(using: .utf8),
               let patch = try? JSONDecoder().decode(SpecPatch.self, from: json) else {
-            toast.show(String(localized: "身份證資料讀取失敗")); return
+            toast.show(String(localized: "身份證資料讀取失敗")); return false
         }
         doc.updateSystemSpec(patch.merged(into: doc.systemSpec))
         toast.show(String(localized: "已記入系統結構"))
+        return true
     }
 
     // MARK: - 控制

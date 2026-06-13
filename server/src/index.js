@@ -374,41 +374,54 @@ async function handleChatNote(req, res, payload) {
 // build7 · 竞品搜寻：免费 iTunes + GitHub Search API，纯 HTTP 聚合（不调 Claude、不升 SDK）
 // POST /find/competitors { brief, sources?:['app_store','github'] } → { items:[{source,title,url,subtitle,score}] }
 async function handleFindCompetitors(req, res, payload) {
-  const brief = String(payload?.brief || '').trim();
+  // build9：收 keywords(短关键字)优先、brief 保底；竞品(app_store)与开源(github)分开回。
+  const kw = String(payload?.keywords || payload?.brief || '').trim();
   const sources = (Array.isArray(payload?.sources) && payload.sources.length) ? payload.sources : ['app_store', 'github'];
-  if (!brief) {
+  if (!kw) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'bad_request', detail: 'need {brief}' }));
+    return res.end(JSON.stringify({ error: 'bad_request', detail: 'need {keywords|brief}' }));
   }
-  const term = brief.slice(0, 80);
-  const items = [];
+  const term = kw.slice(0, 60);
+  const hasCJK = /[一-鿿぀-ヿ가-힯]/.test(term);
+  const competitors = [], openSource = [];
+  const seen = new Set();
+  let partial = false;
   try {
     if (sources.includes('app_store')) {
-      const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=software&limit=5&country=tw`);
+      const country = hasCJK ? 'tw' : 'us';   // 中文搜台湾区、英文搜美区，别写死
+      const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=software&limit=8&country=${country}`);
       if (r.ok) {
         const d = await r.json();
-        for (const a of (d.results || []).slice(0, 5)) {
-          items.push({ source: 'app_store', title: a.trackName, url: a.trackViewUrl,
+        for (const a of (d.results || [])) {
+          if (!a.trackViewUrl || seen.has(a.trackViewUrl)) continue;
+          seen.add(a.trackViewUrl);
+          competitors.push({ source: 'app_store', title: a.trackName, url: a.trackViewUrl,
             subtitle: [a.artistName, a.formattedPrice].filter(Boolean).join(' · '),
             score: a.averageUserRating ? `★${a.averageUserRating.toFixed(1)}` : null });
+          if (competitors.length >= 6) break;
         }
-      }
+      } else { partial = true; }
     }
     if (sources.includes('github')) {
       const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'brainstrom-ai' };
       if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-      const r = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(term)}&sort=stars&order=desc&per_page=5`, { headers });
+      const q = `${term} in:name,description stars:>10`;   // 限名称/描述命中、过滤小星 repo
+      const r = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=6`, { headers });
       if (r.ok) {
         const d = await r.json();
-        for (const repo of (d.items || []).slice(0, 5)) {
-          items.push({ source: 'github', title: repo.full_name, url: repo.html_url,
+        for (const repo of (d.items || [])) {
+          if (!repo.html_url || seen.has(repo.html_url)) continue;
+          seen.add(repo.html_url);
+          openSource.push({ source: 'github', title: repo.full_name, url: repo.html_url,
             subtitle: String(repo.description || '').slice(0, 80), score: `⭐${repo.stargazers_count}` });
+          if (openSource.length >= 6) break;
         }
-      }
+      } else { partial = true; }
     }
-  } catch (e) { /* 部分来源失败也回已拿到的 */ }
+  } catch (e) { partial = true; }
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ items }));
+  // items 保留(向后相容)＋分轨 competitors/openSource
+  res.end(JSON.stringify({ items: [...competitors, ...openSource], competitors, openSource, partial }));
 }
 
 const server = http.createServer(async (req, res) => {

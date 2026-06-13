@@ -138,6 +138,7 @@ struct AICoachView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(Array(bubble.proposals.prefix(4).enumerated()), id: \.offset) { _, item in
+                    let locked = bubble.proposalsUsed || chatVM?.streaming == true
                     Button { tapProposal(item, bubble) } label: {
                         Text(item.label)
                             .font(Tokens.Fonts.body(11.5, weight: .semibold))
@@ -145,10 +146,10 @@ struct AICoachView: View {
                             .padding(.horizontal, 10).padding(.vertical, 6)
                             .background(Capsule().fill(palette.orangeDim)
                                 .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
-                            .opacity(bubble.proposalsUsed ? 0.45 : 1)
+                            .opacity(locked ? 0.45 : 1)
                     }
                     .buttonStyle(.plain)
-                    .disabled(bubble.proposalsUsed)
+                    .disabled(locked)   // build9 安全鎖②：AI 串流中不可點，避免 send 被 !streaming 靜默丟
                 }
             }
         }
@@ -158,7 +159,10 @@ struct AICoachView: View {
         chatVM?.markProposalsUsed(bubble.id)
         switch item.action {
         case "update_spec":
-            if let doc { noteVM?.applySpecPatch(doc, instructionJSON: item.instruction) }
+            // build9：點候選 → 記入身份證；成功才把它當「我的回答」送出，觸發教練問下一題。
+            if let doc, noteVM?.applySpecPatch(doc, instructionJSON: item.instruction) == true {
+                chatVM?.send(doc, text: item.label, project: doc.projectContext(), mode: "guided")
+            }
         default:
             // structure / edit_text / find_* 屬單篇筆記操作 → 引導去開發筆記分頁
             root.toast.show(String(localized: "這個操作請到「開發筆記」分頁進行"))
@@ -186,16 +190,26 @@ struct AICoachView: View {
                     .buttonStyle(.plain).disabled(findingCompetitors)
                     .accessibilityIdentifier("coach.findcompetitors")
                 } else {
-                    Text(String(localized: "點一張記入身份證的「競品」："))
-                        .font(Tokens.Fonts.mono(10)).foregroundStyle(palette.print3)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(competitorResults, id: \.url) { c in competitorChip(c, d) }
-                        }
-                    }
+                    // build9：商業競品(App Store) 與 相關開源(GitHub) 分兩排——它們不是同一種東西。
+                    let apps = competitorResults.filter { $0.source == "app_store" }
+                    let repos = competitorResults.filter { $0.source != "app_store" }
+                    competitorGroup(String(localized: "🥊 商業競品"), apps, d)
+                    competitorGroup(String(localized: "🧰 相關開源（可參考）"), repos, d)
                 }
             }
             .padding(.horizontal, 12).padding(.top, 8)
+        }
+    }
+
+    @ViewBuilder
+    private func competitorGroup(_ title: String, _ items: [CompetitorItem], _ d: NoteDocument) -> some View {
+        if !items.isEmpty {
+            Text(title).font(Tokens.Fonts.mono(10, weight: .semibold)).foregroundStyle(palette.print3)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(items, id: \.url) { c in competitorChip(c, d) }
+                }
+            }
         }
     }
 
@@ -221,11 +235,14 @@ struct AICoachView: View {
 
     private func findCompetitors() {
         guard let d = doc, !findingCompetitors else { return }
-        let brief = [d.systemSpec.oneLiner, d.systemSpec.targetUser, d.title]
-            .compactMap { $0 }.first { !$0.isEmpty } ?? d.title
+        // build9：用「短關鍵字」(產品名/目標用戶取詞)而非整句 oneLiner，否則搜出無關結果。
+        let s = d.systemSpec
+        let keywords = [s.name, s.targetUser, d.title]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty } ?? d.title
         findingCompetitors = true
         Task {
-            let items = (try? await root.ai.findCompetitors(brief: brief)) ?? []
+            let items = (try? await root.ai.findCompetitors(keywords: keywords)) ?? []
             findingCompetitors = false
             if items.isEmpty { root.toast.show(String(localized: "暫時沒找到，稍後再試")) }
             else { competitorResults = items }

@@ -12,7 +12,7 @@ struct AIServiceStub: AIServicing {
 
     func health() async -> Bool { true }
 
-    func findCompetitors(brief: String) async throws -> [CompetitorItem] {
+    func findCompetitors(keywords: String) async throws -> [CompetitorItem] {
         [CompetitorItem(source: "app_store", title: "Fitbod", url: "https://apps.apple.com", subtitle: "Fitbod Inc. · 免費", note: nil),
          CompetitorItem(source: "github", title: "open/fitness-ai", url: "https://github.com", subtitle: "AI workout planner", note: nil)]
     }

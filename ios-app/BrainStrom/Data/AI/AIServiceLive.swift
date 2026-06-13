@@ -33,14 +33,14 @@ struct AIServiceLive: AIServicing {
         return stream(path: "ai/chat/note", body: Body(messages: messages, note: note, project: project, mode: mode, kickoff: kickoff))
     }
 
-    func findCompetitors(brief: String) async throws -> [CompetitorItem] {
-        struct Body: Encodable { let brief: String }
+    func findCompetitors(keywords: String) async throws -> [CompetitorItem] {
+        struct Body: Encodable { let keywords: String }
         struct Resp: Decodable { let items: [CompetitorItem] }
         var request = URLRequest(url: config.baseURL.appending(path: "find/competitors"))
         request.httpMethod = "POST"
         request.setValue("Bearer \(config.authToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(Body(brief: brief))
+        request.httpBody = try JSONEncoder().encode(Body(keywords: keywords))
         request.timeoutInterval = 20
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {

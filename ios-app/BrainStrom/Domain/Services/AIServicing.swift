@@ -126,6 +126,6 @@ protocol AIServicing: Sendable {
     /// ▦ 卡片結構化（mode=full）。
     func structure(note: NotePayload) -> AsyncThrowingStream<AIEvent, any Error>
 
-    /// build7 · 找競品（免費 iTunes + GitHub Search，後端聚合，非串流）。
-    func findCompetitors(brief: String) async throws -> [CompetitorItem]
+    /// build7/9 · 找競品（免費 iTunes + GitHub，後端聚合，非串流）。傳「短關鍵字」而非整句。
+    func findCompetitors(keywords: String) async throws -> [CompetitorItem]
 }
