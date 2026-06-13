@@ -24,6 +24,8 @@ struct AICoachView: View {
     @State private var noteVM: NoteViewModel?
     @State private var input = ""
     @State private var didAutoKickoff = false
+    /// 引导选项的复选状态（针对当前那则问题；换新问题就清空）。
+    @State private var selectedOptions: Set<Int> = []
     @State private var competitorResults: [CompetitorItem] = []
     @State private var findingCompetitors = false
     @FocusState private var inputFocused: Bool
@@ -43,6 +45,7 @@ struct AICoachView: View {
             maybeAutoKickoff()
         }
         .onChange(of: active) { _, _ in maybeAutoKickoff() }
+        .onChange(of: chatVM?.messages.last?.id) { _, _ in selectedOptions = [] }   // 换新问题→清空复选
         .onDisappear { chatVM?.stop() }
     }
 
@@ -115,17 +118,18 @@ struct AICoachView: View {
                 } else if bubble.text.isEmpty {
                     Text(String(localized: "思考中…")).font(Tokens.Fonts.body(13.5)).foregroundStyle(palette.print2)
                 } else {
-                    // 定稿：若是引导的「编号选项」回覆→只显示前言(选项另做成可点按钮);否则整段 markdown
+                    // 定稿：最新那则引导问题→只显示前言(选项另做成可复选按钮);其余整段 markdown
                     let parsed = Self.parseGuidedOptions(bubble.text)
-                    MarkdownView(blocks: MarkdownParser.parse(parsed.options.count >= 2 ? parsed.intro : bubble.text))
+                    let isLast = chatVM?.messages.last?.id == bubble.id
+                    MarkdownView(blocks: MarkdownParser.parse((parsed.options.count >= 2 && isLast) ? parsed.intro : bubble.text))
                 }
             }
             .padding(.horizontal, 11).padding(.vertical, 9)
             .background(RoundedRectangle(cornerRadius: 14).fill(isUser ? palette.orange : palette.panel2))
-            // A：引导编号选项 → 可点按钮（文字串完即出现，无需等工具）。点了就记进身份证。
-            if !isUser, chatVM?.streamingBubbleID != bubble.id {
+            // A：引导编号选项 → 可复选按钮 + 确认送出（只有最新那则可操作；文字串完即出现，无需等工具）
+            if !isUser, chatVM?.streamingBubbleID != bubble.id, chatVM?.messages.last?.id == bubble.id {
                 let parsed = Self.parseGuidedOptions(bubble.text)
-                if parsed.options.count >= 2 { optionsRow(parsed.options) }
+                if parsed.options.count >= 2 { optionsBlock(parsed.options) }
             }
             if let tokens = bubble.tokens {
                 Text(tokens).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
@@ -214,36 +218,58 @@ struct AICoachView: View {
         return nil
     }
 
-    private func optionsRow(_ options: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(options.enumerated()), id: \.offset) { _, opt in
-                Button { Haptics.tap(); tapGuidedOption(opt) } label: {
+    /// 可复选选项 + 确认送出（无论单选/复选，都要按确认才送）。
+    private func optionsBlock(_ options: [String]) -> some View {
+        let streaming = chatVM?.streaming == true
+        return VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(options.enumerated()), id: \.offset) { idx, opt in
+                let on = selectedOptions.contains(idx)
+                Button { Haptics.tap(); toggleOption(idx) } label: {
                     HStack(alignment: .top, spacing: 7) {
-                        Image(systemName: "circle").font(.system(size: 11)).foregroundStyle(palette.orange).padding(.top, 2)
-                        Text(opt).font(Tokens.Fonts.body(13, weight: .medium)).foregroundStyle(palette.print)
+                        Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 13)).foregroundStyle(palette.orange).padding(.top, 1)
+                        Text(verbatim: "\(idx + 1). \(opt)").font(Tokens.Fonts.body(13, weight: .medium))
+                            .foregroundStyle(palette.print)
                             .frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
                     }
                     .padding(.horizontal, 12).padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(palette.orangeDim)
-                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(palette.orange.opacity(0.35), lineWidth: 1)))
+                    .background(RoundedRectangle(cornerRadius: 12).fill(on ? palette.orange.opacity(0.18) : palette.orangeDim)
+                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(palette.orange.opacity(on ? 0.6 : 0.3), lineWidth: 1)))
                 }
-                .buttonStyle(.plain)
-                .disabled(chatVM?.streaming == true)
+                .buttonStyle(.plain).disabled(streaming)
                 .accessibilityIdentifier("coach.option")
             }
+            Button { confirmOptions(options) } label: {
+                Text(selectedOptions.isEmpty ? String(localized: "✓ 確認送出")
+                     : String(localized: "✓ 確認送出（\(selectedOptions.count)）"))
+                    .font(Tokens.Fonts.body(13.5, weight: .bold)).frame(maxWidth: .infinity).frame(height: 42)
+            }
+            .buttonStyle(.keycap(.orange))
+            .disabled(selectedOptions.isEmpty || streaming)
+            .opacity(selectedOptions.isEmpty ? 0.5 : 1)
+            .accessibilityIdentifier("coach.optionsConfirm")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 点编号选项 → 直接记进身份证当前核心字段 + 把它当回答送出，触发问下一题。
-    private func tapGuidedOption(_ text: String) {
-        guard let doc, let chatVM, chatVM.streaming == false else { return }
+    private func toggleOption(_ idx: Int) {
+        if selectedOptions.contains(idx) { selectedOptions.remove(idx) } else { selectedOptions.insert(idx) }
+    }
+
+    /// 按确认 → 记进身份证当前核心字段（多选合并成一段）+ 把「带编号」的选择送给 AI 问下一题。
+    private func confirmOptions(_ options: [String]) {
+        guard let doc, let chatVM, !selectedOptions.isEmpty, chatVM.streaming == false else { return }
+        let chosen = selectedOptions.sorted().filter { $0 >= 0 && $0 < options.count }
+        guard !chosen.isEmpty else { return }
+        let merged = chosen.map { options[$0] }.joined(separator: "；")              // 记入身份证（多选合并）
+        let numbered = chosen.map { "\($0 + 1). \(options[$0])" }.joined(separator: "\n")  // 送 AI（保留编号）
         if let field = Self.nextCoreField(doc.systemSpec),
-           let data = try? JSONSerialization.data(withJSONObject: [field: text]),
+           let data = try? JSONSerialization.data(withJSONObject: [field: merged]),
            let json = String(data: data, encoding: .utf8) {
             noteVM?.applySpecPatch(doc, instructionJSON: json)
         }
-        chatVM.send(doc, text: text, project: doc.projectContext(), mode: "guided")
+        selectedOptions = []
+        chatVM.send(doc, text: numbered, project: doc.projectContext(), mode: "guided")
     }
 
     // MARK: - 競品條（資訊夠時浮現；找競品 + 點卡記入）
