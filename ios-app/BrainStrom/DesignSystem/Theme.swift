@@ -8,12 +8,14 @@ import SwiftUI
 enum MachineSkin: String, CaseIterable, Codable, Sendable {
     case matteBlack
     case warmGray
+    case brutalism
     case system
 
     var displayName: String {
         switch self {
         case .matteBlack: String(localized: "霧面黑")
         case .warmGray: String(localized: "暖灰機殼")
+        case .brutalism: String(localized: "野獸派")
         case .system: String(localized: "跟隨系統")
         }
     }
@@ -29,9 +31,19 @@ final class ThemeStore {
         didSet { UserDefaults.standard.set(skin.rawValue, forKey: Self.storageKey) }
     }
 
+    private static let brutalismMigrationKey = "reskinBrutalismV21"
+
     init() {
-        let raw = UserDefaults.standard.string(forKey: Self.storageKey)
-        self.skin = raw.flatMap(MachineSkin.init(rawValue:)) ?? .matteBlack
+        let defaults = UserDefaults.standard
+        let raw = defaults.string(forKey: Self.storageKey)
+        // 換皮上線：所有既有安裝一次性切到野獸派（之後仍可在設定改回任一皮）。
+        if !defaults.bool(forKey: Self.brutalismMigrationKey) {
+            self.skin = .brutalism
+            defaults.set(MachineSkin.brutalism.rawValue, forKey: Self.storageKey)
+            defaults.set(true, forKey: Self.brutalismMigrationKey)
+        } else {
+            self.skin = raw.flatMap(MachineSkin.init(rawValue:)) ?? .brutalism
+        }
     }
 
     /// 依目前系統外觀解析出實際色票。
@@ -39,6 +51,7 @@ final class ThemeStore {
         switch skin {
         case .matteBlack: .matteBlack
         case .warmGray: .warmGray
+        case .brutalism: .brutalism
         case .system: colorScheme == .light ? .warmGray : .matteBlack
         }
     }
@@ -48,6 +61,7 @@ final class ThemeStore {
         switch skin {
         case .matteBlack: .dark
         case .warmGray: .light
+        case .brutalism: .light   // 黃底深字
         case .system: nil
         }
     }

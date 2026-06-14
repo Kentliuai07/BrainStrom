@@ -151,7 +151,7 @@ struct MarkdownView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: Tokens.Radius.input).fill(palette.recess))
+            .background(RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.input)).fill(palette.recess))
 
         case .quote(let lines):
             HStack(alignment: .top, spacing: 0) {
@@ -160,7 +160,7 @@ struct MarkdownView: View {
                     .font(Tokens.Fonts.body(13.5)).italic().foregroundStyle(palette.print2)
                     .padding(.leading, 10).padding(.vertical, 2)
             }
-            .background(RoundedRectangle(cornerRadius: 8).fill(palette.panel2))
+            .background(RoundedRectangle(cornerRadius: palette.radius(8)).fill(palette.panel2))
         }
     }
 

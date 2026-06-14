@@ -20,7 +20,8 @@ struct RootView: View {
         Group {
             #if DEBUG
             let args = ProcessInfo.processInfo.arguments
-            if args.contains("note") || args.contains("settings") || args.contains("login") {
+            if args.contains("note") || args.contains("settings") || args.contains("login")
+                || args.contains("coach") || args.contains("structure") || args.contains("persona") {
                 previewScreen
             } else {
                 routedContent
@@ -75,6 +76,12 @@ struct RootView: View {
             NavigationStack { SettingsScreen() }
         } else if arg.contains("login") {
             LoginScreen()
+        } else if arg.contains("coach") {
+            DebugPreviewHost(arg: "coach")
+        } else if arg.contains("structure") {
+            DebugPreviewHost(arg: "structure")
+        } else if arg.contains("persona") {
+            DebugPreviewHost(arg: "persona")
         }
     }
     #endif
@@ -135,3 +142,54 @@ struct BootCheckView: View {
         .environment(\.palette, .matteBlack)
         .background(Palette.matteBlack.bg)
 }
+
+#if DEBUG
+/// DEBUG 視覺驗收宿主：為 coach/structure/persona 三屏建系統＋灌範例 spec 後直接呈現。
+private struct DebugPreviewHost: View {
+    let arg: String
+    @Environment(CompositionRoot.self) private var root
+    @Environment(\.palette) private var palette
+    @State private var systemID: UUID?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if arg == "persona" {
+                    PersonaBatchView(appName: String(localized: "記帳 App"),
+                                     oneLiner: String(localized: "幫人記錄日常開銷"),
+                                     country: "TW", onSelect: { _ in }, onCancel: {})
+                } else if let id = systemID {
+                    if arg == "structure" {
+                        ScrollView { SystemStructureView(systemID: id, active: true).padding(16) }
+                            .background(palette.bg)
+                    } else {
+                        AICoachView(systemID: id, autoKickoff: false, active: true)
+                    }
+                } else {
+                    palette.bg.ignoresSafeArea()
+                }
+            }
+        }
+        .task { seed() }
+    }
+
+    private func seed() {
+        guard arg == "structure" || arg == "coach", systemID == nil,
+              let repo = root.repository,
+              let result = try? repo.createSystemWithPrimaryNote(name: String(localized: "記帳 App"),
+                                                                 initialContent: String(localized: "幫人記錄日常開銷")) else { return }
+        if arg == "structure" {
+            var spec = SystemSpec()
+            spec.oneLiner = "幫上班族 30 秒記一筆帳"
+            spec.targetUser = "想存錢但懶得記帳的上班族"
+            spec.painPoint = "現有 App 記一筆要點太多次"
+            spec.coreValue = "用一句話自然語言記帳"
+            spec.coreFeatures = "語音記帳、自動分類、月報表"
+            spec.frontend = "SwiftUI"
+            spec.backend = "Node.js"
+            try? repo.updateSystemSpec(systemID: result.system.id, spec: spec)
+        }
+        systemID = result.system.id
+    }
+}
+#endif

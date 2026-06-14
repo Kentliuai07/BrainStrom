@@ -27,18 +27,21 @@ struct HardwareToggleStyle: ToggleStyle {
     }
 
     private func track(isOn: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 5)
+        let hard = palette.shadow.style == .hard
+        let trackR: CGFloat = hard ? 0 : 5
+        let knobR: CGFloat = hard ? 0 : 3.5
+        return RoundedRectangle(cornerRadius: trackR)
             .fill(isOn ? palette.orangeDim : palette.panel2)
             .overlay(
-                RoundedRectangle(cornerRadius: 5)
-                    .strokeBorder(isOn ? palette.orange : palette.lineStrong, lineWidth: 1)
+                RoundedRectangle(cornerRadius: trackR)
+                    .strokeBorder(isOn ? palette.orange : palette.lineStrong, lineWidth: palette.metrics.border)
             )
             .overlay(alignment: isOn ? .trailing : .leading) {
-                RoundedRectangle(cornerRadius: 3.5)
+                RoundedRectangle(cornerRadius: knobR)
                     .fill(isOn ? palette.orange : palette.print2)
                     .frame(width: 13, height: 13)
                     .padding(2.5)
-                    .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
+                    .shadow(color: hard ? .clear : .black.opacity(0.35), radius: 1, y: 1)
             }
             .frame(width: 34, height: 19)
     }
@@ -57,17 +60,19 @@ struct SlotField<Content: View>: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
+        let r = palette.metrics.radiusInput
+        let hard = palette.shadow.style == .hard
         content
             .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: Tokens.Radius.input)
+                RoundedRectangle(cornerRadius: r)
                     .fill(palette.recess)
-                    .shadow(color: .black.opacity(0.22), radius: 2, y: 2)
-                    .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.input))
+                    .shadow(color: hard ? .clear : .black.opacity(0.22), radius: 2, y: 2)
+                    .clipShape(RoundedRectangle(cornerRadius: r))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: Tokens.Radius.input)
-                    .strokeBorder(palette.line, lineWidth: 1)
+                RoundedRectangle(cornerRadius: r)
+                    .strokeBorder(hard ? palette.ink : palette.line, lineWidth: palette.metrics.border)
             )
     }
 }

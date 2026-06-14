@@ -76,7 +76,7 @@ struct NotesListView: View {
                         Text(String(localized: "主")).font(Tokens.Fonts.mono(8, weight: .bold))
                             .foregroundStyle(palette.orangeInk)
                             .padding(.horizontal, 5).padding(.vertical, 1)
-                            .background(Capsule().fill(palette.orange))
+                            .background(palette.pillShape.fill(palette.orange))
                     }
                     Text(note.title.isEmpty ? String(localized: "未命名筆記") : note.title)
                         .font(Tokens.Fonts.body(15, weight: .bold))
@@ -86,7 +86,7 @@ struct NotesListView: View {
                         Text(String(localized: "卡片")).font(Tokens.Fonts.mono(8, weight: .bold))
                             .foregroundStyle(palette.orange)
                             .padding(.horizontal, 5).padding(.vertical, 1)
-                            .background(Capsule().fill(palette.orangeDim))
+                            .background(palette.pillShape.fill(palette.orangeDim))
                     }
                     Spacer()
                     Text(note.updatedAt, format: .dateTime.month(.twoDigits).day(.twoDigits))

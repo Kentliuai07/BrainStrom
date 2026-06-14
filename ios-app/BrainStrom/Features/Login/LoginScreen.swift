@@ -21,7 +21,7 @@ struct LoginScreen: View {
                 .font(Tokens.Fonts.display(30, weight: .heavy))
                 .foregroundStyle(palette.orangeInk)
                 .frame(width: 64, height: 64)
-                .background(NotchedRectangle(notch: 10).fill(palette.orange))
+                .background(NotchedRectangle(notch: palette.isHard ? 0 : 10, cornerRadius: palette.radius(14)).fill(palette.orange))
 
             // 標題
             Text(verbatim: "BrainStrom")

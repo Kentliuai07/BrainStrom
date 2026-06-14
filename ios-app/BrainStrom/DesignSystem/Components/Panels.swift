@@ -11,16 +11,20 @@ struct HardwareCardModifier: ViewModifier {
     @Environment(\.palette) private var palette
 
     func body(content: Content) -> some View {
-        let shape = NotchedRectangle(notch: notch)
+        let m = palette.metrics
+        let shape = NotchedRectangle(notch: m.notchCard == 0 ? 0 : notch, cornerRadius: m.radiusCard)
         content
             .background(shape.fill(palette.panel))
-            .overlay(shape.strokeBorder(palette.lineStrong, lineWidth: 1))
+            .overlay(shape.strokeBorder(palette.lineStrong, lineWidth: m.border))
             .overlay(alignment: .top) {
-                shape.strokeBorder(Color.white.opacity(0.07), lineWidth: 1)
-                    .mask(LinearGradient(colors: [.white, .clear], startPoint: .top, endPoint: .center))
+                // 上緣受光僅柔光皮（白卡上打白光無意義）。
+                if palette.shadow.style == .soft {
+                    shape.strokeBorder(Color.white.opacity(0.07), lineWidth: 1)
+                        .mask(LinearGradient(colors: [.white, .clear], startPoint: .top, endPoint: .center))
+                }
             }
             .compositingGroup()
-            .shadow(color: .black.opacity(0.28), radius: 7, y: 4)
+            .cardShadow(palette, shape: shape)
     }
 }
 

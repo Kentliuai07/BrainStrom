@@ -31,16 +31,16 @@ struct ToastBanner: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        Text(text)
+        let hard = palette.shadow.style == .hard
+        let shape = RoundedRectangle(cornerRadius: hard ? 0 : 10, style: .continuous)
+        return Text(text)
             .font(Tokens.Fonts.body(12.5, weight: .bold))
             .foregroundStyle(palette.orangeInk)
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(palette.orange)
-                    .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-            )
+            .background(shape.fill(palette.orange))
+            .overlay { if hard { shape.strokeBorder(palette.ink, lineWidth: palette.metrics.border) } }
+            .cardShadow(palette, shape: shape, softColor: .black.opacity(0.3), softRadius: 8, softY: 4)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .accessibilityAddTraits(.isStaticText)
     }

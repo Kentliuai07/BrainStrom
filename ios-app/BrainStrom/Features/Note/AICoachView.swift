@@ -125,7 +125,8 @@ struct AICoachView: View {
                 }
             }
             .padding(.horizontal, 11).padding(.vertical, 9)
-            .background(RoundedRectangle(cornerRadius: 14).fill(isUser ? palette.orange : palette.panel2))
+            .background(palette.roundShape(14).fill(isUser ? palette.userBubble : palette.panel2)
+                .overlay(palette.roundShape(14).stroke(palette.isHard ? palette.ink : .clear, lineWidth: palette.metrics.border)))
             // A：引导编号选项 → 可复选按钮 + 确认送出（只有最新那则可操作；文字串完即出现，无需等工具）
             if !isUser, chatVM?.streamingBubbleID != bubble.id, chatVM?.messages.last?.id == bubble.id {
                 let parsed = Self.parseGuidedOptions(bubble.text)
@@ -142,8 +143,8 @@ struct AICoachView: View {
                         .font(Tokens.Fonts.body(11.5, weight: .semibold))
                         .foregroundStyle(palette.orange)
                         .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(Capsule().fill(palette.orangeDim)
-                            .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+                        .background(palette.pillShape.fill(palette.orangeDim)
+                            .overlay(palette.pillShape.stroke(palette.isHard ? palette.ink : palette.orange.opacity(0.3), lineWidth: palette.metrics.border)))
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("coach.addnote")
@@ -165,8 +166,8 @@ struct AICoachView: View {
                             .font(Tokens.Fonts.body(11.5, weight: .semibold))
                             .foregroundStyle(palette.orange)
                             .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(Capsule().fill(palette.orangeDim)
-                                .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+                            .background(palette.pillShape.fill(palette.orangeDim)
+                                .overlay(palette.pillShape.stroke(palette.isHard ? palette.ink : palette.orange.opacity(0.3), lineWidth: palette.metrics.border)))
                             .opacity(locked ? 0.45 : 1)
                     }
                     .buttonStyle(.plain)
@@ -233,8 +234,8 @@ struct AICoachView: View {
                             .frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
                     }
                     .padding(.horizontal, 12).padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(on ? palette.orange.opacity(0.18) : palette.orangeDim)
-                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(palette.orange.opacity(on ? 0.6 : 0.3), lineWidth: 1)))
+                    .background(RoundedRectangle(cornerRadius: palette.radius(12)).fill(on ? palette.orange.opacity(0.18) : palette.orangeDim)
+                        .overlay(RoundedRectangle(cornerRadius: palette.radius(12)).strokeBorder(palette.isHard ? palette.ink : palette.orange.opacity(on ? 0.6 : 0.3), lineWidth: palette.metrics.border)))
                 }
                 .buttonStyle(.plain).disabled(streaming)
                 .accessibilityIdentifier("coach.option")
@@ -288,8 +289,8 @@ struct AICoachView: View {
                                 .font(Tokens.Fonts.body(12, weight: .semibold)).foregroundStyle(palette.orange)
                         }
                         .padding(.horizontal, 12).frame(height: 34)
-                        .background(Capsule().fill(palette.orangeDim)
-                            .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+                        .background(palette.pillShape.fill(palette.orangeDim)
+                            .overlay(palette.pillShape.stroke(palette.isHard ? palette.ink : palette.orange.opacity(0.3), lineWidth: palette.metrics.border)))
                     }
                     .buttonStyle(.plain).disabled(findingCompetitors)
                     .accessibilityIdentifier("coach.findcompetitors")
@@ -307,7 +308,7 @@ struct AICoachView: View {
                             Text(findingCompetitors ? String(localized: "搜尋中…") : String(localized: "↻ 找更多像「\(first.title.prefix(8))」的"))
                                 .font(Tokens.Fonts.body(11, weight: .semibold)).foregroundStyle(palette.print2)
                                 .padding(.horizontal, 10).padding(.vertical, 5)
-                                .background(Capsule().strokeBorder(palette.line, lineWidth: 1))
+                                .background(palette.pillShape.stroke(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border))
                         }
                         .buttonStyle(.plain).disabled(findingCompetitors)
                         .accessibilityIdentifier("coach.findsimilar")
@@ -349,8 +350,9 @@ struct AICoachView: View {
             }
             .frame(width: 150, alignment: .leading)
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 10).fill(palette.panel2)
-                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+            .background(RoundedRectangle(cornerRadius: palette.radius(10)).fill(palette.panel2)
+                .overlay(RoundedRectangle(cornerRadius: palette.radius(10)).strokeBorder(palette.isHard ? palette.ink : palette.orange.opacity(0.3), lineWidth: palette.metrics.border)))
+            .cardShadow(palette, shape: RoundedRectangle(cornerRadius: palette.radius(10)), softColor: .clear, softRadius: 0, softY: 0)
         }
         .buttonStyle(.plain)
     }
@@ -393,8 +395,8 @@ struct AICoachView: View {
             .focused($inputFocused)
             .lineLimit(1...4)
             .padding(.horizontal, 11).frame(minHeight: 40, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: Tokens.Radius.input).fill(palette.recess)
-                .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.input).strokeBorder(palette.line, lineWidth: 1)))
+            .background(RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.input)).fill(palette.recess)
+                .overlay(RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.input)).strokeBorder(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border)))
             if chatVM?.streaming == true {
                 Button { chatVM?.stop() } label: {
                     Text(String(localized: "停止")).font(Tokens.Fonts.body(13, weight: .semibold)).frame(width: 56, height: 40)

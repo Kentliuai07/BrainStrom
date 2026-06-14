@@ -100,8 +100,8 @@ struct SystemDetailScreen: View {
         }
         .padding(3)
         .background(
-            RoundedRectangle(cornerRadius: 12).fill(palette.recess)
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(palette.line, lineWidth: 1))
+            RoundedRectangle(cornerRadius: palette.radius(12)).fill(palette.recess)
+                .overlay(RoundedRectangle(cornerRadius: palette.radius(12)).strokeBorder(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border))
         )
         .padding(.horizontal, 12)
         .padding(.top, 8)
@@ -124,7 +124,7 @@ struct SystemDetailScreen: View {
             .foregroundStyle(on ? palette.orangeInk : palette.print2)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 9).fill(on ? palette.orange : .clear))
+            .background(RoundedRectangle(cornerRadius: palette.radius(9)).fill(on ? palette.orange : .clear))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("systemDetail.tab.\(t.rawValue)")

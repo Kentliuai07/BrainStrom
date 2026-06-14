@@ -89,7 +89,7 @@ struct NoteDetailScreen: View {
                 .font(Tokens.Fonts.body(13, weight: .bold))
                 .foregroundStyle(palette.print)
                 .padding(.horizontal, 16).padding(.vertical, 8)
-                .background(Capsule().fill(palette.panel).overlay(Capsule().strokeBorder(palette.line, lineWidth: 1)))
+                .background(palette.pillShape.fill(palette.panel).overlay(palette.pillShape.stroke(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border)))
                 .frame(maxHeight: .infinity)
         }
         .transition(.opacity)
@@ -136,7 +136,7 @@ struct NoteDetailScreen: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(palette.print2)
                 .frame(width: 30, height: 30)
-                .background(Circle().fill(palette.panel2).overlay(Circle().strokeBorder(palette.line, lineWidth: 1)))
+                .background(palette.pillShape.fill(palette.panel2).overlay(palette.pillShape.stroke(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border)))
         }
         .buttonStyle(.plain)
         .opacity(enabled ? 1 : 0.35)
@@ -176,8 +176,8 @@ struct NoteDetailScreen: View {
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(accent ? palette.orange : palette.print2)
                 .frame(width: 44, height: 44)
-                .background(Circle().fill(palette.panel)
-                    .overlay(Circle().strokeBorder(accent ? palette.orange.opacity(0.5) : palette.line, lineWidth: 1)))
+                .background(palette.pillShape.fill(palette.panel)
+                    .overlay(palette.pillShape.stroke(accent ? palette.orange.opacity(0.5) : (palette.isHard ? palette.ink : palette.line), lineWidth: palette.metrics.border)))
         }
         .buttonStyle(.plain)
         .opacity(disabled ? 0.45 : 1)
@@ -239,7 +239,7 @@ struct NoteDetailScreen: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(palette.orange)
                     .frame(width: 32, height: 32)
-                    .background(RoundedRectangle(cornerRadius: 9).fill(palette.orangeDim))
+                    .background(RoundedRectangle(cornerRadius: palette.radius(9)).fill(palette.orangeDim))
                 Text(item.name).font(Tokens.Fonts.body(14, weight: .medium)).foregroundStyle(palette.print)
                 if item.locked {
                     Text(String(localized: "階段二")).font(Tokens.Fonts.mono(8, weight: .semibold)).foregroundStyle(palette.print3)
@@ -248,8 +248,8 @@ struct NoteDetailScreen: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
             .frame(minWidth: 160, alignment: .leading)
-            .background(NotchedRectangle(notch: 10).fill(palette.panel)
-                .overlay(NotchedRectangle(notch: 10).strokeBorder(palette.orange.opacity(0.32), lineWidth: 1)))
+            .background(NotchedRectangle(notch: palette.metrics.notchCard == 0 ? 0 : 10, cornerRadius: palette.metrics.radiusCard).fill(palette.panel)
+                .overlay(NotchedRectangle(notch: palette.metrics.notchCard == 0 ? 0 : 10, cornerRadius: palette.metrics.radiusCard).strokeBorder(palette.isHard ? palette.ink : palette.orange.opacity(0.32), lineWidth: palette.metrics.border)))
         }
         .buttonStyle(.plain)
         .opacity(item.locked ? 0.55 : 1)

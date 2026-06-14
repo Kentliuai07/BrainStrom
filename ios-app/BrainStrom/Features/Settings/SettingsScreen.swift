@@ -111,15 +111,15 @@ struct SettingsScreen: View {
                         .font(Tokens.Fonts.body(11, weight: .bold))
                         .foregroundStyle(root.theme.skin == skin ? palette.orangeInk : palette.print2)
                         .padding(.horizontal, 8).padding(.vertical, 5)
-                        .background(RoundedRectangle(cornerRadius: 7)
+                        .background(RoundedRectangle(cornerRadius: palette.radius(7))
                             .fill(root.theme.skin == skin ? palette.orange : .clear))
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(2)
-        .background(RoundedRectangle(cornerRadius: 9).fill(palette.recess)
-            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(palette.line, lineWidth: 1)))
+        .background(RoundedRectangle(cornerRadius: palette.radius(9)).fill(palette.recess)
+            .overlay(RoundedRectangle(cornerRadius: palette.radius(9)).strokeBorder(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border)))
     }
 
     // MARK: - AI 區塊

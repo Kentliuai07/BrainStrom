@@ -34,10 +34,10 @@ extension NoteDetailScreen {
                 .padding(.horizontal, 11)
                 .frame(minHeight: 40, alignment: .leading)
                 .background(
-                    RoundedRectangle(cornerRadius: Tokens.Radius.input)
+                    RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.input))
                         .fill(palette.recess)
-                        .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.input)
-                            .strokeBorder(palette.line, lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.input))
+                            .strokeBorder(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border))
                 )
                 if chatVM?.streaming == true {
                     Button { chatVM?.stop() } label: {
@@ -60,10 +60,11 @@ extension NoteDetailScreen {
         .frame(height: 360)
         .frame(maxWidth: .infinity)
         .background(
-            UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)
+            UnevenRoundedRectangle(topLeadingRadius: palette.radius(20), topTrailingRadius: palette.radius(20))
                 .fill(palette.panel)
-                .shadow(color: .black.opacity(0.3), radius: 12, y: -4)
+                .overlay(UnevenRoundedRectangle(topLeadingRadius: palette.radius(20), topTrailingRadius: palette.radius(20)).stroke(palette.isHard ? palette.ink : .clear, lineWidth: palette.metrics.border))
         )
+        .cardShadow(palette, shape: UnevenRoundedRectangle(topLeadingRadius: palette.radius(20), topTrailingRadius: palette.radius(20)), softColor: .black.opacity(0.3), softRadius: 12, softY: -4)
         .transition(.move(edge: .bottom))
     }
 
@@ -123,8 +124,9 @@ extension NoteDetailScreen {
                 }
             }
             .padding(.horizontal, 11).padding(.vertical, 9)
-            .background(RoundedRectangle(cornerRadius: 14)
-                .fill(isUser ? palette.orange : palette.panel2))
+            .background(palette.roundShape(14)
+                .fill(isUser ? palette.userBubble : palette.panel2)
+                .overlay(palette.roundShape(14).stroke(palette.isHard ? palette.ink : .clear, lineWidth: palette.metrics.border)))
             if let tokens = bubble.tokens {
                 Text(tokens).font(Tokens.Fonts.mono(9)).foregroundStyle(palette.print3)
             }
@@ -158,8 +160,8 @@ extension NoteDetailScreen {
                             .font(Tokens.Fonts.body(11.5, weight: .semibold))
                             .foregroundStyle(isLocked ? palette.print3 : palette.orange)
                             .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(Capsule().fill(palette.orangeDim)
-                                .overlay(Capsule().strokeBorder(palette.orange.opacity(0.3), lineWidth: 1)))
+                            .background(palette.pillShape.fill(palette.orangeDim)
+                                .overlay(palette.pillShape.stroke(palette.isHard ? palette.ink : palette.orange.opacity(0.3), lineWidth: palette.metrics.border)))
                             .opacity(bubble.proposalsUsed && !isLocked ? 0.45 : 1)
                     }
                     .buttonStyle(.plain)

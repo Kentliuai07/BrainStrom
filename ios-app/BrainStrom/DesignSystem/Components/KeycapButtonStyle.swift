@@ -16,34 +16,54 @@ struct KeycapButtonStyle: ButtonStyle {
     }
 
     var kind: Kind = .neutral
-    var cornerRadius: CGFloat = Tokens.Radius.key
+    var cornerRadius: CGFloat? = nil
 
     @Environment(\.palette) private var palette
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let m = palette.metrics
+        let r = cornerRadius ?? m.radiusKey
+        let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
 
-        return ZStack {
-            // 底座（固定不動，露出行程厚度）
-            configuration.label
-                .hidden()
-                .background(shape.fill(sideColor))
-                .offset(y: Tokens.keyTravel)
-
-            // 鍵帽面（按壓下沉）
-            configuration.label
-                .foregroundStyle(inkColor)
-                .background(shape.fill(faceColor))
-                .overlay(shape.strokeBorder(borderColor, lineWidth: 1))
-                .overlay(alignment: .top) {
-                    // 上緣受光
-                    shape.strokeBorder(highlightColor, lineWidth: 1)
-                        .mask(LinearGradient(colors: [.white, .clear], startPoint: .top, endPoint: .center))
-                }
-                .offset(y: pressed ? Tokens.keyTravel : 0)
+        if palette.shadow.style == .hard {
+            // 野獸派：平面方塊 + 實心硬影 + 按下往右下推（影縮）
+            let off: CGFloat = 4
+            return AnyView(
+                configuration.label
+                    .foregroundStyle(inkColor)
+                    .background(shape.fill(faceColor))
+                    .overlay(shape.strokeBorder(palette.ink, lineWidth: m.border))
+                    .hardShadow(shape, dx: pressed ? 0 : off, dy: pressed ? 0 : off, color: palette.ink)
+                    .offset(x: pressed ? off : 0, y: pressed ? off : 0)
+                    .animation(.easeOut(duration: 0.06), value: pressed)
+            )
         }
-        .animation(Motion.key, value: pressed)
+
+        // 既有鍵帽（霧面黑／暖灰）：上亮下暗、按壓下沉，原樣不動。
+        let travel = palette.motion.keyTravel
+        return AnyView(
+            ZStack {
+                // 底座（固定不動，露出行程厚度）
+                configuration.label
+                    .hidden()
+                    .background(shape.fill(sideColor))
+                    .offset(y: travel)
+
+                // 鍵帽面（按壓下沉）
+                configuration.label
+                    .foregroundStyle(inkColor)
+                    .background(shape.fill(faceColor))
+                    .overlay(shape.strokeBorder(borderColor, lineWidth: 1))
+                    .overlay(alignment: .top) {
+                        // 上緣受光
+                        shape.strokeBorder(highlightColor, lineWidth: 1)
+                            .mask(LinearGradient(colors: [.white, .clear], startPoint: .top, endPoint: .center))
+                    }
+                    .offset(y: pressed ? travel : 0)
+            }
+            .animation(Motion.key, value: pressed)
+        )
     }
 
     private var faceColor: Color {
@@ -59,7 +79,7 @@ struct KeycapButtonStyle: ButtonStyle {
         switch kind {
         case .neutral: palette.lineStrong
         case .orange: palette.orangeDeep
-        case .danger: Color(hex: 0x7A1A0E)
+        case .danger: palette.dangerDeep
         case .appleBlack: palette.lineStrong
         }
     }
@@ -68,7 +88,7 @@ struct KeycapButtonStyle: ButtonStyle {
         switch kind {
         case .neutral: palette.print
         case .orange: palette.orangeInk
-        case .danger: Color(hex: 0xFFF2EF)
+        case .danger: palette.dangerInk
         case .appleBlack: .white
         }
     }
@@ -93,7 +113,7 @@ struct KeycapButtonStyle: ButtonStyle {
 extension ButtonStyle where Self == KeycapButtonStyle {
     /// 鍵帽樣式便利入口。
     static func keycap(_ kind: KeycapButtonStyle.Kind = .neutral,
-                       cornerRadius: CGFloat = Tokens.Radius.key) -> KeycapButtonStyle {
+                       cornerRadius: CGFloat? = nil) -> KeycapButtonStyle {
         KeycapButtonStyle(kind: kind, cornerRadius: cornerRadius)
     }
 }

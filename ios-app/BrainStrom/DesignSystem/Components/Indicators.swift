@@ -18,12 +18,17 @@ struct LEDIndicator: View {
 
     @Environment(\.palette) private var palette
 
+    /// 燈體形狀：野獸派方燈、儀器皮圓燈。
+    private var dot: AnyShape {
+        palette.shadow.style == .hard ? AnyShape(Rectangle()) : AnyShape(Circle())
+    }
+
     var body: some View {
         switch mode {
         case .off:
-            Circle()
+            dot
                 .fill(palette.panel2)
-                .overlay(Circle().strokeBorder(palette.lineStrong, lineWidth: 1))
+                .overlay(dot.stroke(palette.lineStrong, lineWidth: palette.metrics.border))
                 .frame(width: size, height: size)
         case .steady:
             lit.frame(width: size, height: size)
@@ -39,9 +44,11 @@ struct LEDIndicator: View {
     }
 
     private var lit: some View {
-        Circle()
+        let hard = palette.shadow.style == .hard
+        return dot
             .fill(color)
-            .shadow(color: color.opacity(0.8), radius: 3)
+            .overlay { if hard { dot.stroke(palette.ink, lineWidth: palette.metrics.border) } }
+            .shadow(color: hard ? .clear : color.opacity(0.8), radius: 3)
     }
 }
 
@@ -55,15 +62,17 @@ struct LEDBarGauge: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        HStack(spacing: 3) {
+        let hard = palette.shadow.style == .hard
+        let segR: CGFloat = hard ? 0 : 2
+        return HStack(spacing: 3) {
             ForEach(0..<total, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: segR)
                     .fill(index < filled ? color : palette.panel2)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 2)
-                            .strokeBorder(index < filled ? color : palette.line, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: segR)
+                            .strokeBorder(index < filled ? (hard ? palette.ink : color) : palette.line, lineWidth: palette.metrics.border)
                     )
-                    .shadow(color: index < filled ? color.opacity(0.5) : .clear, radius: 2.5)
+                    .shadow(color: (index < filled && !hard) ? color.opacity(0.5) : .clear, radius: 2.5)
                     .frame(height: segmentHeight)
             }
         }

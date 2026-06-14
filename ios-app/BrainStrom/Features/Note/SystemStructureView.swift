@@ -54,16 +54,16 @@ struct SystemStructureView: View {
                     .font(Tokens.Fonts.mono(11, weight: .bold))
                     .foregroundStyle(spec.coreComplete ? palette.orangeInk : palette.print2)
                     .padding(.horizontal, 9).padding(.vertical, 4)
-                    .background(Capsule().fill(spec.coreComplete ? palette.ledGreen.opacity(0.3) : palette.orangeDim))
+                    .background(palette.pillShape.fill(spec.coreComplete ? palette.ledGreen.opacity(0.3) : palette.orangeDim))
             }
             if spec.isEmpty {
                 Text(String(localized: "去「AI 教練」按⚡開始引導，AI 會一題一題出選項帶你把專案想清楚；點選項就填進這裡。"))
                     .font(Tokens.Fonts.body(12.5)).foregroundStyle(palette.print3)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(RoundedRectangle(cornerRadius: Tokens.Radius.card)
-                        .fill(palette.panel).overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card)
-                            .strokeBorder(palette.line, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))))
+                    .background(palette.roundShape(Tokens.Radius.card)
+                        .fill(palette.panel).overlay(palette.roundShape(Tokens.Radius.card)
+                            .stroke(palette.isHard ? palette.ink : palette.line, style: StrokeStyle(lineWidth: palette.metrics.border, dash: [4, 4]))))
             } else {
                 zone(String(localized: "① 這是什麼"), [
                     (String(localized: "一句話"), spec.oneLiner, true), (String(localized: "目標用戶"), spec.targetUser, true)])
@@ -92,8 +92,8 @@ struct SystemStructureView: View {
                     specRow(label: r.0, value: r.1, core: r.2, last: i == rows.count - 1)
                 }
             }
-            .background(RoundedRectangle(cornerRadius: Tokens.Radius.card).fill(palette.panel)
-                .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.card).strokeBorder(palette.line, lineWidth: 1)))
+            .background(RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.card)).fill(palette.panel)
+                .overlay(RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.card)).strokeBorder(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border)))
         }
     }
 
@@ -131,8 +131,8 @@ struct SystemStructureView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(RoundedRectangle(cornerRadius: 10).fill(palette.panel)
-                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(palette.line, lineWidth: 1)))
+                .background(RoundedRectangle(cornerRadius: palette.radius(10)).fill(palette.panel)
+                    .overlay(RoundedRectangle(cornerRadius: palette.radius(10)).strokeBorder(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border)))
             }
         }
     }

@@ -100,19 +100,17 @@ struct HomeScreen: View {
         .padding(.bottom, Tokens.Spacing.s4)
     }
 
-    /// 圓形圖標鈕（web .iconbtn / .iconbtn.accent）。
+    /// 圓形圖標鈕（web .iconbtn / .iconbtn.accent）。野獸派轉方鈕＋黑邊。
     private func circleIcon(system: String, accent: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        let shape = palette.pillShape
+        let stroke = palette.isHard ? palette.ink : (accent ? palette.orange.opacity(0.5) : palette.line)
+        return Button(action: action) {
             Image(systemName: system)
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(accent ? palette.orange : palette.print2)
                 .frame(width: 44, height: 44)
-                .background(
-                    Circle()
-                        .fill(palette.panel)
-                        .overlay(Circle().strokeBorder(
-                            accent ? palette.orange.opacity(0.5) : palette.line, lineWidth: 1))
-                )
+                .background(shape.fill(palette.panel))
+                .overlay(shape.stroke(stroke, lineWidth: palette.metrics.border))
         }
         .buttonStyle(.plain)
     }
@@ -132,10 +130,10 @@ struct HomeScreen: View {
         .padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: Tokens.Radius.input)
+            RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.input))
                 .fill(palette.orangeDim)
-                .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.input)
-                    .strokeBorder(palette.orange.opacity(0.26), lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.input))
+                    .strokeBorder(palette.isHard ? palette.ink : palette.orange.opacity(0.26), lineWidth: palette.metrics.border))
         )
         .padding(.bottom, Tokens.Spacing.s3)
     }
@@ -189,8 +187,8 @@ struct HomeScreen: View {
             }
             .frame(width: 170, height: 110)
             .overlay(
-                NotchedRectangle()
-                    .strokeBorder(palette.lineStrong, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                NotchedRectangle(notch: palette.metrics.notchCard, cornerRadius: palette.metrics.radiusCard)
+                    .strokeBorder(palette.lineStrong, style: StrokeStyle(lineWidth: palette.isHard ? palette.metrics.border : 1.5, dash: [5, 4]))
             )
             Button {
                 Haptics.press()
@@ -319,8 +317,8 @@ struct CreationSheet: View {
             content()
                 .font(Tokens.Fonts.body(15)).foregroundStyle(palette.print)
                 .padding(.horizontal, 12).frame(minHeight: 44, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: Tokens.Radius.input).fill(palette.recess)
-                    .overlay(RoundedRectangle(cornerRadius: Tokens.Radius.input).strokeBorder(palette.line, lineWidth: 1)))
+                .background(RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.input)).fill(palette.recess)
+                    .overlay(RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.input)).strokeBorder(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border)))
         }
     }
 
@@ -332,8 +330,11 @@ struct CreationSheet: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: 12).fill(palette.panel)
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(palette.line, lineWidth: 1)))
+            .background(
+                palette.roundShape(12).fill(palette.panel)
+                    .overlay(palette.roundShape(12).stroke(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border))
+            )
+            .cardShadow(palette, shape: palette.roundShape(12), softColor: .clear, softRadius: 0, softY: 0)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(id)
@@ -371,7 +372,7 @@ struct SystemCardView: View {
                             .font(Tokens.Fonts.mono(9))
                             .foregroundStyle(palette.print3)
                             .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Capsule().strokeBorder(palette.line, lineWidth: 1))
+                            .background(palette.pillShape.stroke(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border))
                     }
                 }
                 .padding(.top, 3)
@@ -400,7 +401,8 @@ struct VisibilityPill: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
         .background(
-            Capsule().fill(isPrivate ? palette.orangeDim : palette.ledGreen.opacity(0.14))
+            palette.pillShape.fill(isPrivate ? palette.orangeDim : palette.ledGreen.opacity(0.14))
+                .overlay { if palette.isHard { palette.pillShape.stroke(isPrivate ? palette.orange : palette.ledGreen, lineWidth: palette.metrics.border) } }
         )
     }
 }

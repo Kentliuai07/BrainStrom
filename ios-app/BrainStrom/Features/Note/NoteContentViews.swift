@@ -82,7 +82,7 @@ struct BlockRow: View {
             if block.kind == .todo {
                 Button { doc.toggleTodo(block.id) } label: {
                     ZStack {
-                        Circle().strokeBorder(block.isDone ? palette.orange : palette.print3, lineWidth: 2)
+                        palette.pillShape.stroke(block.isDone ? palette.orange : (palette.isHard ? palette.ink : palette.print3), lineWidth: 2)
                         if block.isDone {
                             Image(systemName: "checkmark").font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(palette.orange)
@@ -103,10 +103,10 @@ struct BlockRow: View {
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
         .background(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: palette.radius(10))
                 .fill(block.isPinned ? palette.panel : .clear)
-                .overlay(RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(block.isPinned ? palette.orange.opacity(0.3) : .clear, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: palette.radius(10))
+                    .strokeBorder(block.isPinned ? (palette.isHard ? palette.ink : palette.orange.opacity(0.3)) : .clear, lineWidth: palette.metrics.border))
         )
         .onAppear { text = block.text }
         .onChange(of: focused) { _, f in
@@ -238,15 +238,15 @@ struct CardsView: View {
             if let content = card.content {
                 MarkdownView(blocks: MarkdownParser.parse(content))
             } else {
-                RoundedRectangle(cornerRadius: 6).fill(palette.panel2).frame(height: 28)   // 骨架占位
+                RoundedRectangle(cornerRadius: palette.radius(6)).fill(palette.panel2).frame(height: 28)   // 骨架占位
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)
         .hardwareCard()
         .overlay {
-            NotchedRectangle(notch: Tokens.Notch.card)
-                .strokeBorder(palette.orange.opacity(card.content == nil ? 0.5 : 0.2), lineWidth: 1)
+            NotchedRectangle(notch: palette.metrics.notchCard == 0 ? 0 : Tokens.Notch.card, cornerRadius: palette.metrics.radiusCard)
+                .strokeBorder(palette.orange.opacity(card.content == nil ? 0.5 : 0.2), lineWidth: palette.metrics.border)
         }
     }
 }
@@ -274,8 +274,8 @@ struct CardRow: View {
         .overlay(alignment: .topTrailing) { tools }
         .overlay {
             if block.isPinned {
-                NotchedRectangle(notch: Tokens.Notch.card)
-                    .strokeBorder(palette.orange.opacity(0.4), lineWidth: 1.5)
+                NotchedRectangle(notch: palette.metrics.notchCard == 0 ? 0 : Tokens.Notch.card, cornerRadius: palette.metrics.radiusCard)
+                    .strokeBorder(palette.orange.opacity(0.4), lineWidth: palette.metrics.border)
             }
         }
     }

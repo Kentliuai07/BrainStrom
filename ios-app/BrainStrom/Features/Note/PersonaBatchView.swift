@@ -127,8 +127,8 @@ struct PersonaBatchView: View {
                     .font(Tokens.Fonts.body(13)).foregroundStyle(palette.print)
                     .focused($appendFocused)
                     .padding(.horizontal, 11).frame(height: 40)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(palette.recess)
-                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(palette.line, lineWidth: 1)))
+                    .background(RoundedRectangle(cornerRadius: palette.radius(10)).fill(palette.recess)
+                        .overlay(RoundedRectangle(cornerRadius: palette.radius(10)).strokeBorder(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border)))
                     .disabled(vm.busy)
                 Button { Haptics.tap(); appendFocused = false; vm.appendCard() } label: {
                     HStack(spacing: 4) {
