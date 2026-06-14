@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom</title>
+<style>
+:root{
+  --bg:#d7d3c8; --panel:#ece9df; --panel2:#e2dfd4;
+  --ink:#16163e; --ink-soft:#3a3a5c;
+  --line-soft:#7878a6; --white:#fff;
+  --shadow:#b6b2a6; --hot:#ffd24d;
+  --c-frame:#2a2a72; --c-sys:#2a2a72;
+  --c-def:#0a6b78; --c-idea:#9a6b00; --c-mkt:#9b2d6b;
+  --c-func:#2f7d3f; --c-tech:#4b3b8f;
+  --c-comp:#c0322a; --c-art:#9a6b00; --c-oss:#2f7d3f;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ width:100%; }
+body{
+  background:var(--bg); color:var(--ink); padding:14px 0;
+  font-family:'Consolas','Cascadia Mono','IBM Plex Mono','SFMono-Regular','Courier New','PingFang TC','Noto Sans Mono CJK TC','Microsoft JhengHei',monospace;
+  letter-spacing:.01em; font-weight:400; line-height:1.45;
+}
+#crt{ max-width:430px; margin:0 auto; position:relative; background:var(--bg);
+  border:2px solid var(--c-frame); box-shadow:4px 4px 0 var(--shadow); min-height:760px; }
+#crt::before{ content:''; position:absolute; inset:3px; border:1px solid var(--line-soft); pointer-events:none; z-index:1; }
+.menubar{ height:24px; background:var(--c-frame); color:#fff; font-size:12px; display:flex; gap:14px;
+  align-items:center; padding:0 8px; font-weight:700; position:relative; z-index:2; }
+.menubar .clock{ margin-left:auto; font-weight:700; }
+.fnbar{ height:48px; background:var(--panel2); border-top:2px solid var(--c-frame); display:flex; position:relative; z-index:2; }
+.fnbar .fn{ flex:1; display:flex; align-items:center; justify-content:center; font-size:11px; border-right:1px solid var(--line-soft); cursor:pointer; }
+.fnbar .fn:last-child{ border-right:none; }
+.fnkey{ background:var(--c-frame); color:#fff; padding:0 4px; margin-right:4px; font-weight:700; }
+.scan{ position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.03) 2px 3px); z-index:99; }
+.rule{ color:var(--line-soft); font-size:12px; overflow:hidden; white-space:nowrap; margin:6px 0; letter-spacing:0; }
+.cur{ animation:bl 1s steps(1) infinite; }
+@keyframes bl{ 50%{ opacity:0; } }
+.win{ position:relative; background:var(--panel); border:2px solid var(--c-frame);
+  box-shadow:3px 3px 0 var(--shadow); margin:0 12px 12px; }
+.win::before{ content:''; position:absolute; inset:2px; border:1px solid var(--line-soft); pointer-events:none; z-index:1; }
+.win-title{ background:var(--c-frame); color:#fff; font-weight:700; font-size:12px; text-transform:uppercase;
+  padding:3px 7px; display:flex; align-items:center; gap:6px; }
+.win-x{ margin-left:auto; background:#fff; color:var(--c-frame); font-weight:700; padding:0 4px; font-size:11px; cursor:pointer; }
+.win-body{ padding:8px 10px; position:relative; z-index:2; }
+.win.c-sys{ border-color:var(--c-sys); } .win.c-sys .win-title{ background:var(--c-sys); } .win.c-sys .win-x{ color:var(--c-sys); }
+.win.c-def{ border-color:var(--c-def); } .win.c-def .win-title{ background:var(--c-def); } .win.c-def .win-x{ color:var(--c-def); }
+.win.c-mkt{ border-color:var(--c-mkt); } .win.c-mkt .win-title{ background:var(--c-mkt); } .win.c-mkt .win-x{ color:var(--c-mkt); }
+.win.c-coach{ border-color:var(--c-def); } .win.c-coach .win-title{ background:var(--c-def); } .win.c-coach .win-x{ color:var(--c-def); }
+.win.c-idea{ border-color:var(--c-idea); } .win.c-idea .win-title{ background:var(--c-idea); } .win.c-idea .win-x{ color:var(--c-idea); }
+.win.c-tech{ border-color:var(--c-tech); } .win.c-tech .win-title{ background:var(--c-tech); } .win.c-tech .win-x{ color:var(--c-tech); }
+.btn{ background:var(--c-def); color:#fff; border:1px solid var(--c-frame); font-family:inherit; font-weight:700;
+  border-radius:0; padding:5px 10px; cursor:pointer; font-size:12px; }
+.btn.amber{ background:var(--c-idea); border-color:var(--c-idea); }
+.btn.wine{ background:var(--c-mkt); border-color:var(--c-mkt); }
+.btn.ghost{ background:var(--panel2); color:var(--ink); border-color:var(--c-frame); }
+.btn.danger{ background:var(--panel2); color:var(--c-comp); border-color:var(--c-comp); }
+.btn.dis{ opacity:.5; cursor:default; }
+.btn.block{ display:block; width:100%; text-align:center; }
+.input{ background:#fff; border:1px solid var(--line-soft); font-family:inherit; border-radius:0; padding:5px 7px;
+  width:100%; color:var(--ink); font-size:12px; }
+.input::placeholder{ color:var(--line-soft); }
+.input.area{ min-height:40px; }
+.prompt{ color:var(--ink-soft); font-weight:700; }
+.pill{ display:inline-block; border:1px solid var(--c-frame); padding:0 6px; font-size:11px; font-weight:700; color:#fff; }
+.pill.amber{ background:var(--c-idea); border-color:var(--c-idea); }
+.pill.green{ background:var(--c-func); border-color:var(--c-func); }
+.pill.red{ background:var(--c-comp); border-color:var(--c-comp); }
+.tag{ display:inline-block; border:1px solid var(--c-sys); padding:0 6px; font-size:11px; font-weight:700; color:var(--c-sys); margin:2px 4px 2px 0; }
+.opt{ border:1px solid var(--line-soft); background:#fff; padding:5px 8px; margin:4px 0; cursor:pointer; display:flex; gap:8px; font-size:12px; }
+.opt:hover{ background:var(--hot); }
+.opt b{ color:var(--c-def); }
+.opt .chk{ color:var(--c-def); font-weight:700; }
+.bubble{ font-size:12px; }
+.bubble.ai{ border:1px solid var(--c-def); background:var(--panel2); padding:6px 8px; max-width:88%; margin:4px 0; }
+.bubble.ai b{ color:var(--c-def); }
+.bubble.user{ border:1px solid var(--c-idea); background:#fff; padding:6px 8px; margin:4px 0 4px auto; max-width:82%; text-align:left; }
+.tok{ font-size:9px; color:var(--line-soft); margin-top:2px; }
+.field{ margin:4px 0; }
+.f-key{ color:var(--ink-soft); font-size:11px; text-transform:uppercase; font-weight:700; }
+.f-val{ font-size:12px; color:var(--ink); }
+.f-val.empty{ color:var(--line-soft); }
+.sub{ border:1px solid var(--line-soft); margin:6px 0; position:relative; }
+.sub-h{ background:var(--panel2); font-weight:700; font-size:11px; padding:2px 6px; border-bottom:1px solid var(--line-soft); }
+.sub-b{ padding:5px 7px; }
+.sub.s-def{ border-color:var(--c-def); border-left-width:4px; } .sub.s-def .sub-h{ color:var(--c-def); border-bottom-color:var(--c-def); } .sub.s-def .f-key{ color:var(--c-def); }
+.sub.s-idea{ border-color:var(--c-idea); border-left-width:4px; } .sub.s-idea .sub-h{ color:var(--c-idea); border-bottom-color:var(--c-idea); } .sub.s-idea .f-key{ color:var(--c-idea); }
+.sub.s-mkt{ border-color:var(--c-mkt); border-left-width:4px; } .sub.s-mkt .sub-h{ color:var(--c-mkt); border-bottom-color:var(--c-mkt); } .sub.s-mkt .f-key{ color:var(--c-mkt); }
+.sub.s-func{ border-color:var(--c-func); border-left-width:4px; } .sub.s-func .sub-h{ color:var(--c-func); border-bottom-color:var(--c-func); } .sub.s-func .f-key{ color:var(--c-func); }
+.sub.s-tech{ border-color:var(--c-tech); border-left-width:4px; } .sub.s-tech .sub-h{ color:var(--c-tech); border-bottom-color:var(--c-tech); } .sub.s-tech .f-key{ color:var(--c-tech); }
+.sub.s-comp{ border-color:var(--c-comp); border-left-width:4px; } .sub.s-comp .sub-h{ color:var(--c-comp); border-bottom-color:var(--c-comp); }
+.idhead{ background:var(--panel2); border:1px solid var(--line-soft); border-left:4px solid var(--c-def);
+  display:flex; align-items:center; gap:8px; padding:6px 8px; font-weight:700; }
+.idhead .id-no{ margin-left:auto; font-size:11px; }
+.idhead .ico{ font-size:16px; }
+.pageind{ background:var(--ink); color:var(--bg); text-align:center; font-weight:700; padding:3px; font-size:12px;
+  display:flex; align-items:center; justify-content:center; gap:10px; }
+.pageind .btn.ghost{ padding:1px 6px; font-size:11px; }
+.sysname{ font-size:15px; font-weight:700; margin:4px 0 2px; color:var(--c-sys); }
+.summary{ color:var(--ink-soft); font-size:12px; }
+.src{ font-size:12px; margin:3px 0; }
+.src.comp,.src.comp b{ color:var(--c-comp); }
+.src .sub2{ color:var(--line-soft); font-size:10px; }
+.foot{ font-size:10px; color:var(--ink-soft); text-align:center; padding:6px; position:relative; z-index:2; }
+.row{ display:flex; gap:8px; align-items:center; }
+.row.end{ justify-content:flex-end; }
+.row.between{ justify-content:space-between; }
+.wbtns{ display:flex; gap:6px; margin-bottom:6px; justify-content:flex-end; }
+.btn.sq{ padding:2px 8px; }
+.mt{ margin-top:6px; }
+.ink-soft{ color:var(--ink-soft); }
+ol.feat{ list-style:none; }
+ol.feat li{ font-size:12px; margin:3px 0; color:var(--c-func); font-weight:700; }
+.actbar{ display:flex; gap:6px; }
+.actbar .btn{ flex:1; text-align:center; }
+.topbar{ background:var(--panel2); border:1px solid var(--line-soft); display:flex; align-items:center; gap:6px;
+  padding:5px 8px; font-size:13px; font-weight:700; margin-bottom:6px; }
+.topbar .back{ color:var(--c-idea); cursor:pointer; }
+.tabbar{ display:flex; gap:2px; background:var(--panel2); border:1px solid var(--line-soft); padding:3px; margin-bottom:8px; }
+.tabbar .tab{ flex:1; text-align:center; font-size:11.5px; font-weight:700; padding:6px 2px; color:var(--ink-soft); cursor:pointer; border:1px solid transparent; }
+.tabbar .tab.on{ background:var(--c-idea); color:#fff; border-color:var(--c-idea); }
+.banner{ border:1px solid var(--c-idea); background:var(--panel2); display:flex; gap:8px; padding:7px 9px;
+  font-size:11px; margin-bottom:8px; align-items:flex-start; }
+.banner .star{ color:var(--c-idea); font-size:14px; font-weight:700; }
+.fieldbox{ margin:8px 0; }
+.fieldbox .lbl{ font-size:10px; font-weight:700; letter-spacing:1px; color:var(--ink-soft); text-transform:uppercase; margin-bottom:3px; }
+.modecard{ border:1px solid var(--line-soft); background:var(--panel2); padding:8px 11px; margin:6px 0; cursor:pointer; }
+.modecard .m1{ font-size:13px; font-weight:700; color:var(--ink); }
+.modecard .m2{ font-size:11px; color:var(--ink-soft); margin-top:1px; }
+.modecard.kickoff{ border-left:4px solid var(--c-def); }
+.modecard.notes{ border-left:4px solid var(--c-idea); }
+.modecard.persona{ border-left:4px solid var(--c-mkt); }
+.empty-box{ border:1.5px dashed var(--line-soft); text-align:center; padding:18px 10px; margin:8px auto; max-width:200px; }
+.empty-box .ico{ font-size:24px; color:var(--line-soft); }
+.empty-box .txt{ font-size:13px; color:var(--ink-soft); margin-top:4px; }
+.chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:5px; }
+.chip{ border:1px solid var(--c-idea); background:var(--panel2); color:var(--c-idea); font-size:11px; font-weight:700; padding:2px 8px; cursor:pointer; }
+.chip.def{ border-color:var(--c-def); color:var(--c-def); }
+.chip.lock{ color:var(--line-soft); border-color:var(--line-soft); }
+.compcard{ border:1px solid var(--line-soft); background:var(--panel2); width:160px; flex:0 0 160px; padding:6px 8px; font-size:11px; cursor:pointer; }
+.compcard .t{ font-weight:700; }
+.compcard .d{ color:var(--ink-soft); font-size:9.5px; margin-top:1px; }
+.hscroll{ display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; }
+.compcard.s-comp{ border-left:4px solid var(--c-comp); } .compcard.s-comp .t{ color:var(--c-comp); }
+.compcard.s-art{ border-left:4px solid var(--c-art); } .compcard.s-art .t{ color:var(--c-art); }
+.compcard.s-oss{ border-left:4px solid var(--c-oss); } .compcard.s-oss .t{ color:var(--c-oss); }
+.minihead{ font-size:10px; font-weight:700; letter-spacing:1px; color:var(--ink-soft); margin:6px 0 3px; }
+.specrow{ display:flex; gap:10px; align-items:flex-start; padding:7px 8px; border-bottom:1px solid var(--line-soft); }
+.specrow:last-child{ border-bottom:none; }
+.specrow .k{ flex:0 0 78px; font-size:12px; font-weight:700; color:var(--ink-soft); }
+.specrow .v{ flex:1; font-size:12px; color:var(--ink); }
+.specrow .v.empty{ color:var(--line-soft); }
+.star-i{ font-size:9px; }
+.dock{ display:flex; gap:10px; align-items:center; border-top:1px solid var(--line-soft); padding:8px 4px 2px; margin-top:8px; }
+.dockbtn{ width:36px; height:36px; border:1px solid var(--line-soft); background:var(--panel2);
+  display:flex; align-items:center; justify-content:center; font-size:15px; cursor:pointer; }
+.dockbtn.key{ background:var(--c-idea); color:#fff; border-color:var(--c-idea); }
+.dockbtn.accent{ color:var(--c-idea); border-color:var(--c-idea); }
+.saved{ margin-left:auto; font-size:10px; font-weight:700; color:var(--ink-soft); }
+.art-h1{ font-size:15px; font-weight:700; color:var(--c-sys); margin:6px 0 3px; }
+.art-h2{ font-size:13px; font-weight:700; color:var(--ink-soft); margin:6px 0 2px; }
+.art-p{ font-size:12px; margin:3px 0; }
+.subtitle{ font-size:11px; color:var(--ink-soft); }
+.subtitle.ok{ color:var(--c-func); }
+.center{ text-align:center; }
+.spin{ display:inline-block; animation:sp 1s linear infinite; }
+@keyframes sp{ to{ transform:rotate(360deg); } }
+.progress-line{ height:3px; background:var(--c-idea); margin:4px 0; }
+.notebox{ background:#fff; border:1px solid var(--line-soft); min-height:34px; padding:6px 7px; font-size:13px; margin:4px 0; }
+.note-title-in{ font-size:18px; font-weight:700; color:var(--ink); border:none; background:transparent; width:100%; font-family:inherit; }
+.toast{ position:fixed; left:50%; bottom:40px; transform:translateX(-50%); background:var(--c-idea); color:#fff;
+  font-weight:700; font-size:12px; padding:7px 16px; border:1px solid var(--c-idea); box-shadow:2px 2px 0 var(--shadow);
+  z-index:200; opacity:0; pointer-events:none; transition:opacity .2s; }
+.toast.show{ opacity:1; }
+[data-screen]{ display:block; }
+[data-screen].active{ display:block; }
+.blockrow{ display:flex; gap:8px; align-items:flex-start; padding:3px 4px; }
+.blockrow .ck{ width:18px; height:18px; border:2px solid var(--line-soft); border-radius:50%; flex:0 0 18px; cursor:pointer; }
+.blockrow .ck.done{ border-color:var(--c-idea); color:var(--c-idea); text-align:center; line-height:14px; font-size:11px; font-weight:700; }
+.blockrow .tools{ margin-left:auto; display:flex; gap:4px; opacity:.55; font-size:11px; color:var(--line-soft); }
+
+.scrnhdr{ background:var(--ink); color:var(--bg); font-weight:700; font-size:12px;
+  letter-spacing:.08em; padding:6px 12px; margin:20px 12px 8px; box-shadow:3px 3px 0 var(--shadow); }
+.panehdr{ background:var(--panel2); border:1px dashed var(--line-soft); color:var(--ink-soft);
+  font-weight:700; font-size:11px; padding:3px 8px; margin:8px 0 4px; }
+</style>
+</head>
+<body>
+<div id="crt">
+  <div class="menubar">
+    <span>File</span><span>View</span><span>Help</span>
+    <span class="clock">■ <span id="clk">12:04</span></span>
+  </div>
+
+  <!-- ===================== HOME ===================== -->
+  <section data-screen="home" class="active">
+    <div class="scrnhdr">▌ 首頁 · 我的系統</div>
+    <div class="win c-sys">
+      <div class="win-title">■ BRAINSTORM ▦ <span class="win-x" onclick="go('settings')">⚙</span></div>
+      <div class="win-body">
+        <div class="row between" style="align-items:flex-start;">
+          <div>
+            <div class="ink-soft" style="font-size:12px;">我的系統</div>
+            <div style="font-size:24px;font-weight:700;color:var(--c-sys);line-height:1.1;">BrainStrom<span class="cur">█</span></div>
+          </div>
+          <div class="wbtns" style="margin:0;">
+            <button class="btn ghost sq" onclick="go('settings')">⚙</button>
+            <button class="btn sq amber" onclick="go('creation')">＋</button>
+          </div>
+        </div>
+        <div class="banner mt">
+          <span class="star">✦</span>
+          <span>＋ 建專案 → 輸入名稱或靈感 → AI 引導你想清楚痛點/用戶/功能，邊聊邊填身份證</span>
+        </div>
+        <div class="rule">────────────────────────────────────</div>
+      </div>
+    </div>
+
+    <div class="win c-sys" style="cursor:pointer;" onclick="openSystem('番茄鐘專注App')">
+      <div class="win-title">■ 番茄鐘專注App <span class="win-x">›</span></div>
+      <div class="win-body">
+        <div class="row between">
+          <span class="pill amber">🔒 私密</span>
+          <span class="f-val" style="font-size:10px;color:var(--line-soft);">06/14</span>
+        </div>
+        <div class="sysname">番茄鐘專注App</div>
+        <div class="summary">用強制鎖機 + 統計，幫人專心、別一直滑手機。</div>
+        <div class="rule">────────────────────────────────────</div>
+        <div><span class="tag">#專注</span><span class="tag">#番茄鐘</span><span class="tag">#iOS</span></div>
+      </div>
+    </div>
+
+    <div class="win c-sys" style="cursor:pointer;" onclick="openSystem('UFO 情報站')">
+      <div class="win-title">■ UFO 情報站 <span class="win-x">›</span></div>
+      <div class="win-body">
+        <div class="row between">
+          <span class="pill green">🌐 公開</span>
+          <span class="f-val" style="font-size:10px;color:var(--line-soft);">06/05</span>
+        </div>
+        <div class="sysname">UFO 情報站</div>
+        <div class="summary">蒐集、驗證、地圖化全球不明飛行物目擊回報。</div>
+        <div class="rule">────────────────────────────────────</div>
+        <div><span class="tag">#情報</span><span class="tag">#地圖</span><span class="tag">#社群</span></div>
+      </div>
+    </div>
+
+    <div class="win c-sys" style="cursor:pointer;" onclick="openSystem('未命名系統')">
+      <div class="win-title">■ 未命名系統 <span class="win-x">›</span></div>
+      <div class="win-body">
+        <div class="row between">
+          <span class="pill amber">🔒 私密</span>
+          <span class="f-val" style="font-size:10px;color:var(--line-soft);">06/01</span>
+        </div>
+        <div class="sysname">未命名系統</div>
+        <div class="summary">（空白系統，點開開始寫）</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== CREATION SHEET ===================== -->
+  <section data-screen="creation">
+    <div class="scrnhdr">▌ ＋ 建立專案（彈窗）</div>
+    <div class="win c-sys">
+      <div class="win-title">■ 新增專案 ▦ <span class="win-x" onclick="go('home')">[X]</span></div>
+      <div class="win-body">
+        <div class="fieldbox">
+          <div class="lbl">APP 名稱</div>
+          <input class="input" id="newName" type="text" placeholder="例如：記帳 App">
+        </div>
+        <div class="fieldbox">
+          <div class="lbl">這個 APP 的作用（一句話）</div>
+          <input class="input" id="newOneLiner" type="text" placeholder="例如：幫人記錄日常開銷">
+        </div>
+        <div class="fieldbox">
+          <div class="lbl">目標國家 / 語言</div>
+          <div class="row between" style="border:1px solid var(--line-soft);background:#fff;padding:5px 7px;cursor:pointer;">
+            <span class="f-val">🇹🇼 台灣 / 繁中</span>
+            <span class="ink-soft">⌄</span>
+          </div>
+        </div>
+        <div class="modecard kickoff" onclick="openSystemMode('番茄鐘專注App','coach')">
+          <div class="m1">🤖 進 AI 引導（建議）</div>
+          <div class="m2">AI 一題一題帶你想清楚</div>
+        </div>
+        <div class="modecard notes" onclick="openSystemMode('番茄鐘專注App','notes')">
+          <div class="m1">📝 之後慢慢填，自己寫</div>
+          <div class="m2">你自己寫，AI 在旁偵測幫你記</div>
+        </div>
+        <div class="modecard persona" onclick="go('persona')">
+          <div class="m1">🪄 直接生成 4 種定位</div>
+          <div class="m2">先查市場，AI 給你 4 種定位挑一個</div>
+        </div>
+        <button class="btn ghost block mt" style="height:40px;" onclick="go('home')">取消</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SYSTEM DETAIL (3 tabs) ===================== -->
+  <section data-screen="detail">
+    <div class="scrnhdr">▌ 專案首頁 · 三分頁（點系統卡進來）</div>
+    <div class="win">
+      <div class="win-title">■ <span id="detailName">番茄鐘專注App</span> <span class="win-x" onclick="go('home')">‹</span></div>
+      <div class="win-body">
+        <div class="topbar">
+          <span class="back" onclick="go('home')">‹ 我的系統</span>
+        </div>
+        <div class="tabbar">
+          <div class="tab" id="tab-coach" onclick="setTab('coach')">🤖 AI 教練</div>
+          <div class="tab on" id="tab-notes" onclick="setTab('notes')">📝 開發筆記</div>
+          <div class="tab" id="tab-structure" onclick="setTab('structure')">🪪 系統結構</div>
+        </div>
+
+        <!-- ===== TAB: COACH ===== -->
+        <div class="panehdr">分頁 1：🤖 AI 教練</div>
+        <div id="pane-coach">
+          <div class="row between" style="align-items:flex-start;">
+            <div class="row" style="gap:6px;align-items:flex-start;">
+              <span style="font-size:18px;">🤖</span>
+              <div>
+                <div style="font-size:16px;font-weight:700;color:var(--c-def);">AI 教練</div>
+                <div class="subtitle">身份證核心 2/4 · 引導你想清楚</div>
+              </div>
+            </div>
+            <button class="btn" style="background:var(--c-def);border-color:var(--c-def);" onclick="toast('已重新引導')">↻ 重新引導</button>
+          </div>
+          <div class="rule">────────────────────────────────────</div>
+          <div class="bubble ai"><b>▶</b> 你的 App 主要想解決什麼問題？</div>
+          <div class="bubble user">想幫人專心，不要一直滑手機。<div class="tok">tokens: in 12 / out 0</div></div>
+          <div class="bubble ai">
+            <b>▶</b> 了解！你比較偏向哪一種做法？（可複選）
+            <div class="opt" onclick="optToggle(this)"><span class="chk">◉</span><span><b>1.</b> 強制鎖機計時</span></div>
+            <div class="opt" onclick="optToggle(this)"><span class="chk">○</span><span><b>2.</b> 番茄鐘 + 統計</span></div>
+            <div class="opt" onclick="optToggle(this)"><span class="chk">○</span><span><b>3.</b> 朋友互相監督</span></div>
+            <button class="btn block mt" style="background:var(--c-def);border-color:var(--c-def);" onclick="toast('已記入系統結構')">✓ 確認送出（1）</button>
+            <div class="chips">
+              <span class="chip def" onclick="toast('已記入系統結構')">加入「鎖機」</span>
+              <span class="chip def" onclick="toast('已記入系統結構')">加入「統計」</span>
+            </div>
+            <div class="row mt" style="gap:6px;">
+              <span class="chip def" onclick="toast('已加入主筆記')">📝 加入筆記</span>
+            </div>
+            <div class="tok">tokens: in 128 / out 64</div>
+          </div>
+          <div class="rule">──────────── 競品條 ────────────</div>
+          <span class="chip def" onclick="toast('已找到競品')">🔍 幫你找競品 / 文章 / 開源</span>
+          <div class="minihead">🥊 競品產品</div>
+          <div class="hscroll">
+            <div class="compcard s-comp" onclick="toast('已記入競品')"><div class="t">Forest</div><div class="d">種樹專注法，放下手機種一棵樹</div></div>
+            <div class="compcard s-comp" onclick="toast('已記入競品')"><div class="t">Flora</div><div class="d">多人一起種樹，互相監督</div></div>
+          </div>
+          <div class="minihead">📄 相關文章</div>
+          <div class="hscroll">
+            <div class="compcard s-art"><div class="t">📄 番茄工作法 30 年</div><div class="d">經典時間管理法演進史</div></div>
+          </div>
+          <div class="minihead">🧰 相關開源（可參考）</div>
+          <div class="hscroll">
+            <div class="compcard s-oss" onclick="toast('已記入競品')"><div class="t">🐙 tomato-cli</div><div class="d">命令列番茄鐘工具</div></div>
+          </div>
+          <div class="mt"><span class="chip lock">↻ 找更多像「Forest」的</span></div>
+          <div class="rule">────────────────────────────────────</div>
+          <div class="row mt">
+            <input class="input area" type="text" placeholder="問教練關於這個專案…">
+            <button class="btn" style="background:var(--c-def);border-color:var(--c-def);" onclick="toast('已送出')">送出</button>
+          </div>
+        </div>
+
+        <!-- ===== TAB: NOTES ===== -->
+        <div class="panehdr">分頁 2：📝 開發筆記</div>
+        <div id="pane-notes">
+          <div class="row between">
+            <div class="row" style="gap:6px;">
+              <span style="font-size:18px;">📝</span>
+              <span style="font-size:17px;font-weight:700;color:var(--c-idea);">開發筆記</span>
+            </div>
+            <button class="btn amber sq" onclick="openNote('未命名筆記')">＋ 新增</button>
+          </div>
+          <div class="rule">────────────────────────────────────</div>
+
+          <div class="win c-idea" style="margin:0 0 8px;cursor:pointer;" onclick="openNote('產品願景與痛點')">
+            <div class="win-title">■ 產品願景與痛點 <span class="win-x">›</span></div>
+            <div class="win-body">
+              <div class="row between">
+                <div class="row" style="gap:5px;">
+                  <span class="pill amber" style="font-size:8px;padding:0 5px;">主</span>
+                  <span style="font-size:15px;font-weight:700;">產品願景與痛點</span>
+                  <span class="pill" style="font-size:8px;padding:0 5px;background:var(--panel2);color:var(--c-idea);border-color:var(--c-idea);">卡片</span>
+                </div>
+                <span style="font-size:9px;color:var(--line-soft);">06/14</span>
+              </div>
+              <div class="summary mt">學生念書時忍不住滑手機，效率低又有罪惡感。我們用強制鎖機把專注變成可量化、可比較的習慣。…</div>
+            </div>
+          </div>
+
+          <div class="win c-idea" style="margin:0 0 8px;cursor:pointer;" onclick="openNote('技術選型草稿')">
+            <div class="win-title">■ 技術選型草稿 <span class="win-x">›</span></div>
+            <div class="win-body">
+              <div class="row between">
+                <span style="font-size:15px;font-weight:700;">技術選型草稿</span>
+                <span style="font-size:9px;color:var(--line-soft);">06/10</span>
+              </div>
+              <div class="summary mt">前端用 SwiftUI、Live Activities 跑鎖屏計時；後端先 Node.js + SQLite，部署到 Fly.io。</div>
+            </div>
+          </div>
+
+          <div class="win c-idea" style="margin:0 0 8px;cursor:pointer;" onclick="openNote('未命名筆記')">
+            <div class="win-title">■ 未命名筆記 <span class="win-x">›</span></div>
+            <div class="win-body">
+              <div class="row between">
+                <span style="font-size:15px;font-weight:700;">未命名筆記</span>
+                <span style="font-size:9px;color:var(--line-soft);">06/08</span>
+              </div>
+              <div class="summary mt">（空白筆記，點開開始寫）</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: STRUCTURE ===== -->
+        <div class="panehdr">分頁 3：🪪 系統結構（身份證）</div>
+        <div id="pane-structure">
+          <div class="idhead">
+            <span class="ico">🪪</span>
+            <div>
+              <div>系統身份證</div>
+              <div class="subtitle" style="font-weight:400;">理念＋技術 · 由 AI 維護，人只能看</div>
+            </div>
+            <span class="pill amber id-no">核心 2/4</span>
+          </div>
+
+          <div class="minihead" style="color:var(--c-def);">① 這是什麼</div>
+          <div class="sub s-def"><div class="sub-b" style="padding:0;">
+            <div class="specrow"><div class="k"><span class="star-i">⭐</span> 一句話</div><div class="v">用鎖機番茄鐘，把專注變成可量化的習慣。</div></div>
+            <div class="specrow"><div class="k"><span class="star-i">⭐</span> 目標用戶</div><div class="v">易分心的學生、自由工作者、遠距上班族。</div></div>
+          </div></div>
+
+          <div class="minihead" style="color:var(--c-idea);">② 為什麼做</div>
+          <div class="sub s-idea"><div class="sub-b" style="padding:0;">
+            <div class="specrow"><div class="k"><span class="star-i">⭐</span> 解決痛點</div><div class="v">想專心卻一直滑手機，意志力靠不住。</div></div>
+            <div class="specrow"><div class="k">核心價值</div><div class="v empty">— 尚未填，讓 AI 記錄</div></div>
+          </div></div>
+
+          <div class="minihead" style="color:var(--c-mkt);">③ 市場</div>
+          <div class="sub s-mkt"><div class="sub-b" style="padding:0;">
+            <div class="specrow"><div class="k">市場策略</div><div class="v">先攻 iOS 學生族群，靠校園口碑與社群打卡擴散。</div></div>
+            <div class="specrow"><div class="k">商業模式</div><div class="v empty">— 尚未填，讓 AI 記錄</div></div>
+          </div></div>
+
+          <div class="minihead" style="color:var(--c-mkt);">競品</div>
+          <div class="sub s-comp"><div class="sub-b">
+            <div class="src comp" style="display:flex;gap:8px;align-items:center;">🥊 <span><b>Forest</b> <span class="sub2">種樹專注法</span></span></div>
+            <div class="src comp" style="display:flex;gap:8px;align-items:center;">📄 <span><b>番茄工作法 30 年</b> <span class="sub2">時間管理經典</span></span></div>
+            <div class="src comp" style="display:flex;gap:8px;align-items:center;">🐙 <span><b>tomato-cli</b> <span class="sub2">開源命令列工具</span></span></div>
+          </div></div>
+
+          <div class="minihead" style="color:var(--c-func);">④ 先做什麼</div>
+          <div class="sub s-func"><div class="sub-b" style="padding:0;">
+            <div class="specrow"><div class="k"><span class="star-i">⭐</span> 核心功能</div><div class="v">計時鎖機、統計報表、白名單 App。</div></div>
+          </div></div>
+
+          <div class="minihead" style="color:var(--c-tech);">⑤ 技術</div>
+          <div class="sub s-tech"><div class="sub-b" style="padding:0;">
+            <div class="specrow"><div class="k">名稱</div><div class="v">PomoLock</div></div>
+            <div class="specrow"><div class="k">前端</div><div class="v">SwiftUI</div></div>
+            <div class="specrow"><div class="k">後端</div><div class="v">Node.js</div></div>
+            <div class="specrow"><div class="k">API</div><div class="v">OpenAI、Live Activities</div></div>
+            <div class="specrow"><div class="k">資料庫</div><div class="v">SQLite</div></div>
+            <div class="specrow"><div class="k">伺服器</div><div class="v">Fly.io</div></div>
+            <div class="specrow"><div class="k">部署</div><div class="v empty">— 尚未填，讓 AI 記錄</div></div>
+          </div></div>
+
+          <div class="rule">────────────────────────────────────</div>
+          <div class="row" style="gap:8px;">
+            <span style="font-size:16px;font-weight:700;color:var(--c-idea);">▦</span>
+            <span style="font-size:15px;font-weight:700;">結構卡片</span>
+          </div>
+          <div class="win c-idea" style="margin:6px 0 0;">
+            <div class="win-title">■ 產品願景 <span class="win-x">📌</span></div>
+            <div class="win-body">
+              <div class="art-h1">產品願景</div>
+              <div class="art-p">用強制鎖機 + 統計，把專注變成可量化、可比較的習慣。</div>
+            </div>
+          </div>
+          <div class="win c-idea" style="margin:8px 0 0;">
+            <div class="win-title">■ 痛點 <span class="win-x">🗑</span></div>
+            <div class="win-body">
+              <div class="art-h1">痛點</div>
+              <div class="art-p">學生念書時忍不住滑手機，效率低又有罪惡感，意志力靠不住。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== NOTE DETAIL ===================== -->
+  <section data-screen="note">
+    <div class="scrnhdr">▌ 筆記詳情（點一則筆記進來）</div>
+    <div class="win c-idea">
+      <div class="win-title">■ NOTE — <span id="noteName">產品願景與痛點</span> <span class="win-x" onclick="go('detail')">‹</span></div>
+      <div class="win-body">
+        <div class="topbar">
+          <span class="back" onclick="go('detail')">‹ 筆記</span>
+          <span style="margin-left:auto;"></span>
+          <span class="dockbtn" style="width:28px;height:28px;font-size:13px;" onclick="toast('已撤銷一步')">↶</span>
+          <span class="dockbtn" style="width:28px;height:28px;font-size:13px;" onclick="toast('沒有可重做的步驟')">↷</span>
+          <span class="pill amber" onclick="toast('已切換為公開')" style="cursor:pointer;">🔒 私密</span>
+        </div>
+
+        <input class="note-title-in" id="noteTitleIn" value="產品願景與痛點">
+        <div class="rule">────────────────────────────────────</div>
+        <div class="art-h1">產品願景</div>
+        <div class="art-p">用強制鎖機 + 統計，把專注變成可量化、可比較的習慣。</div>
+        <div class="art-h2">痛點</div>
+        <div class="art-p">學生念書時忍不住滑手機，效率低又有罪惡感，意志力靠不住。</div>
+        <div class="art-h2">解法</div>
+        <div class="art-p">鎖機計時 + 同學排行榜，把專注變成一場可比較的遊戲。</div>
+        <div class="blockrow">
+          <span class="ck done">✓</span>
+          <span class="art-p" style="text-decoration:line-through;color:var(--line-soft);margin:0;">畫面草圖：計時頁、統計頁、排行榜頁</span>
+          <span class="tools">📌 🔒 ▲ ▼ 🗑</span>
+        </div>
+        <div class="notebox" style="color:var(--line-soft);">繼續寫…（空行分段、# 開頭成標題）<span class="cur">█</span></div>
+
+        <div class="dock">
+          <span class="dockbtn accent" onclick="go('notechat')">💬</span>
+          <span class="dockbtn key" onclick="toast('要不要順便分主題、加小標題？')">✦</span>
+          <span class="dockbtn" onclick="go('detail')">🗑</span>
+          <span class="saved">已儲存</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== NOTE CHAT PANEL ===================== -->
+  <section data-screen="notechat">
+    <div class="scrnhdr">▌ 筆記 · 問 AI 面板</div>
+    <div class="win c-idea">
+      <div class="win-title">■ 問 AI · 這則筆記 <span class="win-x" onclick="go('note')">收合 ▾</span></div>
+      <div class="win-body">
+        <div class="bubble user">這則在講什麼？<div class="tok">tokens: in 12 / out 0</div></div>
+        <div class="bubble ai">
+          <b>▶</b> 這則筆記在講你產品的核心願景：用鎖機把專注變成可量化、可比較的習慣，以及學生分心的痛點與排行榜解法。
+          <div class="chips">
+            <span class="chip" onclick="toast('開始結構化')">▦ 結構化</span>
+            <span class="chip" onclick="toast('已套用編輯')">✎ 套用編輯</span>
+            <span class="chip lock">🔒 找 GitHub</span>
+            <span class="chip lock">🔒 找 YouTube</span>
+          </div>
+          <div class="tok">tokens: in 96 / out 48</div>
+        </div>
+        <div class="rule">────────────────────────────────────</div>
+        <div class="row mt">
+          <input class="input area" type="text" placeholder="問這則筆記…">
+          <button class="btn amber" onclick="toast('已送出')">送出</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PERSONA BATCH ===================== -->
+  <section data-screen="persona">
+    <div class="scrnhdr">▌ 🪄 批量生成定位卡</div>
+    <div class="win c-mkt">
+      <div class="win-title">■ PERSONA <span class="win-x" onclick="go('creation')">‹</span></div>
+      <div class="win-body">
+        <div class="row between">
+          <span style="color:var(--c-mkt);font-weight:700;cursor:pointer;" onclick="go('creation')">‹ 取消</span>
+          <span style="font-weight:700;color:var(--ink-soft);">定位 1 / 2</span>
+          <span style="color:var(--c-mkt);font-weight:700;cursor:pointer;" onclick="toast('重生中…')">🔄 重生</span>
+        </div>
+        <div class="rule">────────────────────────────────────</div>
+        <div style="font-size:18px;font-weight:700;color:var(--c-mkt);margin:4px 0;">給學生的鎖機番茄鐘，邊讀書邊養成專注習慣。</div>
+
+        <div class="sub s-def">
+          <div class="sub-h">定義</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">一句話</div><div class="f-val">給學生的鎖機番茄鐘，邊讀書邊養成專注習慣。</div></div>
+            <div class="field"><div class="f-key">目標用戶</div><div class="f-val">高中與大學生，考試季最需要強制專注。</div></div>
+          </div>
+        </div>
+        <div class="sub s-idea">
+          <div class="sub-h">理念</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">解決痛點</div><div class="f-val">念書時忍不住滑社群，效率低又有罪惡感。</div></div>
+            <div class="field"><div class="f-key">核心價值</div><div class="f-val">鎖機 + 同學排行榜，把專注變成可比較的遊戲。</div></div>
+          </div>
+        </div>
+        <div class="sub s-mkt">
+          <div class="sub-h">市場</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">市場策略</div><div class="f-val">以校系讀書會為單位導入，靠排行榜病毒擴散。</div></div>
+            <div class="field"><div class="f-key">商業模式</div><div class="f-val">免費 + 班級訂閱方案，教師可開讀書房間。</div></div>
+          </div>
+        </div>
+        <div class="sub s-func">
+          <div class="sub-h">功能</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">核心功能</div><div class="f-val">鎖機計時、同學排行榜、讀書房間、專注統計。</div></div>
+          </div>
+        </div>
+        <div class="sub s-tech">
+          <div class="sub-h">技術</div>
+          <div class="sub-b">
+            <div class="row" style="gap:6px;">
+              <span style="font-size:12px;">🛠</span>
+              <span class="f-val" style="color:var(--ink-soft);">技術棧：AI 推測，挑中後再由你確認</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pageind">
+          <button class="btn ghost">◀</button>
+          <span>● ○　定位 1 / 2</span>
+          <button class="btn ghost">▶</button>
+        </div>
+
+        <div class="row mt">
+          <input class="input" type="text" placeholder="想要什麼不一樣的?（可留空）">
+          <button class="btn wine sq" onclick="toast('再生成一張…')">＋ 再生成一張</button>
+        </div>
+
+        <button class="btn wine block mt" style="height:44px;font-size:14px;" onclick="openSystemMode('番茄鐘專注App','notes')">✓ 選這個，開始微調</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SETTINGS ===================== -->
+  <section data-screen="settings">
+    <div class="scrnhdr">▌ 設定</div>
+    <div class="win">
+      <div class="win-title">■ 設定 <span class="win-x" onclick="go('home')">‹</span></div>
+      <div class="win-body">
+        <div class="topbar">
+          <span class="back" onclick="go('home')">‹ 返回</span>
+          <span style="margin-left:auto;margin-right:auto;color:var(--ink);">設定</span>
+          <span style="width:40px;"></span>
+        </div>
+
+        <div class="win c-sys" style="margin:6px 0;">
+          <div class="win-title">■ 帳號 <span class="win-x">●</span></div>
+          <div class="win-body" style="padding:0;">
+            <div class="specrow" style="border-bottom:1px solid var(--line-soft);">
+              <div class="k" style="flex:0 0 50px;color:var(--ink);">主題</div>
+              <div class="v" style="text-align:right;">
+                <span class="pill amber" style="cursor:pointer;" onclick="toast('已切換為霧面黑')">霧面黑</span>
+                <span class="tag" style="cursor:pointer;" onclick="toast('已切換為暖灰機殼')">暖灰機殼</span>
+                <span class="tag" style="cursor:pointer;" onclick="toast('已切換為跟隨系統')">跟隨系統</span>
+              </div>
+            </div>
+            <div class="specrow" style="border-bottom:1px solid var(--line-soft);">
+              <div class="k" style="flex:0 0 50px;color:var(--ink);">帳號</div>
+              <div class="v" style="text-align:right;color:var(--ink-soft);">kentliuai08@gmail.com</div>
+            </div>
+            <div class="specrow" style="cursor:pointer;" onclick="go('home')">
+              <div class="k" style="color:var(--c-idea);">登出</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="minihead">AI</div>
+        <div class="win c-sys" style="margin:6px 0;">
+          <div class="win-body">
+            <div class="row between">
+              <div>
+                <div style="font-size:13px;font-weight:700;">點子助攻</div>
+                <div class="subtitle">取名後浮現「⚡ 讓 AI 教練看看」膠囊</div>
+              </div>
+              <span class="pill amber" style="cursor:pointer;" onclick="toast('已開啟點子助攻')">● 開</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn danger block mt" style="height:46px;" onclick="toast('帳號已刪除')">刪除帳號</button>
+        <div class="subtitle mt">刪除將立即永久移除你的資料、無法復原（正式版會再要求 Apple 驗證）。</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="fnbar">
+    <div class="fn" onclick="go('home')"><span class="fnkey">F1</span>首頁</div>
+    <div class="fn" onclick="go('creation')"><span class="fnkey">F2</span>新增</div>
+    <div class="fn" onclick="go('settings')"><span class="fnkey">F3</span>設定</div>
+    <div class="fn" onclick="go('home')"><span class="fnkey">F4</span>離開</div>
+  </div>
+  <div class="foot">C:\BRAINSTORM\&gt; v0.1</div>
+  <div class="scan"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var el=document.getElementById('clk');
+  function tick(){ var d=new Date();
+    document.getElementById('clk').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+  tick(); setInterval(tick,1000);
+})();
+
+function go(name){
+  document.querySelectorAll('[data-screen]').forEach(function(s){ s.classList.remove('active'); });
+  var t=document.querySelector('[data-screen="'+name+'"]');
+  if(t) t.classList.add('active');
+  if(document.getElementById('crt')) document.getElementById('crt').scrollIntoView({block:'start'});
+  window.scrollTo(0,0);
+}
+function openSystem(name){
+  document.getElementById('detailName').textContent=name;
+  setTab('notes');
+  go('detail');
+}
+function openSystemMode(name,tab){
+  document.getElementById('detailName').textContent=name;
+  setTab(tab);
+  go('detail');
+}
+function setTab(tab){
+  ['coach','notes','structure'].forEach(function(t){
+    var tb=document.getElementById('tab-'+t);
+    var pn=document.getElementById('pane-'+t);
+    if(tb) tb.classList.toggle('on', t===tab);
+    if(pn) pn.style.display = (t===tab)?'block':'none';
+  });
+}
+function openNote(name){
+  document.getElementById('noteName').textContent=name;
+  document.getElementById('noteTitleIn').value = (name==='未命名筆記')?'':name;
+  go('note');
+}
+function optToggle(elm){
+  var c=elm.querySelector('.chk');
+  c.textContent = (c.textContent==='◉')?'○':'◉';
+}
+var toastTimer;
+function toast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){ t.classList.remove('show'); },1300);
+}
+</script>
+</body>
+</html>
