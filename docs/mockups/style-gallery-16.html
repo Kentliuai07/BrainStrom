@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom — 樣式畫廊 16 選</title>
+<style>
+*{ box-sizing:border-box; margin:0; padding:0; }
+body{ background:#e9e9ec; color:#1a1a1a; padding:16px 0 60px;
+  font-family:-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif; }
+.wrap{ max-width:460px; margin:0 auto; padding:0 12px; }
+.page-h{ font-weight:800; font-size:20px; margin:4px 0 2px; }
+.page-sub{ color:#666; font-size:12px; margin-bottom:16px; }
+.item{ margin-bottom:22px; }
+.item-h{ display:flex; align-items:baseline; gap:8px; margin-bottom:7px; font-size:12px; }
+.item-h .no{ background:#1a1a1a; color:#fff; font-weight:800; font-size:13px;
+  padding:1px 8px; border-radius:4px; font-family:ui-monospace,monospace; }
+.item-h .nm{ font-weight:700; font-size:13px; }
+.item-h .vibe{ color:#888; font-size:11px; margin-left:auto; }
+.demo{ padding:14px; }
+.btnrow{ display:flex; gap:8px; margin-top:10px; }
+
+/* ============ 01 復古 DOS / Turbo Vision ============ */
+.s1{ background:#d7d3c8; font-family:ui-monospace,'Courier New',monospace; }
+.s1 .card{ background:#ece9df; border:2px solid #2a2a72; box-shadow:3px 3px 0 #b6b2a6; padding:10px; position:relative; }
+.s1 .card::before{ content:''; position:absolute; inset:2px; border:1px solid #7878a6; pointer-events:none; }
+.s1 .ttl{ background:#2a2a72; color:#fff; font-weight:700; font-size:12px; padding:2px 6px; margin:-10px -10px 8px; text-transform:uppercase; }
+.s1 .sub{ font-size:12px; color:#16163e; }
+.s1 .tag{ display:inline-block; border:1px solid #7878a6; color:#3a3a5c; font-size:11px; padding:0 6px; margin:6px 4px 0 0; }
+.s1 .btn{ background:#0a6b78; color:#fff; border:1px solid #2a2a72; border-radius:0; font-weight:700; padding:5px 10px; font-size:12px; font-family:inherit; }
+.s1 .btn.alt{ background:#9a6b00; }
+
+/* ============ 02 工業橘 · 霧面黑（現行 App 風）============ */
+.s2{ background:#1a1a18; font-family:'AvenirNext','PingFang TC',sans-serif; }
+.s2 .card{ background:#222220; border:1px solid #4a4a45; border-radius:14px; padding:13px; box-shadow:0 6px 14px rgba(0,0,0,.4); }
+.s2 .ttl{ color:#e8e4d8; font-weight:800; font-size:16px; }
+.s2 .sub{ color:#8e8b80; font-size:12.5px; margin-top:3px; }
+.s2 .tag{ display:inline-block; border:1px solid #3a3a36; color:#8e8b80; font-size:10px; padding:1px 6px; border-radius:99px; margin:8px 4px 0 0; font-family:ui-monospace,monospace; }
+.s2 .btn{ background:#ff4d00; color:#16100b; border:0; border-radius:9px; font-weight:800; padding:7px 13px; font-size:13px; }
+.s2 .btn.alt{ background:#2a2a27; color:#ff4d00; border:1px solid #ff4d00; }
+
+/* ============ 03 純米白極簡終端 ============ */
+.s3{ background:#f5f5f0; font-family:ui-monospace,monospace; }
+.s3 .card{ background:#fafaf7; border:1px solid #2b2b2b; border-radius:0; padding:12px; box-shadow:2px 2px 0 rgba(0,0,0,.18); }
+.s3 .ttl{ font-weight:700; font-size:14px; color:#2b2b2b; border-bottom:1px solid #2b2b2b; padding-bottom:5px; }
+.s3 .sub{ font-size:12px; color:#555; margin-top:6px; }
+.s3 .tag{ display:inline-block; border:1px solid #bfbdb5; color:#666; font-size:11px; padding:0 6px; margin:7px 4px 0 0; }
+.s3 .btn{ background:#2b2b2b; color:#f5f5f0; border:0; border-radius:0; font-weight:700; padding:6px 12px; font-size:12px; font-family:inherit; }
+.s3 .btn.alt{ background:#f5f5f0; color:#2b2b2b; border:1px solid #2b2b2b; }
+
+/* ============ 04 新擬物 Neumorphism ============ */
+.s4{ background:#e0e3ea; font-family:-apple-system,'PingFang TC',sans-serif; }
+.s4 .card{ background:#e0e3ea; border-radius:18px; padding:15px; box-shadow:7px 7px 16px #b9bcc4, -7px -7px 16px #ffffff; }
+.s4 .ttl{ font-weight:800; font-size:16px; color:#3a3f4b; }
+.s4 .sub{ color:#7c8190; font-size:12.5px; margin-top:3px; }
+.s4 .tag{ display:inline-block; color:#5b6170; font-size:11px; padding:3px 9px; border-radius:99px; margin:9px 5px 0 0; box-shadow:inset 2px 2px 4px #b9bcc4, inset -2px -2px 4px #fff; }
+.s4 .btn{ background:#e0e3ea; color:#4a6cf7; border:0; border-radius:12px; font-weight:800; padding:8px 14px; font-size:13px; box-shadow:5px 5px 10px #b9bcc4, -5px -5px 10px #fff; }
+.s4 .btn.alt{ color:#7c8190; }
+
+/* ============ 05 玻璃擬態 Glassmorphism ============ */
+.s5{ background:linear-gradient(135deg,#5b7cff,#a06bff 55%,#ff7ac6); font-family:-apple-system,'PingFang TC',sans-serif; }
+.s5 .card{ background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.45); border-radius:16px; padding:14px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); box-shadow:0 8px 24px rgba(0,0,0,.18); }
+.s5 .ttl{ color:#fff; font-weight:800; font-size:16px; text-shadow:0 1px 3px rgba(0,0,0,.2); }
+.s5 .sub{ color:rgba(255,255,255,.9); font-size:12.5px; margin-top:3px; }
+.s5 .tag{ display:inline-block; background:rgba(255,255,255,.25); color:#fff; font-size:11px; padding:2px 9px; border-radius:99px; margin:9px 5px 0 0; }
+.s5 .btn{ background:rgba(255,255,255,.9); color:#5b3cff; border:0; border-radius:11px; font-weight:800; padding:8px 14px; font-size:13px; }
+.s5 .btn.alt{ background:rgba(255,255,255,.2); color:#fff; border:1px solid rgba(255,255,255,.6); }
+
+/* ============ 06 瑞士極簡 / 留白網格 ============ */
+.s6{ background:#fff; font-family:'Helvetica Neue','PingFang TC',sans-serif; }
+.s6 .card{ background:#fff; border-top:3px solid #e8482a; padding:14px 12px; border-bottom:1px solid #e5e5e5; }
+.s6 .ttl{ font-weight:800; font-size:18px; letter-spacing:-.02em; }
+.s6 .sub{ color:#888; font-size:13px; margin-top:5px; line-height:1.5; }
+.s6 .tag{ display:inline-block; color:#e8482a; font-size:11px; font-weight:700; margin:10px 10px 0 0; }
+.s6 .btn{ background:#111; color:#fff; border:0; border-radius:0; font-weight:700; padding:8px 16px; font-size:12px; letter-spacing:.04em; }
+.s6 .btn.alt{ background:#fff; color:#111; border:1px solid #111; }
+
+/* ============ 07 暗黑霓虹 Cyberpunk ============ */
+.s7{ background:#0a0a12; font-family:ui-monospace,monospace; }
+.s7 .card{ background:#12121f; border:1px solid #28e0ff; border-radius:6px; padding:13px; box-shadow:0 0 14px rgba(40,224,255,.35); }
+.s7 .ttl{ color:#28e0ff; font-weight:700; font-size:15px; text-shadow:0 0 8px rgba(40,224,255,.6); }
+.s7 .sub{ color:#9aa0c0; font-size:12px; margin-top:4px; }
+.s7 .tag{ display:inline-block; border:1px solid #ff3da6; color:#ff3da6; font-size:10px; padding:1px 7px; border-radius:3px; margin:9px 5px 0 0; }
+.s7 .btn{ background:transparent; color:#28e0ff; border:1px solid #28e0ff; border-radius:4px; font-weight:700; padding:6px 12px; font-size:12px; font-family:inherit; box-shadow:0 0 10px rgba(40,224,255,.4); }
+.s7 .btn.alt{ color:#ff3da6; border-color:#ff3da6; box-shadow:0 0 10px rgba(255,61,166,.4); }
+
+/* ============ 08 紙張便條 Paper ============ */
+.s8{ background:#efe7d3; font-family:'Bradley Hand','PingFang TC',cursive; }
+.s8 .card{ background:#fffdf3; border:1px solid #e3d9bd; border-radius:3px; padding:15px 13px 13px; box-shadow:1px 2px 6px rgba(0,0,0,.15); position:relative; }
+.s8 .card::before{ content:''; position:absolute; top:-9px; left:50%; transform:translateX(-50%) rotate(-3deg); width:70px; height:18px; background:rgba(220,200,140,.5); }
+.s8 .ttl{ font-weight:700; font-size:18px; color:#3a3320; }
+.s8 .sub{ color:#6b6243; font-size:14px; margin-top:4px; }
+.s8 .tag{ display:inline-block; color:#a8852a; font-size:13px; margin:9px 8px 0 0; }
+.s8 .btn{ background:#d9a800; color:#3a3320; border:0; border-radius:14px; font-weight:700; padding:7px 15px; font-size:14px; font-family:inherit; }
+.s8 .btn.alt{ background:transparent; color:#6b6243; border:1.5px dashed #b9a767; }
+
+/* ============ 09 雜誌編輯 Editorial ============ */
+.s9{ background:#faf7f2; font-family:Georgia,'Songti TC',serif; }
+.s9 .card{ background:#faf7f2; padding:14px 12px; border-bottom:2px solid #1a1a1a; }
+.s9 .ttl{ font-weight:700; font-size:21px; line-height:1.1; }
+.s9 .sub{ color:#555; font-size:13px; margin-top:7px; font-style:italic; line-height:1.5; }
+.s9 .tag{ display:inline-block; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#a0381f; margin:11px 10px 0 0; font-family:-apple-system,sans-serif; }
+.s9 .btn{ background:#1a1a1a; color:#faf7f2; border:0; border-radius:0; padding:8px 16px; font-size:12px; letter-spacing:.05em; font-family:-apple-system,sans-serif; font-weight:700; }
+.s9 .btn.alt{ background:transparent; color:#1a1a1a; border:1px solid #1a1a1a; }
+
+/* ============ 10 終端綠 CRT Green ============ */
+.s10{ background:#001100; font-family:ui-monospace,'Courier New',monospace; }
+.s10 .card{ background:#021a02; border:1px solid #2bff66; border-radius:0; padding:12px; box-shadow:0 0 12px rgba(43,255,102,.25) inset; }
+.s10 .ttl{ color:#2bff66; font-weight:700; font-size:14px; text-shadow:0 0 6px rgba(43,255,102,.6); }
+.s10 .sub{ color:#46c46a; font-size:12px; margin-top:5px; }
+.s10 .tag{ display:inline-block; border:1px solid #2bff66; color:#2bff66; font-size:11px; padding:0 6px; margin:8px 5px 0 0; }
+.s10 .btn{ background:transparent; color:#2bff66; border:1px solid #2bff66; border-radius:0; font-weight:700; padding:5px 11px; font-size:12px; font-family:inherit; }
+.s10 .btn.alt{ color:#b6ffb0; border-color:#b6ffb0; }
+
+/* ============ 11 擬物硬體 Hardware（鍵帽·缺角）============ */
+.s11{ background:#201f1c; font-family:'AvenirNext','PingFang TC',sans-serif; }
+.s11 .card{ background:#2c2b27; border:1px solid #4a4a45; padding:13px;
+  clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 5px 10px rgba(0,0,0,.5); }
+.s11 .ttl{ color:#e8e4d8; font-weight:800; font-size:15px; }
+.s11 .sub{ color:#8e8b80; font-size:12px; margin-top:3px; }
+.s11 .tag{ display:inline-block; background:#1c1b18; color:#ffb000; font-size:10px; padding:1px 7px; border-radius:3px; margin:9px 5px 0 0; font-family:ui-monospace,monospace; box-shadow:inset 0 1px 2px rgba(0,0,0,.6); }
+.s11 .btn{ background:linear-gradient(#ff6a2b,#e84200); color:#fff; border:0; border-radius:7px; font-weight:800; padding:8px 14px; font-size:13px; box-shadow:0 3px 0 #a03000, 0 4px 6px rgba(0,0,0,.4); }
+.s11 .btn.alt{ background:linear-gradient(#3a3a36,#2a2a27); color:#e8e4d8; box-shadow:0 3px 0 #16100b; }
+
+/* ============ 12 Material You · 圓潤彩色 ============ */
+.s12{ background:#f3edf7; font-family:'Roboto','PingFang TC',sans-serif; }
+.s12 .card{ background:#fffbfe; border-radius:22px; padding:16px; box-shadow:0 2px 6px rgba(0,0,0,.08); }
+.s12 .ttl{ color:#1d1b20; font-weight:700; font-size:16px; }
+.s12 .sub{ color:#49454f; font-size:13px; margin-top:4px; }
+.s12 .tag{ display:inline-block; background:#e8def8; color:#65558f; font-size:12px; padding:4px 12px; border-radius:99px; margin:11px 6px 0 0; }
+.s12 .btn{ background:#65558f; color:#fff; border:0; border-radius:99px; font-weight:600; padding:10px 20px; font-size:13px; }
+.s12 .btn.alt{ background:#e8def8; color:#65558f; }
+
+/* ============ 13 野獸派 Neo-brutalism ============ */
+.s13{ background:#ffe14d; font-family:'Arial Black','PingFang TC',sans-serif; }
+.s13 .card{ background:#fff; border:3px solid #000; border-radius:0; padding:13px; box-shadow:6px 6px 0 #000; }
+.s13 .ttl{ font-weight:900; font-size:17px; }
+.s13 .sub{ font-size:13px; margin-top:5px; font-weight:600; }
+.s13 .tag{ display:inline-block; background:#4af2c8; border:2px solid #000; color:#000; font-size:11px; font-weight:800; padding:1px 7px; margin:10px 6px 0 0; }
+.s13 .btn{ background:#ff5c8a; color:#000; border:3px solid #000; border-radius:0; font-weight:900; padding:7px 13px; font-size:13px; box-shadow:3px 3px 0 #000; }
+.s13 .btn.alt{ background:#5cc8ff; }
+
+/* ============ 14 極簡單色 Mono ============ */
+.s14{ background:#fbfbfb; font-family:-apple-system,'PingFang TC',sans-serif; }
+.s14 .card{ background:#fff; border:1px solid #e6e6e6; border-radius:10px; padding:14px; }
+.s14 .ttl{ font-weight:700; font-size:15px; color:#111; }
+.s14 .sub{ color:#9a9a9a; font-size:12.5px; margin-top:4px; }
+.s14 .tag{ display:inline-block; background:#f2f2f2; color:#555; font-size:11px; padding:2px 9px; border-radius:6px; margin:10px 5px 0 0; }
+.s14 .btn{ background:#111; color:#fff; border:0; border-radius:8px; font-weight:600; padding:8px 14px; font-size:13px; }
+.s14 .btn.alt{ background:#f2f2f2; color:#111; }
+
+/* ============ 15 藍圖 Blueprint ============ */
+.s15{ background:#0d3b66; background-image:linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px); background-size:16px 16px; font-family:ui-monospace,monospace; }
+.s15 .card{ background:rgba(13,59,102,.6); border:1px solid #bcd4f6; border-radius:0; padding:13px; }
+.s15 .ttl{ color:#eaf2ff; font-weight:700; font-size:14px; letter-spacing:.04em; }
+.s15 .sub{ color:#a9c4ec; font-size:12px; margin-top:5px; }
+.s15 .tag{ display:inline-block; border:1px dashed #bcd4f6; color:#bcd4f6; font-size:11px; padding:0 6px; margin:8px 5px 0 0; }
+.s15 .btn{ background:transparent; color:#eaf2ff; border:1px solid #eaf2ff; border-radius:0; font-weight:700; padding:5px 11px; font-size:12px; font-family:inherit; }
+.s15 .btn.alt{ color:#ffd24d; border-color:#ffd24d; }
+
+/* ============ 16 暖色復古雜誌 / 70s ============ */
+.s16{ background:#f0e2cf; font-family:'Georgia','Songti TC',serif; }
+.s16 .card{ background:#fbf3e4; border:2px solid #c4622d; border-radius:12px; padding:14px; box-shadow:0 4px 0 #c4622d; }
+.s16 .ttl{ color:#7a3a14; font-weight:700; font-size:17px; }
+.s16 .sub{ color:#8a6a44; font-size:13px; margin-top:4px; }
+.s16 .tag{ display:inline-block; background:#e8a13c; color:#5a2a0c; font-size:11px; padding:1px 8px; border-radius:99px; margin:10px 6px 0 0; font-family:-apple-system,sans-serif; }
+.s16 .btn{ background:#c4622d; color:#fbf3e4; border:0; border-radius:8px; font-weight:700; padding:8px 15px; font-size:13px; font-family:-apple-system,sans-serif; }
+.s16 .btn.alt{ background:#3f7d4f; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-h">BrainStrom · 樣式畫廊 16 選</div>
+  <div class="page-sub">同一張卡＋按鈕＋標籤，套 16 種不同風格。看完告訴我你要幾號當主樣式。</div>
+</div>
+<!-- ===== 16 種樣式（純靜態，往下滾即可看完）===== -->
+<div class="wrap">
+  <div class="item"><div class="item-h"><span class="no">01</span><span class="nm">復古 DOS / Turbo Vision</span><span class="vibe">暖灰·深藍雙線框·等寬</span></div><div class="demo s1"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">02</span><span class="nm">工業橘 · 霧面黑</span><span class="vibe">現行 App 風</span></div><div class="demo s2"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">03</span><span class="nm">純米白極簡終端</span><span class="vibe">米白·深炭·直角</span></div><div class="demo s3"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">04</span><span class="nm">新擬物 Neumorphism</span><span class="vibe">柔軟凸起</span></div><div class="demo s4"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">05</span><span class="nm">玻璃擬態 Glassmorphism</span><span class="vibe">毛玻璃·漸層</span></div><div class="demo s5"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">06</span><span class="nm">瑞士極簡 / 留白</span><span class="vibe">細線·無襯線</span></div><div class="demo s6"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">07</span><span class="nm">暗黑霓虹 Cyberpunk</span><span class="vibe">黑底·霓虹發光</span></div><div class="demo s7"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">08</span><span class="nm">紙張便條 Paper</span><span class="vibe">米黃·手寫</span></div><div class="demo s8"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">09</span><span class="nm">雜誌編輯 Editorial</span><span class="vibe">襯線·斜體</span></div><div class="demo s9"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">10</span><span class="nm">終端綠 CRT Green</span><span class="vibe">黑底·螢光綠</span></div><div class="demo s10"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">11</span><span class="nm">擬物硬體 Hardware</span><span class="vibe">金屬·鍵帽·缺角</span></div><div class="demo s11"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">12</span><span class="nm">Material You 圓潤</span><span class="vibe">大圓角·柔和紫</span></div><div class="demo s12"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">13</span><span class="nm">野獸派 Neo-brutalism</span><span class="vibe">粗黑邊·硬陰影</span></div><div class="demo s13"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">14</span><span class="nm">極簡單色 Mono</span><span class="vibe">黑白灰·純排版</span></div><div class="demo s14"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">15</span><span class="nm">藍圖 Blueprint</span><span class="vibe">深藍·白線·工程格</span></div><div class="demo s15"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+  <div class="item"><div class="item-h"><span class="no">16</span><span class="nm">暖色復古雜誌 / 70s</span><span class="vibe">橘棕·圓角</span></div><div class="demo s16"><div class="card"><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span><div class="btnrow"><button class="btn">＋ 建立</button><button class="btn alt">✓ 選這個</button></div></div></div></div>
+</div>
+</body>
+</html>
