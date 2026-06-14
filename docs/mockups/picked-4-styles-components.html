@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainStrom — 03/04/13/16 元件設計</title>
+<style>
+*{ box-sizing:border-box; margin:0; padding:0; }
+body{ background:#ececed; padding:0 0 50px; font-family:-apple-system,'PingFang TC',sans-serif; color:#1a1a1a; }
+.head{ background:#1a1a1a; color:#fff; padding:14px 16px; }
+.head b{ font-size:18px; }
+.head span{ display:block; color:#bbb; font-size:12px; margin-top:2px; }
+.styleseg{ padding:16px 14px 22px; }
+.seg-h{ display:flex; align-items:baseline; gap:8px; margin-bottom:12px; }
+.seg-h .no{ background:#1a1a1a; color:#fff; font-weight:800; font-size:14px; padding:1px 9px; border-radius:4px; font-family:ui-monospace,monospace; }
+.seg-h .nm{ font-weight:800; font-size:15px; }
+.seg-h .vibe{ color:#888; font-size:11px; margin-left:auto; }
+.lab{ font-size:10px; letter-spacing:.1em; color:#999; margin:14px 0 5px; text-transform:uppercase; }
+.row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+/* 共用元件骨架(各风格各自上色) */
+.brow{ display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap; }
+.srcrow{ font-size:12px; margin-top:7px; }
+.fk{ font-size:10px; text-transform:uppercase; font-weight:700; margin-top:6px; }
+.fv{ font-size:13px; }
+.pno{ font-weight:700; font-size:12px; }
+.inp{ flex:1; min-width:120px; font-family:inherit; }
+
+/* ====================================================== */
+/* 03 · 純米白極簡終端                                      */
+/* ====================================================== */
+.g03{ background:#f5f5f0; font-family:ui-monospace,'Courier New',monospace; color:#2b2b2b; }
+.g03 .syscard,.g03 .idzone,.g03 .persona,.g03 .coach{ background:#fafaf7; border:1px solid #2b2b2b; border-radius:0; box-shadow:2px 2px 0 rgba(0,0,0,.18); padding:11px; margin-bottom:10px; }
+.g03 .ttl{ font-weight:700; font-size:14px; border-bottom:1px solid #2b2b2b; padding-bottom:5px; }
+.g03 .sub{ font-size:12px; color:#555; margin-top:6px; }
+.g03 .pill{ display:inline-block; border:1px solid #2b2b2b; font-size:10px; padding:0 6px; font-weight:700; margin-bottom:6px; }
+.g03 .tag{ display:inline-block; border:1px solid #bfbdb5; color:#666; font-size:11px; padding:0 6px; margin:7px 4px 0 0; }
+.g03 .zh{ font-weight:700; font-size:12px; border-bottom:1px solid #2b2b2b; padding-bottom:4px; margin-bottom:4px; }
+.g03 .fk{ color:#888; } .g03 .fv{ color:#2b2b2b; }
+.g03 .ptag{ font-weight:700; font-size:15px; margin:4px 0; }
+.g03 .bub{ border:1px solid #bfbdb5; background:#fff; padding:6px 8px; font-size:12px; margin:5px 0; }
+.g03 .bub.ai{ border-color:#2b2b2b; }
+.g03 .opt{ border:1px solid #bfbdb5; background:#fff; padding:5px 8px; margin:4px 0; font-size:12px; }
+.g03 .btn{ background:#fafaf7; color:#2b2b2b; border:1px solid #2b2b2b; border-radius:0; font-weight:700; padding:6px 12px; font-size:12px; font-family:inherit; }
+.g03 .btn.pri{ background:#2b2b2b; color:#f5f5f0; }
+.g03 .inp{ background:#fff; border:1px solid #bfbdb5; border-radius:0; padding:6px 8px; font-size:12px; }
+
+/* ====================================================== */
+/* 04 · 新擬物 Neumorphism                                  */
+/* ====================================================== */
+.g04{ background:#e0e3ea; font-family:-apple-system,'PingFang TC',sans-serif; color:#3a3f4b; }
+.g04 .syscard,.g04 .idzone,.g04 .persona,.g04 .coach{ background:#e0e3ea; border-radius:18px; padding:15px; margin-bottom:14px; box-shadow:7px 7px 16px #b9bcc4, -7px -7px 16px #fff; }
+.g04 .ttl{ font-weight:800; font-size:16px; }
+.g04 .sub{ color:#7c8190; font-size:12.5px; margin-top:3px; }
+.g04 .pill{ display:inline-block; color:#5b6170; font-size:10px; padding:3px 9px; border-radius:99px; box-shadow:inset 2px 2px 4px #b9bcc4, inset -2px -2px 4px #fff; margin-bottom:8px; }
+.g04 .tag{ display:inline-block; color:#5b6170; font-size:11px; padding:3px 9px; border-radius:99px; margin:9px 5px 0 0; box-shadow:inset 2px 2px 4px #b9bcc4, inset -2px -2px 4px #fff; }
+.g04 .zh{ font-weight:800; font-size:13px; color:#4a6cf7; margin-bottom:4px; }
+.g04 .fk{ color:#9aa0ad; } .g04 .fv{ color:#3a3f4b; }
+.g04 .ptag{ font-weight:800; font-size:16px; color:#4a6cf7; margin:4px 0; }
+.g04 .bub{ background:#e0e3ea; border-radius:12px; padding:8px 10px; font-size:12.5px; margin:6px 0; box-shadow:inset 3px 3px 6px #b9bcc4, inset -3px -3px 6px #fff; }
+.g04 .opt{ background:#e0e3ea; border-radius:10px; padding:7px 10px; margin:6px 0; font-size:12.5px; box-shadow:4px 4px 9px #b9bcc4, -4px -4px 9px #fff; }
+.g04 .btn{ background:#e0e3ea; color:#7c8190; border:0; border-radius:12px; font-weight:800; padding:9px 15px; font-size:13px; box-shadow:5px 5px 10px #b9bcc4, -5px -5px 10px #fff; }
+.g04 .btn.pri{ color:#4a6cf7; }
+.g04 .inp{ background:#e0e3ea; border:0; border-radius:12px; padding:9px 11px; font-size:13px; color:#3a3f4b; box-shadow:inset 3px 3px 6px #b9bcc4, inset -3px -3px 6px #fff; }
+
+/* ====================================================== */
+/* 13 · 野獸派 Neo-brutalism                                */
+/* ====================================================== */
+.g13{ background:#ffe14d; font-family:'Arial Black','PingFang TC',sans-serif; color:#000; }
+.g13 .syscard,.g13 .idzone,.g13 .persona,.g13 .coach{ background:#fff; border:3px solid #000; border-radius:0; box-shadow:6px 6px 0 #000; padding:13px; margin-bottom:16px; }
+.g13 .ttl{ font-weight:900; font-size:17px; }
+.g13 .sub{ font-size:13px; margin-top:5px; font-weight:600; }
+.g13 .pill{ display:inline-block; background:#ff5c8a; border:2px solid #000; font-size:10px; font-weight:800; padding:1px 7px; margin-bottom:7px; }
+.g13 .tag{ display:inline-block; background:#4af2c8; border:2px solid #000; font-size:11px; font-weight:800; padding:1px 7px; margin:9px 6px 0 0; }
+.g13 .zh{ background:#5cc8ff; border:2px solid #000; font-weight:900; font-size:13px; padding:2px 7px; margin:-13px -13px 8px; }
+.g13 .fk{ font-weight:800; } .g13 .fv{ font-weight:600; }
+.g13 .ptag{ background:#ffe14d; border:2px solid #000; display:inline-block; font-weight:900; font-size:15px; padding:2px 8px; margin:4px 0; }
+.g13 .bub{ border:2px solid #000; background:#fff; padding:7px 9px; font-size:12px; font-weight:600; margin:6px 0; box-shadow:3px 3px 0 #000; }
+.g13 .bub.ai{ background:#fef0a8; }
+.g13 .opt{ border:2px solid #000; background:#fff; padding:6px 9px; margin:6px 0; font-size:12px; font-weight:700; box-shadow:3px 3px 0 #000; }
+.g13 .btn{ background:#fff; color:#000; border:3px solid #000; border-radius:0; font-weight:900; padding:7px 13px; font-size:13px; box-shadow:3px 3px 0 #000; }
+.g13 .btn.pri{ background:#ff5c8a; }
+.g13 .inp{ background:#fff; border:3px solid #000; border-radius:0; padding:6px 9px; font-size:12px; font-weight:700; }
+
+/* ====================================================== */
+/* 16 · 暖色復古雜誌 / 70s                                  */
+/* ====================================================== */
+.g16{ background:#f0e2cf; font-family:'Georgia','Songti TC',serif; color:#5a2a0c; }
+.g16 .syscard,.g16 .idzone,.g16 .persona,.g16 .coach{ background:#fbf3e4; border:2px solid #c4622d; border-radius:12px; box-shadow:0 4px 0 #c4622d; padding:14px; margin-bottom:16px; }
+.g16 .ttl{ color:#7a3a14; font-weight:700; font-size:17px; }
+.g16 .sub{ color:#8a6a44; font-size:13px; margin-top:4px; }
+.g16 .pill{ display:inline-block; background:#e8a13c; color:#5a2a0c; font-size:10px; padding:1px 8px; border-radius:99px; margin-bottom:7px; font-family:-apple-system,sans-serif; }
+.g16 .tag{ display:inline-block; background:#e8a13c; color:#5a2a0c; font-size:11px; padding:1px 8px; border-radius:99px; margin:10px 6px 0 0; font-family:-apple-system,sans-serif; }
+.g16 .zh{ color:#7a3a14; font-weight:700; font-size:14px; border-bottom:2px solid #e8a13c; padding-bottom:4px; margin-bottom:5px; }
+.g16 .fk{ color:#b98a55; font-family:-apple-system,sans-serif; } .g16 .fv{ color:#5a2a0c; }
+.g16 .ptag{ color:#7a3a14; font-weight:700; font-size:16px; margin:4px 0; }
+.g16 .bub{ background:#fff7e8; border:1px solid #e0c79a; border-radius:10px; padding:7px 10px; font-size:13px; margin:6px 0; }
+.g16 .bub.ai{ border-color:#c4622d; }
+.g16 .opt{ background:#fff7e8; border:1px solid #d9a800; border-radius:8px; padding:6px 10px; margin:6px 0; font-size:13px; }
+.g16 .btn{ background:#fbf3e4; color:#c4622d; border:1px solid #c4622d; border-radius:8px; font-weight:700; padding:8px 14px; font-size:13px; font-family:-apple-system,sans-serif; }
+.g16 .btn.pri{ background:#c4622d; color:#fbf3e4; }
+.g16 .inp{ background:#fff7e8; border:1px solid #e0c79a; border-radius:8px; padding:8px 10px; font-size:13px; color:#5a2a0c; }
+</style>
+</head>
+<body>
+<div class="head"><b>BrainStrom · 03 / 04 / 13 / 16 元件設計</b><span>用我們的布局元件（系統卡 / 身份證區塊 / persona 定位卡 / AI教練 / 按鈕標籤輸入），各套你選的 4 種美學。往下滾比較。</span></div>
+
+<!-- ========== 03 ========== -->
+<div class="styleseg g03">
+  <div class="seg-h"><span class="no">03</span><span class="nm">純米白極簡終端</span><span class="vibe">米白·深炭·直角·等寬</span></div>
+
+  <div class="lab">系統卡（首頁）</div>
+  <div class="syscard"><div class="pill">私密 · 06-08</div><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span></div>
+
+  <div class="lab">身份證 · 一區</div>
+  <div class="idzone"><div class="zh">① 一句話 / 目標用戶</div><div class="fk">一句話</div><div class="fv">用鎖機把專注變成可量化的習慣。</div><div class="fk">目標用戶</div><div class="fv">易分心的學生、自由工作者。</div></div>
+
+  <div class="lab">Persona 定位卡</div>
+  <div class="persona"><div class="pno">定位 1 / 共 2</div><div class="ptag">給學生的鎖機番茄鐘</div><div class="fk">解決痛點</div><div class="fv">念書時忍不住滑社群，效率低。</div><div class="srcrow">🥊 Forest　📄 番茄工作法　🧰 tomato-cli</div><div class="brow"><button class="btn">＋ 再生成一張</button><button class="btn pri">✓ 選這個</button></div></div>
+
+  <div class="lab">AI 教練</div>
+  <div class="coach"><div class="bub ai">你比較偏向哪一種做法？</div><div class="opt">1. 強制鎖機計時</div><div class="opt">2. 番茄鐘＋統計</div><div class="brow"><button class="btn pri">✓ 確認送出</button></div></div>
+
+  <div class="lab">按鈕 / 標籤 / 輸入</div>
+  <div class="brow"><button class="btn">取消</button><button class="btn pri">＋ 建立</button><span class="tag">#tag</span><input class="inp" placeholder="輸入訊息…"></div>
+</div>
+
+<!-- ========== 04 ========== -->
+<div class="styleseg g04">
+  <div class="seg-h"><span class="no">04</span><span class="nm">新擬物 Neumorphism</span><span class="vibe">柔軟凸起·同色陰影</span></div>
+
+  <div class="lab">系統卡（首頁）</div>
+  <div class="syscard"><div class="pill">私密 · 06-08</div><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span></div>
+
+  <div class="lab">身份證 · 一區</div>
+  <div class="idzone"><div class="zh">① 一句話 / 目標用戶</div><div class="fk">一句話</div><div class="fv">用鎖機把專注變成可量化的習慣。</div><div class="fk">目標用戶</div><div class="fv">易分心的學生、自由工作者。</div></div>
+
+  <div class="lab">Persona 定位卡</div>
+  <div class="persona"><div class="pno">定位 1 / 共 2</div><div class="ptag">給學生的鎖機番茄鐘</div><div class="fk">解決痛點</div><div class="fv">念書時忍不住滑社群，效率低。</div><div class="srcrow">🥊 Forest　📄 番茄工作法　🧰 tomato-cli</div><div class="brow"><button class="btn">＋ 再生成一張</button><button class="btn pri">✓ 選這個</button></div></div>
+
+  <div class="lab">AI 教練</div>
+  <div class="coach"><div class="bub ai">你比較偏向哪一種做法？</div><div class="opt">1. 強制鎖機計時</div><div class="opt">2. 番茄鐘＋統計</div><div class="brow"><button class="btn pri">✓ 確認送出</button></div></div>
+
+  <div class="lab">按鈕 / 標籤 / 輸入</div>
+  <div class="brow"><button class="btn">取消</button><button class="btn pri">＋ 建立</button><span class="tag">#tag</span><input class="inp" placeholder="輸入訊息…"></div>
+</div>
+
+<!-- ========== 13 ========== -->
+<div class="styleseg g13">
+  <div class="seg-h"><span class="no">13</span><span class="nm">野獸派 Neo-brutalism</span><span class="vibe">粗黑邊·硬陰影·亮色</span></div>
+
+  <div class="lab">系統卡（首頁）</div>
+  <div class="syscard"><div class="pill">私密 · 06-08</div><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span></div>
+
+  <div class="lab">身份證 · 一區</div>
+  <div class="idzone"><div class="zh">① 一句話 / 目標用戶</div><div class="fk">一句話</div><div class="fv">用鎖機把專注變成可量化的習慣。</div><div class="fk">目標用戶</div><div class="fv">易分心的學生、自由工作者。</div></div>
+
+  <div class="lab">Persona 定位卡</div>
+  <div class="persona"><div class="pno">定位 1 / 共 2</div><div class="ptag">給學生的鎖機番茄鐘</div><div class="fk">解決痛點</div><div class="fv">念書時忍不住滑社群，效率低。</div><div class="srcrow">🥊 Forest　📄 番茄工作法　🧰 tomato-cli</div><div class="brow"><button class="btn">＋ 再生成一張</button><button class="btn pri">✓ 選這個</button></div></div>
+
+  <div class="lab">AI 教練</div>
+  <div class="coach"><div class="bub ai">你比較偏向哪一種做法？</div><div class="opt">1. 強制鎖機計時</div><div class="opt">2. 番茄鐘＋統計</div><div class="brow"><button class="btn pri">✓ 確認送出</button></div></div>
+
+  <div class="lab">按鈕 / 標籤 / 輸入</div>
+  <div class="brow"><button class="btn">取消</button><button class="btn pri">＋ 建立</button><span class="tag">#tag</span><input class="inp" placeholder="輸入訊息…"></div>
+</div>
+
+<!-- ========== 16 ========== -->
+<div class="styleseg g16">
+  <div class="seg-h"><span class="no">16</span><span class="nm">暖色復古雜誌 / 70s</span><span class="vibe">橘棕·圓角·襯線</span></div>
+
+  <div class="lab">系統卡（首頁）</div>
+  <div class="syscard"><div class="pill">私密 · 06-08</div><div class="ttl">番茄鐘專注App</div><div class="sub">用鎖機幫人專注、別一直滑手機。</div><span class="tag">#專注</span><span class="tag">#iOS</span></div>
+
+  <div class="lab">身份證 · 一區</div>
+  <div class="idzone"><div class="zh">① 一句話 / 目標用戶</div><div class="fk">一句話</div><div class="fv">用鎖機把專注變成可量化的習慣。</div><div class="fk">目標用戶</div><div class="fv">易分心的學生、自由工作者。</div></div>
+
+  <div class="lab">Persona 定位卡</div>
+  <div class="persona"><div class="pno">定位 1 / 共 2</div><div class="ptag">給學生的鎖機番茄鐘</div><div class="fk">解決痛點</div><div class="fv">念書時忍不住滑社群，效率低。</div><div class="srcrow">🥊 Forest　📄 番茄工作法　🧰 tomato-cli</div><div class="brow"><button class="btn">＋ 再生成一張</button><button class="btn pri">✓ 選這個</button></div></div>
+
+  <div class="lab">AI 教練</div>
+  <div class="coach"><div class="bub ai">你比較偏向哪一種做法？</div><div class="opt">1. 強制鎖機計時</div><div class="opt">2. 番茄鐘＋統計</div><div class="brow"><button class="btn pri">✓ 確認送出</button></div></div>
+
+  <div class="lab">按鈕 / 標籤 / 輸入</div>
+  <div class="brow"><button class="btn">取消</button><button class="btn pri">＋ 建立</button><span class="tag">#tag</span><input class="inp" placeholder="輸入訊息…"></div>
+</div>
+
+</body>
+</html>
