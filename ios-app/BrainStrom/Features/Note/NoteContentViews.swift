@@ -63,6 +63,15 @@ struct ArticleView: View {
                 }
             }
         }
+        // 鐵律：寫字/編輯區一律白底黑字，黃色只當頁邊外框。整個寫作畫布包成白卡。
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 360, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.card))
+                .fill(palette.panel)
+                .overlay(RoundedRectangle(cornerRadius: palette.radius(Tokens.Radius.card))
+                    .strokeBorder(palette.isHard ? palette.ink : palette.line, lineWidth: palette.metrics.border))
+        )
     }
 }
 

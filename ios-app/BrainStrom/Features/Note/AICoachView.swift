@@ -98,6 +98,9 @@ struct AICoachView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // 鐵律：閱讀/對話區一律白底黑字，黃色只留頂欄與輸入列當上下外框。
+        .background(palette.panel)
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.line).frame(height: 1) }
     }
 
     private func bubbleView(_ bubble: ChatBubble) -> some View {
