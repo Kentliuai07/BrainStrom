@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRAINSTORM — RETRO BUILD (版本 D · 色彩系統)</title>
+<style>
+:root{
+  /* 暖灰機身基底（沿用 A 版） */
+  --bg:#d7d3c8; --panel:#ece9df; --panel2:#e2dfd4;
+  --ink:#16163e; --ink-soft:#3a3a5c;
+  --line-soft:#7878a6; --white:#fff;
+  --shadow:#b6b2a6; --hot:#ffd24d;
+
+  /* ===== 色彩系統：固定分類色（色＝語意） ===== */
+  --c-frame:#2a2a72;   /* 機身/外框/頂選單/底F鍵 — 石墨藍 */
+  --c-sys:#2a2a72;     /* 首頁「我的系統」 — 靛藍 */
+  --c-def:#0a6b78;     /* ① 定義（一句話/目標用戶） — 深青 */
+  --c-idea:#9a6b00;    /* ② 理念（痛點/核心價值） — 琥珀 */
+  --c-mkt:#9b2d6b;     /* ③ 市場（競品/市場策略/商業模式） — 酒紅 */
+  --c-func:#2f7d3f;    /* ④ 功能（核心功能） — 森綠 */
+  --c-tech:#4b3b8f;    /* ⑤ 技術（技術棧） — 靛紫 */
+  --c-comp:#c0322a;    /* 來源·競品🥊 — 磚紅 */
+  --c-art:#9a6b00;     /* 來源·文章📄 — 琥珀 */
+  --c-oss:#2f7d3f;     /* 來源·開源🧰 — 森綠 */
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ width:100%; }
+body{
+  background:var(--bg);
+  color:var(--ink);
+  padding:14px 0;
+  font-family:'Consolas','Cascadia Mono','IBM Plex Mono','SFMono-Regular','Courier New','PingFang TC','Noto Sans Mono CJK TC','Microsoft JhengHei',monospace;
+  letter-spacing:.01em;
+  font-weight:400;
+  line-height:1.45;
+}
+
+/* ===== 整機外殼 ===== */
+#crt{
+  max-width:430px;
+  margin:0 auto;
+  position:relative;
+  background:var(--bg);
+  border:2px solid var(--c-frame);
+  box-shadow:4px 4px 0 var(--shadow);
+}
+#crt::before{
+  content:'';
+  position:absolute;
+  inset:3px;
+  border:1px solid var(--line-soft);
+  pointer-events:none;
+  z-index:1;
+}
+
+/* ===== 頂選單列 ===== */
+.menubar{
+  height:24px;
+  background:var(--c-frame);
+  color:#fff;
+  font-size:12px;
+  display:flex;
+  gap:14px;
+  align-items:center;
+  padding:0 8px;
+  font-weight:700;
+  position:relative;
+  z-index:2;
+}
+.menubar .clock{ margin-left:auto; font-weight:700; }
+
+/* ===== 底功能鍵列 ===== */
+.fnbar{
+  height:48px;
+  background:var(--panel2);
+  border-top:2px solid var(--c-frame);
+  display:flex;
+  position:relative;
+  z-index:2;
+}
+.fnbar .fn{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:11px;
+  border-right:1px solid var(--line-soft);
+}
+.fnbar .fn:last-child{ border-right:none; }
+.fnkey{
+  background:var(--c-frame);
+  color:#fff;
+  padding:0 4px;
+  margin-right:4px;
+  font-weight:700;
+}
+
+/* ===== 掃描線 ===== */
+.scan{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.03) 2px 3px);
+  z-index:99;
+}
+
+/* ===== 分隔線 ===== */
+.rule{
+  color:var(--line-soft);
+  font-size:12px;
+  overflow:hidden;
+  white-space:nowrap;
+  margin:6px 0;
+  letter-spacing:0;
+}
+
+/* ===== 閃爍游標 ===== */
+.cur{ animation:bl 1s steps(1) infinite; }
+@keyframes bl{ 50%{ opacity:0; } }
+
+/* ===== 畫面標籤 ===== */
+.screen-tag{
+  background:var(--ink);
+  color:var(--bg);
+  font-size:11px;
+  font-weight:700;
+  padding:4px 10px;
+  margin:18px 12px 8px;
+  letter-spacing:.05em;
+}
+
+/* ===== 窗/卡（雙線框：外 2px 實色 + inset 1px 細線） ===== */
+.win{
+  position:relative;
+  background:var(--panel);
+  border:2px solid var(--c-frame);
+  box-shadow:3px 3px 0 var(--shadow);
+  margin:0 12px 12px;
+}
+.win::before{
+  content:'';
+  position:absolute;
+  inset:2px;
+  border:1px solid var(--line-soft);
+  pointer-events:none;
+  z-index:1;
+}
+.win-title{
+  background:var(--c-frame);
+  color:#fff;
+  font-weight:700;
+  font-size:12px;
+  text-transform:uppercase;
+  padding:3px 7px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.win-x{
+  margin-left:auto;
+  background:#fff;
+  color:var(--c-frame);
+  font-weight:700;
+  padding:0 4px;
+  font-size:11px;
+}
+.win-body{
+  padding:8px 10px;
+  position:relative;
+  z-index:2;
+}
+
+/* ===== 分類色：整窗著色修飾子 =====
+   每個區塊把外框＋標題列＋細線＋強調字統一成「該分類色」 */
+.win.c-sys{ border-color:var(--c-sys); }
+.win.c-sys .win-title{ background:var(--c-sys); }
+.win.c-sys .win-x{ color:var(--c-sys); }
+.win.c-sys::before{ border-color:var(--c-sys); opacity:.35; }
+
+.win.c-def{ border-color:var(--c-def); }
+.win.c-def .win-title{ background:var(--c-def); }
+.win.c-def .win-x{ color:var(--c-def); }
+
+.win.c-mkt{ border-color:var(--c-mkt); }
+.win.c-mkt .win-title{ background:var(--c-mkt); }
+.win.c-mkt .win-x{ color:var(--c-mkt); }
+
+.win.c-coach{ border-color:var(--c-def); }
+.win.c-coach .win-title{ background:var(--c-def); }
+.win.c-coach .win-x{ color:var(--c-def); }
+
+.win.c-legend{ border-color:var(--ink); }
+.win.c-legend .win-title{ background:var(--ink); }
+.win.c-legend .win-x{ color:var(--ink); }
+
+/* ===== 按鈕 ===== */
+.btn{
+  background:var(--c-def);
+  color:#fff;
+  border:1px solid var(--c-frame);
+  font-family:inherit;
+  font-weight:700;
+  border-radius:0;
+  padding:5px 10px;
+  cursor:pointer;
+  font-size:12px;
+}
+.btn.amber{ background:var(--c-idea); border-color:var(--c-idea); }
+.btn.ghost{ background:var(--panel2); color:var(--ink); border-color:var(--c-frame); }
+.btn.danger{ background:var(--panel2); color:var(--c-comp); border-color:var(--c-comp); }
+
+/* ===== 輸入框 ===== */
+.input{
+  background:#fff;
+  border:1px solid var(--line-soft);
+  font-family:inherit;
+  border-radius:0;
+  padding:5px 7px;
+  width:100%;
+  color:var(--ink);
+  font-size:12px;
+}
+.input::placeholder{ color:var(--line-soft); }
+.prompt{ color:var(--ink-soft); font-weight:700; }
+
+/* ===== 徽章 / tag ===== */
+.pill{
+  display:inline-block;
+  border:1px solid var(--c-frame);
+  padding:0 6px;
+  font-size:11px;
+  font-weight:700;
+  color:#fff;
+}
+.pill.cyan{ background:var(--c-def); border-color:var(--c-def); }
+.pill.amber{ background:var(--c-idea); border-color:var(--c-idea); }
+.pill.red{ background:var(--c-comp); border-color:var(--c-comp); }
+.pill.green{ background:var(--c-func); border-color:var(--c-func); }
+.pill.violet{ background:var(--c-tech); border-color:var(--c-tech); }
+.pill.wine{ background:var(--c-mkt); border-color:var(--c-mkt); }
+.tag{
+  display:inline-block;
+  border:1px solid var(--c-sys);
+  padding:0 6px;
+  font-size:11px;
+  font-weight:700;
+  color:var(--c-sys);
+  margin:2px 4px 2px 0;
+}
+
+/* ===== 編號選項 ===== */
+.opt{
+  border:1px solid var(--line-soft);
+  background:#fff;
+  padding:5px 8px;
+  margin:4px 0;
+  cursor:pointer;
+  display:flex;
+  gap:8px;
+  font-size:12px;
+}
+.opt:hover{ background:var(--hot); }
+.opt b{ color:var(--c-def); }
+
+/* ===== 氣泡 ===== */
+.bubble{ font-size:12px; }
+.bubble.ai{
+  border:1px solid var(--c-def);
+  background:var(--panel2);
+  padding:6px 8px;
+  max-width:80%;
+  margin:4px 0;
+}
+.bubble.ai b{ color:var(--c-def); }
+.bubble.user{
+  border:1px solid var(--c-idea);
+  background:#fff;
+  padding:6px 8px;
+  margin:4px 0 4px auto;
+  max-width:80%;
+  text-align:left;
+}
+
+/* ===== 證件欄位 ===== */
+.field{ margin:4px 0; }
+.f-key{
+  color:var(--ink-soft);
+  font-size:11px;
+  text-transform:uppercase;
+  font-weight:700;
+}
+.f-val{ font-size:12px; color:var(--ink); }
+
+/* ===== sub 分塊（身份證/persona 區塊，按分類色著色） ===== */
+.sub{
+  border:1px solid var(--line-soft);
+  margin:6px 0;
+  position:relative;
+}
+.sub-h{
+  background:var(--panel2);
+  font-weight:700;
+  font-size:11px;
+  padding:2px 6px;
+  border-bottom:1px solid var(--line-soft);
+}
+.sub-b{ padding:5px 7px; }
+
+/* sub 分類著色：左色條 + 標題色 + 邊框色 */
+.sub.s-def{ border-color:var(--c-def); border-left-width:4px; }
+.sub.s-def .sub-h{ color:var(--c-def); border-bottom-color:var(--c-def); }
+.sub.s-def .f-key{ color:var(--c-def); }
+
+.sub.s-idea{ border-color:var(--c-idea); border-left-width:4px; }
+.sub.s-idea .sub-h{ color:var(--c-idea); border-bottom-color:var(--c-idea); }
+.sub.s-idea .f-key{ color:var(--c-idea); }
+
+.sub.s-mkt{ border-color:var(--c-mkt); border-left-width:4px; }
+.sub.s-mkt .sub-h{ color:var(--c-mkt); border-bottom-color:var(--c-mkt); }
+.sub.s-mkt .f-key{ color:var(--c-mkt); }
+
+.sub.s-func{ border-color:var(--c-func); border-left-width:4px; }
+.sub.s-func .sub-h{ color:var(--c-func); border-bottom-color:var(--c-func); }
+.sub.s-func .f-key{ color:var(--c-func); }
+
+.sub.s-tech{ border-color:var(--c-tech); border-left-width:4px; }
+.sub.s-tech .sub-h{ color:var(--c-tech); border-bottom-color:var(--c-tech); }
+.sub.s-tech .f-key{ color:var(--c-tech); }
+
+/* 來源三軌 sub */
+.sub.s-comp{ border-color:var(--c-comp); border-left-width:4px; }
+.sub.s-comp .sub-h{ color:var(--c-comp); border-bottom-color:var(--c-comp); }
+.sub.s-art{ border-color:var(--c-art); border-left-width:4px; }
+.sub.s-art .sub-h{ color:var(--c-art); border-bottom-color:var(--c-art); }
+.sub.s-oss{ border-color:var(--c-oss); border-left-width:4px; }
+.sub.s-oss .sub-h{ color:var(--c-oss); border-bottom-color:var(--c-oss); }
+
+/* ===== 證件抬頭條 ===== */
+.idhead{
+  background:var(--panel2);
+  border:1px solid var(--line-soft);
+  border-left:4px solid var(--c-def);
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 8px;
+  font-weight:700;
+}
+.idhead .id-no{ margin-left:auto; font-size:11px; color:var(--ink-soft); }
+.idhead .ico{ font-size:16px; }
+
+/* ===== 分頁指示條 ===== */
+.pageind{
+  background:var(--ink);
+  color:var(--bg);
+  text-align:center;
+  font-weight:700;
+  padding:3px;
+  font-size:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+}
+.pageind .btn.ghost{ padding:1px 6px; font-size:11px; }
+
+/* ===== 系統名大字 ===== */
+.sysname{ font-size:15px; font-weight:700; margin:4px 0 2px; color:var(--c-sys); }
+.summary{ color:var(--ink-soft); font-size:12px; }
+
+/* ===== 來源條目 ===== */
+.src{ font-size:12px; margin:3px 0; }
+.src.comp b,.src.comp{ color:var(--c-comp); }
+.src.art b,.src.art{ color:var(--c-art); }
+.src.oss b,.src.oss{ color:var(--c-oss); }
+
+/* ===== 落款 ===== */
+.foot{
+  font-size:10px;
+  color:var(--ink-soft);
+  text-align:center;
+  padding:6px;
+  position:relative;
+  z-index:2;
+}
+
+/* ===== 色彩圖例 ===== */
+.legend-grid{ display:flex; flex-direction:column; gap:3px; }
+.leg{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:11px;
+  padding:2px 0;
+}
+.sw{
+  width:20px;
+  height:14px;
+  flex:0 0 20px;
+  border:1px solid var(--ink);
+  display:inline-block;
+}
+.leg .lname{ font-weight:700; min-width:74px; }
+.leg .ldesc{ color:var(--ink-soft); }
+
+/* ===== 雜項 ===== */
+.row{ display:flex; gap:8px; align-items:center; }
+.row.end{ justify-content:flex-end; }
+.row.between{ justify-content:space-between; }
+.wbtns{ display:flex; gap:6px; margin-bottom:6px; justify-content:flex-end; }
+.btn.sq{ padding:2px 8px; }
+.mt{ margin-top:6px; }
+.ink-soft{ color:var(--ink-soft); }
+ol.feat{ list-style:none; }
+ol.feat li{ font-size:12px; margin:3px 0; color:var(--c-func); font-weight:700; }
+.actbar{ display:flex; gap:6px; }
+.actbar .btn{ flex:1; text-align:center; }
+</style>
+</head>
+<body>
+<div id="crt">
+
+  <!-- ===== 頂選單列 ===== -->
+  <div class="menubar">
+    <span>File</span><span>View</span><span>Help</span>
+    <span class="clock">■ <span id="clk">12:04</span></span>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 色彩系統圖例 Legend -->
+  <!-- ============================================================ -->
+  <section data-screen="legend">
+    <div class="screen-tag">▦ 色彩系統圖例 — 色＝語意分類</div>
+
+    <div class="win c-legend">
+      <div class="win-title">■ 色彩系統圖例 LEGEND <span class="win-x">[X]</span></div>
+      <div class="win-body">
+        <div class="ink-soft" style="font-size:11px;">C:\BRAINSTORM\&gt; 同一類，無論在哪都用同一色 — 用顏色一眼分辨資訊類別。</div>
+        <div class="rule">────────────────────────────────────</div>
+        <div class="legend-grid">
+          <div class="leg"><span class="sw" style="background:var(--c-frame)"></span><span class="lname">機身 / 框架</span><span class="ldesc">外框·頂選單·底 F 鍵（石墨藍）</span></div>
+          <div class="leg"><span class="sw" style="background:var(--c-sys)"></span><span class="lname">我的系統</span><span class="ldesc">首頁系統清單（靛藍）</span></div>
+          <div class="leg"><span class="sw" style="background:var(--c-def)"></span><span class="lname">① 定義</span><span class="ldesc">一句話 / 目標用戶（深青）</span></div>
+          <div class="leg"><span class="sw" style="background:var(--c-idea)"></span><span class="lname">② 理念</span><span class="ldesc">痛點 / 核心價值（琥珀）</span></div>
+          <div class="leg"><span class="sw" style="background:var(--c-mkt)"></span><span class="lname">③ 市場</span><span class="ldesc">競品 / 市場策略 / 商業模式（酒紅）</span></div>
+          <div class="leg"><span class="sw" style="background:var(--c-func)"></span><span class="lname">④ 功能</span><span class="ldesc">核心功能（森綠）</span></div>
+          <div class="leg"><span class="sw" style="background:var(--c-tech)"></span><span class="lname">⑤ 技術</span><span class="ldesc">技術棧（靛紫）</span></div>
+          <div class="rule">──────── 來源三軌 ────────</div>
+          <div class="leg"><span class="sw" style="background:var(--c-comp)"></span><span class="lname">🥊 競品</span><span class="ldesc">競爭對手參考（磚紅）</span></div>
+          <div class="leg"><span class="sw" style="background:var(--c-art)"></span><span class="lname">📄 文章</span><span class="ldesc">相關文章資料（琥珀）</span></div>
+          <div class="leg"><span class="sw" style="background:var(--c-oss)"></span><span class="lname">🧰 開源</span><span class="ldesc">相關開源專案（森綠）</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 畫面 1 — 首頁「我的系統」 -->
+  <!-- ============================================================ -->
+  <section data-screen="home">
+    <div class="screen-tag">▦ 畫面 1 — 我的系統</div>
+
+    <!-- 刊頭窗 -->
+    <div class="win c-sys">
+      <div class="win-title">■ BRAINSTORM ▦ <span class="win-x">[X]</span></div>
+      <div class="win-body">
+        <div class="wbtns">
+          <button class="btn ghost sq">⚙</button>
+          <button class="btn sq">＋</button>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--c-sys);">把混亂的點子，編譯成系統。<span class="cur">█</span></div>
+        <div class="rule">────────────────────────────────────</div>
+        <div class="ink-soft" style="font-size:11px;">C:\BRAINSTORM\&gt; 我的系統清單 — 共 3 筆</div>
+      </div>
+    </div>
+
+    <!-- 系統卡 1 -->
+    <div class="win c-sys">
+      <div class="win-title">■ 番茄鐘專注App <span class="win-x">[X]</span></div>
+      <div class="win-body">
+        <div class="row between">
+          <span class="pill amber">私密</span>
+          <span class="f-val">2026-06-08</span>
+        </div>
+        <div class="sysname">番茄鐘專注App</div>
+        <div class="summary">用強制鎖機 + 統計，幫人專心、別一直滑手機。</div>
+        <div class="rule">────────────────────────────────────</div>
+        <div>
+          <span class="tag">#專注</span>
+          <span class="tag">#番茄鐘</span>
+          <span class="tag">#iOS</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 系統卡 2 -->
+    <div class="win c-sys">
+      <div class="win-title">■ UFO 情報站 <span class="win-x">[X]</span></div>
+      <div class="win-body">
+        <div class="row between">
+          <span class="pill cyan">公開</span>
+          <span class="f-val">2026-06-05</span>
+        </div>
+        <div class="sysname">UFO 情報站</div>
+        <div class="summary">蒐集、驗證、地圖化全球不明飛行物目擊回報。</div>
+        <div class="rule">────────────────────────────────────</div>
+        <div>
+          <span class="tag">#情報</span>
+          <span class="tag">#地圖</span>
+          <span class="tag">#社群</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 系統卡 3 -->
+    <div class="win c-sys">
+      <div class="win-title">■ 寵物社交 App <span class="win-x">[X]</span></div>
+      <div class="win-body">
+        <div class="row between">
+          <span class="pill amber">私密</span>
+          <span class="f-val">2026-06-01</span>
+        </div>
+        <div class="sysname">寵物社交 App</div>
+        <div class="summary">幫毛孩約散步、配對玩伴，主人也能交朋友。</div>
+        <div class="rule">────────────────────────────────────</div>
+        <div>
+          <span class="tag">#寵物</span>
+          <span class="tag">#社交</span>
+          <span class="tag">#配對</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 畫面 2 — 系統身份證 -->
+  <!-- ============================================================ -->
+  <section data-screen="idcard">
+    <div class="screen-tag">▦ 畫面 2 — 系統身份證</div>
+
+    <div class="win">
+      <div class="win-title">■ 系統身份證 — 番茄鐘專注App <span class="win-x">[X]</span></div>
+      <div class="win-body">
+
+        <!-- 抬頭條 -->
+        <div class="idhead">
+          <span class="ico">⌂</span>
+          <span>番茄鐘專注App</span>
+          <span class="id-no">ID:#0007</span>
+        </div>
+
+        <!-- ① 一句話 / 目標用戶 — 深青 -->
+        <div class="sub s-def">
+          <div class="sub-h">① 定義 · 一句話 / 目標用戶</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">一句話</div><div class="f-val">用鎖機番茄鐘，把專注變成可量化的習慣。</div></div>
+            <div class="field"><div class="f-key">目標用戶</div><div class="f-val">易分心的學生、自由工作者、遠距上班族。</div></div>
+          </div>
+        </div>
+
+        <!-- ② 解決痛點 / 核心價值 — 琥珀 -->
+        <div class="sub s-idea">
+          <div class="sub-h">② 理念 · 解決痛點 / 核心價值</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">解決痛點</div><div class="f-val">想專心卻一直滑手機，意志力靠不住。</div></div>
+            <div class="field"><div class="f-key">核心價值</div><div class="f-val">強制鎖機 + 統計回饋，讓專注看得見、有成就感。</div></div>
+          </div>
+        </div>
+
+        <!-- ③ 競品 / 市場策略 / 商業模式 — 酒紅 -->
+        <div class="sub s-mkt">
+          <div class="sub-h">③ 市場 · 競品 / 市場策略 / 商業模式</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">市場策略</div><div class="f-val">先攻 iOS 學生族群，靠校園口碑與社群打卡擴散。</div></div>
+            <div class="field"><div class="f-key">商業模式</div><div class="f-val">免費基礎 + 月費解鎖深度報表與白名單。</div></div>
+            <div class="rule">────────────────────────────</div>
+            <div class="f-key">競品 / 參考</div>
+            <div class="src comp">🥊 Forest — 種樹專注法</div>
+            <div class="src art">📄 文章：番茄工作法 30 年</div>
+            <div class="src oss">🧰 開源：tomato-cli</div>
+          </div>
+        </div>
+
+        <!-- ④ 核心功能 — 森綠 -->
+        <div class="sub s-func">
+          <div class="sub-h">④ 功能 · 核心功能</div>
+          <div class="sub-b">
+            <ol class="feat">
+              <li>▶ 計時鎖機</li>
+              <li>▶ 統計報表</li>
+              <li>▶ 白名單 App</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- ⑤ 技術棧 — 靛紫 -->
+        <div class="sub s-tech">
+          <div class="sub-h">⑤ 技術 · 技術棧</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">name</div><div class="f-val">PomoLock</div></div>
+            <div class="field"><div class="f-key">前端</div><div class="f-val">SwiftUI</div></div>
+            <div class="field"><div class="f-key">後端</div><div class="f-val">Node.js</div></div>
+            <div class="field"><div class="f-key">APIs</div><div class="f-val">OpenAI、Live Activities</div></div>
+            <div class="field"><div class="f-key">資料庫</div><div class="f-val">SQLite</div></div>
+            <div class="field"><div class="f-key">Server</div><div class="f-val">Fly.io</div></div>
+            <div class="field"><div class="f-key">部署</div><div class="f-val">TestFlight</div></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 畫面 3 — Persona 定位卡 -->
+  <!-- ============================================================ -->
+  <section data-screen="persona">
+    <div class="screen-tag">▦ 畫面 3 — Persona 定位卡</div>
+
+    <div class="win c-mkt">
+      <div class="win-title">■ PERSONA — 番茄鐘專注App <span class="win-x">[X]</span></div>
+      <div class="win-body">
+
+        <!-- 分頁指示條 -->
+        <div class="pageind">
+          <button class="btn ghost">◀</button>
+          <span>◆ 第 1 張 / 共 2 張 ◆</span>
+          <button class="btn ghost">▶</button>
+        </div>
+
+        <!-- 規格化 8 欄位（小標按分類色：青/琥珀/酒紅/綠/紫） -->
+        <div class="sub s-def">
+          <div class="sub-h">A · 定義</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">1. 一句話</div><div class="f-val">給學生的鎖機番茄鐘，邊讀書邊養成專注習慣。</div></div>
+            <div class="field"><div class="f-key">2. 目標用戶</div><div class="f-val">高中與大學生，考試季最需要強制專注。</div></div>
+          </div>
+        </div>
+
+        <div class="sub s-idea">
+          <div class="sub-h">B · 理念</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">3. 解決痛點</div><div class="f-val">念書時忍不住滑社群，效率低又有罪惡感。</div></div>
+            <div class="field"><div class="f-key">4. 核心價值</div><div class="f-val">鎖機 + 同學排行榜，把專注變成可比較的遊戲。</div></div>
+          </div>
+        </div>
+
+        <div class="sub s-mkt">
+          <div class="sub-h">C · 市場</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">5. 市場策略</div><div class="f-val">以校系讀書會為單位導入，靠排行榜病毒擴散。</div></div>
+            <div class="field"><div class="f-key">6. 商業模式</div><div class="f-val">免費 + 班級訂閱方案，教師可開讀書房間。</div></div>
+          </div>
+        </div>
+
+        <div class="sub s-func">
+          <div class="sub-h">D · 功能</div>
+          <div class="sub-b">
+            <div class="field"><div class="f-key">7. 核心功能</div><div class="f-val">鎖機計時、同學排行榜、讀書房間、專注統計。</div></div>
+          </div>
+        </div>
+
+        <div class="sub s-tech">
+          <div class="sub-h">E · 技術</div>
+          <div class="sub-b">
+            <div class="field">
+              <div class="f-key">8. 技術棧</div>
+              <div class="f-val">SwiftUI / Node.js / SQLite / Fly.io
+                <span class="pill red">AI 推測待確認</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 三塊來源（按來源三軌色） -->
+        <div class="sub s-comp">
+          <div class="sub-h">🥊 競品</div>
+          <div class="sub-b">
+            <div class="src comp">🥊 Forest — 種樹專注法</div>
+            <div class="src comp">🥊 Flora — 多人一起種樹</div>
+          </div>
+        </div>
+
+        <div class="sub s-art">
+          <div class="sub-h">📄 相關文章</div>
+          <div class="sub-b">
+            <div class="src art">📄 文章：番茄工作法 30 年</div>
+            <div class="src art">📄 文章：學生專注力研究綜述</div>
+          </div>
+        </div>
+
+        <div class="sub s-oss">
+          <div class="sub-h">🧰 相關開源</div>
+          <div class="sub-b">
+            <div class="src oss">🧰 開源：tomato-cli</div>
+            <div class="src oss">🧰 開源：pomodoro-rs</div>
+          </div>
+        </div>
+
+        <!-- 底部操作列 -->
+        <div class="rule">────────────────────────────────────</div>
+        <div class="row mt">
+          <span class="prompt">C:\&gt;</span>
+          <input class="input" type="text" placeholder="想要什麼不一樣的？例如：更偏向學生族群">
+        </div>
+        <!-- 底部三鈕 -->
+        <div class="actbar mt">
+          <button class="btn danger sq">✕ 捨棄</button>
+          <button class="btn amber sq">＋ 再生成一張</button>
+          <button class="btn sq">✓ 選這個</button>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 畫面 4 — AI 教練對話 -->
+  <!-- ============================================================ -->
+  <section data-screen="coach">
+    <div class="screen-tag">▦ 畫面 4 — AI 教練對話</div>
+
+    <div class="win c-coach">
+      <div class="win-title">■ AI 教練 ▶ 對話中 <span class="win-x">[X]</span></div>
+      <div class="win-body">
+
+        <div class="bubble ai"><b>▶</b> 你的 App 主要想解決什麼問題？</div>
+        <div class="bubble user">想幫人專心，不要一直滑手機。</div>
+        <div class="bubble ai">
+          <b>▶</b> 了解！你比較偏向哪一種做法？
+          <div class="opt"><span><b>1.</b> 強制鎖機計時</span></div>
+          <div class="opt"><span><b>2.</b> 番茄鐘 + 統計</span></div>
+          <div class="opt"><span><b>3.</b> 朋友互相監督</span></div>
+          <div class="row end mt">
+            <button class="btn">✓ 確認送出</button>
+          </div>
+        </div>
+
+        <div class="rule">────────────────────────────────────</div>
+
+        <!-- 底部輸入列 -->
+        <div class="row mt">
+          <span class="prompt">C:\&gt;</span>
+          <input class="input" type="text" placeholder="輸入訊息…">
+          <button class="btn">送出 ▶</button>
+        </div>
+        <div class="ink-soft" style="font-size:11px;margin-top:4px;">游標待命 <span class="cur">█</span></div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 底功能鍵列 ===== -->
+  <div class="fnbar">
+    <div class="fn"><span class="fnkey">F1</span>說明</div>
+    <div class="fn"><span class="fnkey">F2</span>新增</div>
+    <div class="fn"><span class="fnkey">F3</span>搜尋</div>
+    <div class="fn"><span class="fnkey">F4</span>離開</div>
+  </div>
+
+  <!-- ===== 落款 ===== -->
+  <div class="foot">C:\BRAINSTORM\&gt; v0.1 — RETRO BUILD · 版本 D 色彩系統</div>
+
+  <!-- ===== 掃描線 ===== -->
+  <div class="scan"></div>
+
+</div>
+
+<script>
+// 時鐘（僅做時間顯示，可選）
+(function(){
+  var el=document.getElementById('clk');
+  function tick(){
+    var d=new Date();
+    var h=String(d.getHours()).padStart(2,'0');
+    var m=String(d.getMinutes()).padStart(2,'0');
+    if(el) el.textContent=h+':'+m;
+  }
+  tick();
+  setInterval(tick,1000);
+})();
+</script>
+</body>
+</html>
