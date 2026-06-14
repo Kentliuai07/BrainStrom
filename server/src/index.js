@@ -630,11 +630,63 @@ const PERSONA_CONTRACT = (n, market) => `任務：針對使用者的 App 靈感 
 3. 每個欄位 ≤2 句；tagline ≤20 字。技術棧不在此輸出（之後由使用者確認）。
 4. 你必須且只能呼叫 emit_personas 工具輸出，不要輸出其他文字。`;
 
-const buildPersonaSystem = (n, market) => [
-  { type: 'text', text: '你是 BrainStrom 的產品策略 AI。' },
-  { type: 'text', text: PERSONA_SKILL, cache_control: { type: 'ephemeral' } },
-  { type: 'text', text: PERSONA_CONTRACT(n, market) },
-];
+// 纯文字标签契约(取代工具 JSON)——这样 stream.on('text') 才有「真逐字」串流。
+const PERSONA_LABELED = (market) => `任務：針對使用者的 App 靈感 + 下方真實市場資料，設計「1 種」系統定位。目標市場：${market}，用該市場語言書寫。
+
+【輸出格式·務必嚴格遵守】只輸出純文字；禁止 JSON、禁止 markdown(不要 ** / 序號 / #)、禁止呼叫工具、禁止前言或結語。
+嚴格逐行輸出以下 8 行，每行「固定標籤：值」，標籤一字不差、用全形冒號「：」、標籤後不要加括號註記：
+一句話：(一句話簡介)
+目標用戶：(具體到某種人群)
+解決痛點：(解決的痛點)
+核心價值：(核心價值)
+市場策略：(市場進入策略)
+商業模式：(怎麼賺錢)
+核心功能：(2-4 點，用「、」分點寫在同一行)
+定位標籤：(≤20 字的標語)
+
+第一個字就先輸出「一句話：」那一行，先寫一句話再想其餘欄位，不要在心裡想完八欄才一起吐。
+每欄 ≤2 句。targetUser 與 painPoint 至少各引用一條下方真實搜尋結果當依據，不要憑空捏造。技術棧不在此輸出。`;
+
+// 标签别名白名单(繁简/同义容错)。
+const PERSONA_LABELS = {
+  oneLiner: ['一句話', '一句话', '一句話簡介', 'oneliner'],
+  targetUser: ['目標用戶', '目标用户', 'targetuser'],
+  painPoint: ['解決痛點', '解决痛点', '痛點', 'painpoint'],
+  coreValue: ['核心價值', '核心价值', 'corevalue'],
+  marketStrategy: ['市場策略', '市场策略', '市場進入策略', 'marketstrategy'],
+  businessModel: ['商業模式', '商业模式', 'businessmodel'],
+  coreFeatures: ['核心功能', 'corefeatures'],
+  tagline: ['定位標籤', '定位标签', '標籤', 'tagline', 'slogan', '標語'],
+};
+const PERSONA_LABEL_LOOKUP = (() => { const m = {}; for (const [k, ns] of Object.entries(PERSONA_LABELS)) for (const n of ns) m[n.toLowerCase()] = k; return m; })();
+
+// 把「8 行标签文字」解析回 8 栏位;兜底:没解析到 oneLiner→用第一行当 oneLiner(绝不产空卡)。
+function parsePersonaText(text) {
+  const out = {};
+  let cur = null;
+  for (const raw of String(text || '').split('\n')) {
+    const line = raw.replace(/^\s*(?:[-*•]|\d+[.、)]|#+)\s*/, '').replace(/\*\*/g, '').trim();
+    if (!line) continue;
+    const m = line.match(/^【?\s*([^:：]{1,24})\s*】?\s*[:：]\s*([\s\S]*)$/);
+    if (m) {
+      const key = PERSONA_LABEL_LOOKUP[m[1].replace(/[\s()（）]/g, '').toLowerCase()];
+      if (key) { cur = key; out[cur] = (m[2] || '').trim(); continue; }
+    }
+    if (cur) out[cur] = (out[cur] ? out[cur] + ' ' : '') + line;   // 续行接到当前栏位
+  }
+  if (!out.oneLiner) {   // 兜底
+    const first = String(text || '').split('\n').map(s => s.replace(/^\s*(?:[-*•]|\d+[.、)]|#+)\s*/, '').trim()).find(Boolean);
+    if (first) out.oneLiner = first.replace(/^[^:：]{1,24}[:：]\s*/, '');
+  }
+  return out;
+}
+
+const buildPersonaSystem = (n, market, isFirst = true) => {
+  const blocks = [{ type: 'text', text: '你是 BrainStrom 的產品策略 AI。' }];
+  if (isFirst) blocks.push({ type: 'text', text: PERSONA_SKILL, cache_control: { type: 'ephemeral' } });  // 大段方法论只首张注入(压 TTFT)
+  blocks.push({ type: 'text', text: PERSONA_LABELED(market) });
+  return blocks;
+};
 
 // 逐张生成：每次只产 1 张，必须跟「已有的几张」不同(沿未占用的差异化轴);reason=使用者要的方向。
 function buildPersonaUser(appName, oneLiner, search, { avoidCards = [], reason = '' } = {}) {
@@ -646,7 +698,7 @@ function buildPersonaUser(appName, oneLiner, search, { avoidCards = [], reason =
   s += fmt(search?.competitors, '商業競品');
   s += fmt(search?.articles, '相關文章');
   s += fmt(search?.openSource, '相關開源');
-  s += `\n\n--- 任務 ---\n請只產生「1 張」定位（emit_personas 的 personas 陣列只放 1 個）。請先完整輸出 oneLiner，再輸出其餘欄位。`;
+  s += `\n\n--- 任務 ---\n請只產生「1 張」定位，嚴格用上面的 8 行「標籤：值」純文字格式，第一個字就開始寫「一句話：」那一行，不要呼叫工具、不要 JSON、不要 markdown。`;
   if (Array.isArray(avoidCards) && avoidCards.length) {
     s += `\n必須明顯不同於以下已有 ${avoidCards.length} 張（換一個它們「未占用」的差異化軸，別重複人群/商業模式/場景/價格帶）：\n`
       + avoidCards.map((c, i) => `${i + 1}. ${c?.tagline || ''}｜${c?.oneLiner || ''}｜客群:${c?.targetUser || ''}｜商業:${c?.businessModel || ''}`).join('\n');
@@ -657,37 +709,31 @@ function buildPersonaUser(appName, oneLiner, search, { avoidCards = [], reason =
   return s;
 }
 
-// 生成「1 张」定位并逐字串流：emit card_start{index}→delta{index}(oneLiner 增量)→card_done{index}，回传该卡(供下张避重)。
-// hb 为 call 局部心跳(避免与主循环 double-clear)；首个 card_start 即停心跳。
-async function generateOnePersona(res, emit, ac, { index, search, marketName, avoidCards, reason, appName, oneLiner }) {
-  // 立刻发 card_start → 前端马上显示这张卡的「生成中…」壳子(边看边生),不让使用者干等。
+// 生成「1 张」定位并「真逐字」串流：card_start→stream.on('text') 逐字 emit delta→finalMessage 全文解析回 8 栏位→card_done。
+// 改用纯文字标签格式(非工具 JSON)才拿得到 char-by-char(SDK 工具 JSON 字串栏位写完才解析得出，无法逐字)。
+async function generateOnePersona(res, emit, ac, { index, search, marketName, avoidCards, reason, appName, oneLiner, isFirst }) {
   emit({ type: 'card_start', index, cardType: 'persona', title: `定位 ${index + 1}` });
-  // 心跳保活整张生成期(工具 JSON ~20s 才解析得出,期间静默会被 Fly idle 掐线)。
+  // 心跳：首段文字一到就停(已有逐字保活)；纯保「思考到首字」那段空窗。
   let hb = setInterval(() => { if (!res.writableEnded) emit({ type: 'progress', message: 'AI 構思定位中…' }); }, 2500);
-  let lastOL = '';
+  let full = '';
   try {
     const stream = anthropic.messages.stream({
-      model: MODEL, max_tokens: 1400, temperature: 0.85,
-      system: buildPersonaSystem(1, marketName),
-      tools: [makePersonasTool(1)], tool_choice: { type: 'tool', name: 'emit_personas' },
+      model: MODEL, max_tokens: 1800,
+      ...(/opus/i.test(MODEL) ? {} : { temperature: 0.85 }),   // opus 不吃 temperature
+      system: buildPersonaSystem(1, marketName, isFirst !== false),
       messages: [{ role: 'user', content: buildPersonaUser(appName, oneLiner, search, { avoidCards, reason }) }],
     }, { signal: ac.signal });
-    stream.on('inputJson', (_partial, snap) => {
-      const arr = (snap && Array.isArray(snap.personas)) ? snap.personas : null;
-      if (!arr || !arr.length) return;
-      const ol = (typeof arr[0]?.oneLiner === 'string') ? arr[0].oneLiner : '';
-      if (ol.length > lastOL.length && ol.startsWith(lastOL)) {
-        const inc = ol.slice(lastOL.length);
-        if (inc) emit({ type: 'delta', index, text: inc });
-        lastOL = ol;
-      }
+    stream.on('text', (t) => {
+      if (!t) return;
+      if (hb) { clearInterval(hb); hb = null; }
+      full += t;
+      emit({ type: 'delta', index, text: t });   // 真逐字!
     });
     const final = await stream.finalMessage();
     if (hb) { clearInterval(hb); hb = null; }
-    const tu = (final.content || []).find(c => c.type === 'tool_use' && c.name === 'emit_personas');
-    const p = (tu && Array.isArray(tu.input?.personas)) ? tu.input.personas[0] : null;
-    if (!p) { emit({ type: 'error', code: 'ai_format', error: 'AI 未回传 emit_personas' }); return null; }
-    const card = pickKeys(p, PERSONA_CARD_KEYS);
+    const fullText = full || (final.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+    const card = pickKeys(parsePersonaText(fullText), PERSONA_CARD_KEYS);   // 全文解析回 8 栏位(含 oneLiner 兜底)
+    if (!card.oneLiner) { emit({ type: 'error', code: 'ai_format', error: '解析失敗' }); return null; }
     emit({ type: 'card_done', index, card });
     if (final.stop_reason === 'max_tokens') emit({ type: 'error', code: 'ai_truncated', error: '內容過長被截斷' });
     return card;
@@ -744,6 +790,7 @@ async function handleGeneratePersonas(req, res, payload) {
       emit({ type: 'progress', current: i, total: n, message: n > 1 ? `AI 生成第 ${i + 1}/${n} 張…` : 'AI 設計定位中…' });
       const card = await generateOnePersona(res, emit, ac, {
         index, search, marketName: cm.marketName, avoidCards: avoid, reason, appName, oneLiner,
+        isFirst: (mode === 'batch' && i === 0),   // 大段方法论只首张注入(压 TTFT)
       });
       if (card) avoid.push(card);   // 下一张避开这张
     }

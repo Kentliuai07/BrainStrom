@@ -201,7 +201,7 @@ struct PersonaBatchView: View {
                         ProgressView().controlSize(.mini).tint(palette.orange)
                         Text(String(localized: "生成中…")).font(Tokens.Fonts.body(12)).foregroundStyle(palette.print3)
                     }
-                    Text(i == vm.current ? vm.typewriter.shown : vm.drafts[i])
+                    Text(Self.stripPersonaLabels(i == vm.current ? vm.typewriter.shown : vm.drafts[i]))
                         .font(Tokens.Fonts.body(15)).foregroundStyle(palette.print)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -211,6 +211,25 @@ struct PersonaBatchView: View {
             .hardwareCard()
             .padding(.horizontal, 16).padding(.bottom, 30)
         }
+    }
+
+    /// 串流中把「标签：值」的标签去掉，只显示值（逐字时不让使用者看到「一句話：」等字面、不闪半截标签）。
+    static let personaLabels = ["一句話", "目標用戶", "解決痛點", "核心價值", "市場策略", "商業模式", "核心功能", "定位標籤"]
+    static func stripPersonaLabels(_ text: String) -> String {
+        var lines: [String] = []
+        for raw in text.components(separatedBy: "\n") {
+            var line = raw
+            for lb in personaLabels {
+                if line.hasPrefix(lb + "：") { line = String(line.dropFirst(lb.count + 1)); break }
+                if line.hasPrefix(lb + ":") { line = String(line.dropFirst(lb.count + 1)); break }
+            }
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty { continue }
+            // 尾行只是半截标签(还没冒号)→跳过，避免「目標」一闪
+            if !raw.contains("："), !raw.contains(":"), personaLabels.contains(where: { $0.hasPrefix(trimmed) }) { continue }
+            lines.append(line)
+        }
+        return lines.joined(separator: "\n")
     }
 
     private func field(_ label: String, _ value: String) -> some View {
